@@ -299,7 +299,7 @@ export function restoreDocumentWorkspace(): DocumentWorkspaceState {
       activeDocumentId: tabs.some((tab) => tab.documentId === parsed.activeDocumentId) ? parsed.activeDocumentId : tabs[0]?.documentId ?? null,
       recentlyClosed: (parsed.recentlyClosed ?? []).filter((tab) => typeof tab.documentId === "string").map(restoredTab).slice(0, MAX_RECENTLY_CLOSED),
       drafts,
-      view: parsed.view ?? "files"
+      view: "files" // Writer-Lab: завжди відкриватись у повному дереві; «Нещодавні» — свідомий вибір у сесії
     };
   } catch {
     return fallback;
