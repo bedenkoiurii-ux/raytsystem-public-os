@@ -27,11 +27,11 @@ export class ErrorBoundary extends Component<Props, State> {
       <section className="render-failure panel" role="alert">
         <AlertTriangle size={22} />
         <div>
-          <strong>Не удалось безопасно отобразить раздел «{this.props.label}».</strong>
-          <p>Локальные данные не изменены. Перезагрузите проверенный срез, чтобы продолжить.</p>
+          <strong>Не вдалося безпечно відобразити розділ «{this.props.label}».</strong>
+          <p>Локальні дані не змінено. Перезавантажте перевірений зріз, щоб продовжити.</p>
         </div>
         <button className="secondary-button" type="button" onClick={() => window.location.reload()}>
-          <RefreshCw size={15} /> Перезагрузить
+          <RefreshCw size={15} /> Перезавантажити
         </button>
       </section>
     );

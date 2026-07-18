@@ -115,13 +115,13 @@ function countDocuments(folder: TreeFolder): number {
 
 function flattenTree(folder: TreeFolder, expanded: ReadonlySet<string>, depth = 1, parentId: string | null = null): VisibleEntry[] {
   const entries: VisibleEntry[] = [];
-  const folders = [...folder.folders.values()].sort((a, b) => a.name.localeCompare(b.name, "ru-RU"));
+  const folders = [...folder.folders.values()].sort((a, b) => a.name.localeCompare(b.name, "uk-UA"));
   for (const child of folders) {
     const isExpanded = expanded.has(child.id);
     entries.push({ id: child.id, type: "folder", name: child.name, depth, parentId, expanded: isExpanded, folder: child, count: countDocuments(child) });
     if (isExpanded) entries.push(...flattenTree(child, expanded, depth + 1, child.id));
   }
-  for (const document of [...folder.documents].sort((a, b) => a.filename.localeCompare(b.filename, "ru-RU"))) {
+  for (const document of [...folder.documents].sort((a, b) => a.filename.localeCompare(b.filename, "uk-UA"))) {
     entries.push({ id: document.document_id, type: "document", name: document.title || document.filename, depth, parentId, document });
   }
   return entries;
@@ -207,13 +207,13 @@ export function DocumentTree({ documents, folders = [], roots = [], selectedDocu
     }
   };
 
-  if (!documents.length && !folders.length && !roots.length && !loading) return <div className="doc-tree-empty">Разрешённые документы не найдены.</div>;
+  if (!documents.length && !folders.length && !roots.length && !loading) return <div className="doc-tree-empty">Дозволені документи не знайдено.</div>;
   return (
     <div
       ref={viewportRef}
       className="doc-tree-viewport"
       role="tree"
-      aria-label="Файлы документного workspace"
+      aria-label="Файли документного workspace"
       aria-busy={loading || undefined}
       onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
     >
@@ -229,7 +229,7 @@ export function DocumentTree({ documents, folders = [], roots = [], selectedDocu
               data-tree-id={entry.id}
               data-clickable="true"
               role="treeitem"
-              aria-label={entry.type === "folder" ? `${entry.name}, ${entry.count ?? 0} документов` : undefined}
+              aria-label={entry.type === "folder" ? `${entry.name}, ${entry.count ?? 0} документів` : undefined}
               aria-level={entry.depth}
               aria-expanded={entry.type === "folder" ? entry.expanded : undefined}
               aria-selected={entry.type === "document" ? selected : undefined}
@@ -243,10 +243,10 @@ export function DocumentTree({ documents, folders = [], roots = [], selectedDocu
               {entry.type === "folder" ? <ChevronRight className={entry.expanded ? "expanded" : ""} size={14} aria-hidden="true" /> : <span className="doc-tree-chevron" />}
               {entry.type === "folder" ? (entry.expanded ? <FolderOpen size={15} aria-hidden="true" /> : <Folder size={15} aria-hidden="true" />) : <FileText size={15} aria-hidden="true" />}
               <span title={entry.document?.path ?? entry.folder?.workspacePath}>{entry.name}</span>
-              {entry.type === "folder" ? <small className="doc-tree-count" aria-label={`${entry.count ?? 0} документов`}>{entry.count ?? 0}</small> : null}
-              {entry.folder?.mode === "protected_read_only" ? <Shield size={13} aria-label="Защищено" /> : entry.folder?.mode === "read_only" ? <LockKeyhole size={13} aria-label="Только чтение" /> : null}
-              {entry.document?.mode === "protected_read_only" ? <Shield size={13} aria-label="Защищено" /> : entry.document && !entry.document.can_edit ? <LockKeyhole size={13} aria-label="Только чтение" /> : null}
-              {entry.document?.is_modified ? <i className="doc-tree-modified" aria-label="Изменён" /> : null}
+              {entry.type === "folder" ? <small className="doc-tree-count" aria-label={`${entry.count ?? 0} документів`}>{entry.count ?? 0}</small> : null}
+              {entry.folder?.mode === "protected_read_only" ? <Shield size={13} aria-label="Захищено" /> : entry.folder?.mode === "read_only" ? <LockKeyhole size={13} aria-label="Лише читання" /> : null}
+              {entry.document?.mode === "protected_read_only" ? <Shield size={13} aria-label="Захищено" /> : entry.document && !entry.document.can_edit ? <LockKeyhole size={13} aria-label="Лише читання" /> : null}
+              {entry.document?.is_modified ? <i className="doc-tree-modified" aria-label="Змінено" /> : null}
             </div>
           );
         })}

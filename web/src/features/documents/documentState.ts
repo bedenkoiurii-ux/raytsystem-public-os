@@ -128,7 +128,7 @@ export function documentWorkspaceReducer(
       if (restored?.dirty) {
         const unchangedBase = restored.baseSha256 === content_sha256;
         const driftWarning = restored.baseSha256 !== content_sha256
-          ? ["Файл изменился после сохранения session draft. Сохранение потребует ручного merge."]
+          ? ["Файл змінився після збереження session draft. Збереження потребуватиме ручного merge."]
           : [];
         return {
           ...state,

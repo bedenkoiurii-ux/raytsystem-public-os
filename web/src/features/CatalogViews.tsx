@@ -18,8 +18,8 @@ function CatalogShell({
   return (
     <div className="route route-list">
       <div className="route-tools">
-        <label className="search-field"><Search size={16} /><input aria-label="Фильтр разрешённого каталога" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Фильтр разрешённого каталога" /></label>
-        <span className="inert-badge"><ShieldCheck size={14} /> пассивные определения</span>
+        <label className="search-field"><Search size={16} /><input aria-label="Фільтр дозволеного каталогу" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Фільтр дозволеного каталогу" /></label>
+        <span className="inert-badge"><ShieldCheck size={14} /> пасивні визначення</span>
       </div>
       {children}
     </div>
@@ -33,12 +33,12 @@ export function Context({ onSelect }: { onSelect: (selection: Selection) => void
     () => (catalog.data?.instructions ?? []).filter((document) => `${document.label} ${localizedCatalogLabel(document.document_id, document.label)} ${document.kind}`.toLowerCase().includes(query.toLowerCase())),
     [catalog.data?.instructions, query]
   );
-  if (catalog.isLoading) return <LoadingState label="Читаем отпечатки документов контекста…" />;
+  if (catalog.isLoading) return <LoadingState label="Читаємо відбитки документів контексту…" />;
   if (catalog.isError) return <ErrorState error={catalog.error} />;
   return (
     <CatalogShell query={query} setQuery={setQuery}>
-      <section className="context-intro panel"><Sparkles size={20} /><div><span className="eyebrow">Точный контекст виден заранее</span><h3>Проверьте, что может получить агент, ещё до появления среды выполнения.</h3></div></section>
-      {!documents.length ? <EmptyState title={query ? "Документы не найдены" : "Нет разрешённых документов с инструкциями"} action={query ? <button className="secondary-button" type="button" onClick={() => setQuery("")}>Сбросить фильтр</button> : undefined}>{query ? "Измените запрос или сбросьте фильтр." : "Кандидатами корневого контекста могут быть только AGENTS.md, WORK.md и CLAUDE.md."}</EmptyState> : (
+      <section className="context-intro panel"><Sparkles size={20} /><div><span className="eyebrow">Точний контекст видно заздалегідь</span><h3>Перевірте, що може отримати агент, ще до появи середовища виконання.</h3></div></section>
+      {!documents.length ? <EmptyState title={query ? "Документи не знайдено" : "Немає дозволених документів з інструкціями"} action={query ? <button className="secondary-button" type="button" onClick={() => setQuery("")}>Скинути фільтр</button> : undefined}>{query ? "Змініть запит або скиньте фільтр." : "Кандидатами кореневого контексту можуть бути лише AGENTS.md, WORK.md і CLAUDE.md."}</EmptyState> : (
         <div className="context-grid">
           {documents.map((document) => (
             <button
@@ -50,7 +50,7 @@ export function Context({ onSelect }: { onSelect: (selection: Selection) => void
                 kind: "instruction",
                 label: localizedCatalogLabel(document.document_id, document.label),
                 status: document.sensitivity,
-                subtitle: "Документ инструкций",
+                subtitle: "Документ інструкцій",
                 metadata: {
                   sha256: document.content_sha256,
                   size_bytes: String(document.size_bytes),
@@ -60,7 +60,7 @@ export function Context({ onSelect }: { onSelect: (selection: Selection) => void
               })}
             >
               <span className="catalog-icon context"><FileKey2 size={20} /></span>
-              <span className="eyebrow">документ инструкций</span>
+              <span className="eyebrow">документ інструкцій</span>
               <h3>{localizedCatalogLabel(document.document_id, document.label)}</h3>
               <code>{shortId(document.content_sha256, 11, 8)}</code>
               <footer><span>{Math.ceil(document.size_bytes / 1024)} KB</span><StatusPill status={document.sensitivity} /></footer>

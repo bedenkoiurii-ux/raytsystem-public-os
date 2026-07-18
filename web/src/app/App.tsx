@@ -232,7 +232,7 @@ export function App() {
   }, [guardNavigation]);
 
   const groups = useMemo(
-    () => ["Пространство", "Оркестрация", "Реестр", "Доверие"].map((group) => ({
+    () => ["Простір", "Оркестрація", "Реєстр", "Довіра"].map((group) => ({
       group,
       routes: routeKeys.filter((key) => routeMeta[key].group === group)
     })),
@@ -260,16 +260,16 @@ export function App() {
   const emergencyBlocked = Boolean(platform.data?.emergency_state?.active_actions?.length);
   const runtimeEnabled = Boolean(execution.data?.features?.runtime_execution_enabled) && !emergencyBlocked;
   const runtimeLabel = execution.isError
-    ? "состояние выполнения недоступно"
+    ? "стан виконання недоступний"
     : execution.isLoading
-      ? "проверяем выполнение"
+      ? "перевіряємо виконання"
       : runtimeEnabled
-        ? "выполнение включено"
-        : "выполнение отключено";
+        ? "виконання увімкнено"
+        : "виконання вимкнено";
   const themeIcon = theme === "dark" ? <MoonStar size={17} /> : theme === "light" ? <Sun size={17} /> : <Gauge size={17} />;
   return (
     <div className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""} ${selection ? "has-inspector" : ""}`}>
-      <aside className="sidebar" aria-label="Основная навигация">
+      <aside className="sidebar" aria-label="Основна навігація">
         <div className="brand">
           <span className="brand-mark" aria-hidden="true">
             <svg viewBox="-1 51 341 240" xmlns="http://www.w3.org/2000/svg" role="img">
@@ -277,8 +277,8 @@ export function App() {
               <path d="M-0.647949 247.767V214.048L110.39 161.318C113.204 159.981 126.018 153.442 128.048 152.513C125.934 151.563 113.219 145.453 110.39 144.1L-0.647949 91.0115V56.2168L157.353 132.981V171.003L-0.647949 247.767Z" fill="currentColor" />
             </svg>
           </span>
-          <span className="brand-copy"><img className="brand-wordmark" src={brandWordmarkUrl} alt="система райта" /><small>агентная система</small></span>
-          <button className="collapse-sidebar" type="button" onClick={() => setSidebarCollapsed((value) => !value)} aria-label={sidebarCollapsed ? "Развернуть навигацию" : "Свернуть навигацию"}><ChevronLeft size={16} /></button>
+          <span className="brand-copy"><img className="brand-wordmark" src={brandWordmarkUrl} alt="система райта" /><small>агентна система</small></span>
+          <button className="collapse-sidebar" type="button" onClick={() => setSidebarCollapsed((value) => !value)} aria-label={sidebarCollapsed ? "Розгорнути навігацію" : "Згорнути навігацію"}><ChevronLeft size={16} /></button>
         </div>
         <nav>
           {groups.map(({ group, routes }) => (
@@ -297,7 +297,7 @@ export function App() {
           ))}
         </nav>
         <div className="sidebar-foot">
-          <div className="local-card"><span className="local-orb"><Database size={16} /></span><span><strong>Локальное пространство</strong><small><i /> проверенный срез</small></span></div>
+          <div className="local-card"><span className="local-orb"><Database size={16} /></span><span><strong>Локальний простір</strong><small><i /> перевірений зріз</small></span></div>
           <button type="button" onClick={() => navigate("safety")}><ShieldCheck size={16} /><span>{runtimeLabel}</span></button>
         </div>
       </aside>
@@ -306,55 +306,55 @@ export function App() {
         <header className="topbar" data-testid="topbar">
           <div className="topbar-title"><span className="eyebrow">{current.group}</span><h1>{current.label}</h1><p>{current.description}</p></div>
           <div className="topbar-actions">
-            <button className="command-trigger" type="button" onClick={() => setPaletteOpen(true)}><Search size={16} /><span>Палитра команд</span><kbd>⌘ K</kbd></button>
+            <button className="command-trigger" type="button" onClick={() => setPaletteOpen(true)}><Search size={16} /><span>Палітра команд</span><kbd>⌘ K</kbd></button>
             <span className="top-local"><i /><span>ЛОКАЛЬНО</span></span>
-            <button className="icon-button" type="button" onClick={() => setTheme(theme === "dark" ? "light" : theme === "light" ? "contrast" : "dark")} aria-label="Сменить цветовую тему" title={`Тема: ${theme === "dark" ? "тёмная" : theme === "light" ? "светлая" : "контрастная"}`}>{themeIcon}</button>
-            {selection ? <button className="icon-button inspector-toggle" type="button" onClick={() => setSelection(null)} aria-label="Закрыть инспектор"><PanelRightClose size={18} /></button> : <button className="icon-button inspector-toggle" type="button" disabled aria-label="Объект не выбран"><PanelRightOpen size={18} /></button>}
+            <button className="icon-button" type="button" onClick={() => setTheme(theme === "dark" ? "light" : theme === "light" ? "contrast" : "dark")} aria-label="Змінити колірну тему" title={`Тема: ${theme === "dark" ? "темна" : theme === "light" ? "світла" : "контрастна"}`}>{themeIcon}</button>
+            {selection ? <button className="icon-button inspector-toggle" type="button" onClick={() => setSelection(null)} aria-label="Закрити інспектор"><PanelRightClose size={18} /></button> : <button className="icon-button inspector-toggle" type="button" disabled aria-label="Об'єкт не вибрано"><PanelRightOpen size={18} /></button>}
           </div>
         </header>
         <main ref={mainContentRef} id="main-content" className="main-content" tabIndex={0}>
           {platform.data?.emergency_state?.active_actions?.length ? (
             <aside className="global-emergency" role="alert">
               <ShieldCheck size={17} aria-hidden="true" />
-              <strong>Аварийный контур активен</strong>
+              <strong>Аварійний контур активний</strong>
               <span>{platform.data.emergency_state.active_actions.join(" · ")}</span>
-              <span className="status-pill status-blocked"><i className="status-shape" />выполнение заблокировано</span>
+              <span className="status-pill status-blocked"><i className="status-shape" />виконання заблоковано</span>
             </aside>
           ) : null}
           <ErrorBoundary key={route} label={current.label}>{page}</ErrorBoundary>
         </main>
         <footer className="activity-strip">
-          <span><Activity size={13} /><i /> проверено</span>
-          <span>знания <code>{shortId(system.data?.fingerprint.knowledge_generation_id)}</code></span>
-          <span>задачи <code>{shortId(system.data?.fingerprint.task_generation_id)}</code></span>
+          <span><Activity size={13} /><i /> перевірено</span>
+          <span>знання <code>{shortId(system.data?.fingerprint.knowledge_generation_id)}</code></span>
+          <span>завдання <code>{shortId(system.data?.fingerprint.task_generation_id)}</code></span>
           <span>каталог <code>{shortId(system.data?.fingerprint.catalog_sha256)}</code></span>
           <span className="activity-boundary"><ShieldCheck size={13} /> {runtimeLabel}</span>
         </footer>
       </section>
 
-      <ErrorBoundary key={`${selection?.kind ?? "none"}:${selection?.id ?? "none"}:${selection?.snapshotId ?? "none"}`} label="Инспектор">
+      <ErrorBoundary key={`${selection?.kind ?? "none"}:${selection?.id ?? "none"}:${selection?.snapshotId ?? "none"}`} label="Інспектор">
         <Inspector selection={selection} onClose={() => setSelection(null)} onSelect={setSelection} onCreateTask={openCreateTask} />
       </ErrorBoundary>
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} onNavigate={navigate} onSelect={setSelection} onCreateTask={openCreateTask} />
       {navigationConfirmOpen ? (
         <Dialog className="small-modal panel" role="alertdialog" labelledBy="leave-editor-title" describedBy="leave-editor-description" closeOnBackdrop={false} initialFocus="cancel" onClose={() => { pendingNavigationRef.current = null; setNavigationConfirmOpen(false); }}>
-          <header><div><span className="eyebrow">Несохранённые изменения</span><h2 id="leave-editor-title">Покинуть редактор?</h2></div></header>
-          <p id="leave-editor-description">Несохранённые изменения останутся только в текущем браузерном состоянии и могут быть потеряны после ухода со страницы.</p>
-          <footer><button type="button" data-dialog-cancel onClick={() => { pendingNavigationRef.current = null; setNavigationConfirmOpen(false); }}>Продолжить редактирование</button><button className="danger-button" type="button" onClick={() => { const action = pendingNavigationRef.current; pendingNavigationRef.current = null; setNavigationConfirmOpen(false); action?.(); }}>Покинуть без сохранения</button></footer>
+          <header><div><span className="eyebrow">Незбережені зміни</span><h2 id="leave-editor-title">Покинути редактор?</h2></div></header>
+          <p id="leave-editor-description">Незбережені зміни залишаться лише в поточному стані браузера і можуть бути втрачені після виходу зі сторінки.</p>
+          <footer><button type="button" data-dialog-cancel onClick={() => { pendingNavigationRef.current = null; setNavigationConfirmOpen(false); }}>Продовжити редагування</button><button className="danger-button" type="button" onClick={() => { const action = pendingNavigationRef.current; pendingNavigationRef.current = null; setNavigationConfirmOpen(false); action?.(); }}>Покинути без збереження</button></footer>
         </Dialog>
       ) : null}
 
-      <nav className="mobile-nav" aria-label="Мобильная навигация">
+      <nav className="mobile-nav" aria-label="Мобільна навігація">
         {(["command-center", "documents", "tasks", "universe"] as RouteKey[]).map((key) => {
           const Icon = routeMeta[key].icon;
-          const mobileLabel = key === "command-center" ? "Главная" : key === "universe" ? "Граф" : routeMeta[key].label;
+          const mobileLabel = key === "command-center" ? "Головна" : key === "universe" ? "Граф" : routeMeta[key].label;
           return <button type="button" className={route === key ? "active" : ""} key={key} onClick={() => navigate(key)}><Icon size={19} /><span>{mobileLabel}</span></button>;
         })}
-        <button type="button" className={mobileMore ? "active" : ""} onClick={() => setMobileMore(true)}><Menu size={19} /><span>Ещё</span></button>
+        <button type="button" className={mobileMore ? "active" : ""} onClick={() => setMobileMore(true)}><Menu size={19} /><span>Ще</span></button>
       </nav>
       {mobileMore ? (
-        <Dialog className="mobile-more-sheet" backdropClassName="mobile-more modal-backdrop" label="Дополнительная навигация" onClose={() => setMobileMore(false)}>
-            <header><strong>Ещё</strong><button className="icon-button" type="button" onClick={() => setMobileMore(false)} aria-label="Закрыть"><X size={18} /></button></header>
+        <Dialog className="mobile-more-sheet" backdropClassName="mobile-more modal-backdrop" label="Додаткова навігація" onClose={() => setMobileMore(false)}>
+            <header><strong>Ще</strong><button className="icon-button" type="button" onClick={() => setMobileMore(false)} aria-label="Закрити"><X size={18} /></button></header>
             {(["handbook", "onboarding", "runs", "agents", "skills", "context", "safety", "systems"] as RouteKey[]).map((key) => {
               const Icon = routeMeta[key].icon;
               return <button type="button" key={key} onClick={() => navigate(key)}><Icon size={19} /><span><strong>{routeMeta[key].label}</strong><small>{routeMeta[key].description}</small></span></button>;

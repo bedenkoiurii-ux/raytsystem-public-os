@@ -73,7 +73,7 @@ export default function SourceEditor({
       EditorState.readOnly.of(readOnly),
       EditorView.lineWrapping,
       EditorView.contentAttributes.of({
-        "aria-label": "Исходный Markdown",
+        "aria-label": "Вихідний Markdown",
         "aria-multiline": "true",
         spellcheck: "true"
       }),
@@ -109,5 +109,5 @@ export default function SourceEditor({
 
   return nonce && lineSeparator
     ? <div className="doc-source-editor" data-editor-scope="source" data-line-numbers={lineNumbers ? "visible" : "hidden"} ref={hostRef} />
-    : <div className="doc-visual-unavailable" role="alert"><strong>Source editor не открыт</strong><p>{!nonce ? "Страница не содержит CSP nonce локальной сессии. raytsystem не создаёт style sheet без разрешённого nonce." : "Документ содержит смешанные или одиночные CR line endings. Редактирование заблокировано, чтобы CodeMirror не нормализовал исходные bytes."}</p></div>;
+    : <div className="doc-visual-unavailable" role="alert"><strong>Source editor не відкрито</strong><p>{!nonce ? "Сторінка не містить CSP nonce локальної сесії. raytsystem не створює style sheet без дозволеного nonce." : "Документ містить змішані або поодинокі CR line endings. Редагування заблоковано, щоб CodeMirror не нормалізував вихідні bytes."}</p></div>;
 }

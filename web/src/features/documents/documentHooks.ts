@@ -56,7 +56,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
     throw new DocumentApiError(
       response.status,
       payload.error?.code ?? "document_request_failed",
-      payload.error?.message ?? "Документный workspace не ответил на запрос.",
+      payload.error?.message ?? "Документний workspace не відповів на запит.",
       payload.error?.details
     );
   }

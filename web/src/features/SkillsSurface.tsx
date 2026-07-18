@@ -61,7 +61,7 @@ export function SkillsSurface() {
   };
 
   const filtered = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase("ru-RU");
+    const needle = query.trim().toLocaleLowerCase("uk-UA");
     if (!needle) return skillsQuery.data?.skills ?? [];
     return (skillsQuery.data?.skills ?? []).filter((skill) => {
       const relatedAgents = skill.related_agents.flatMap((agent) => [agent.agent_id, agent.name, agent.role, roleLabel(agent.role)]);
@@ -77,7 +77,7 @@ export function SkillsSurface() {
         skill.sensitivity,
         ...skill.permissions,
         ...relatedAgents
-      ].join(" ").toLocaleLowerCase("ru-RU").includes(needle);
+      ].join(" ").toLocaleLowerCase("uk-UA").includes(needle);
     });
   }, [query, skillsQuery.data?.skills]);
 
@@ -97,15 +97,15 @@ export function SkillsSurface() {
       ) : (
         <>
           <div className="route-tools skill-list-tools">
-            <label className="search-field"><Search size={16} /><input aria-label="Поиск skills" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Имя, ID, описание, pack, permission или агент" /></label>
-            <span className="inert-badge"><ShieldCheck size={14} /> Markdown остаётся inert data</span>
+            <label className="search-field"><Search size={16} /><input aria-label="Пошук skills" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Ім'я, ID, опис, pack, permission або агент" /></label>
+            <span className="inert-badge"><ShieldCheck size={14} /> Markdown залишається inert data</span>
           </div>
 
-          {skillsQuery.isLoading ? <LoadingState label="Проверяем каталог и policy skills…" /> : null}
+          {skillsQuery.isLoading ? <LoadingState label="Перевіряємо каталог і policy skills…" /> : null}
           {skillsQuery.isError ? <ErrorState error={skillsQuery.error} onRetry={() => void skillsQuery.refetch()} /> : null}
           {!skillsQuery.isLoading && !skillsQuery.isError && !filtered.length ? (
-            <EmptyState title={query ? "Skills не найдены" : "Нет разрешённых skills"} action={query ? <button className="secondary-button" type="button" onClick={() => setQuery("")}>Сбросить поиск</button> : undefined}>
-              {query ? "Измените запрос или проверьте канонический skill_id." : "Skills появляются только из разрешённого workspace-каталога."}
+            <EmptyState title={query ? "Skills не знайдено" : "Немає дозволених skills"} action={query ? <button className="secondary-button" type="button" onClick={() => setQuery("")}>Скинути пошук</button> : undefined}>
+              {query ? "Змініть запит або перевірте канонічний skill_id." : "Skills з'являються лише з дозволеного workspace-каталогу."}
             </EmptyState>
           ) : null}
 
@@ -120,25 +120,25 @@ export function SkillsSurface() {
                   </header>
                   <p>{catalogDescription(skill.skill_id, skill.description)}</p>
                   <dl>
-                    <div><dt>Доверие</dt><dd>{statusLabel(skill.trust_class)}</dd></div>
-                    <div><dt>Чувствительность</dt><dd>{statusLabel(skill.sensitivity)}</dd></div>
-                    <div><dt>Разрешения</dt><dd title={skill.permissions.join(", ")}>{skill.permissions.length}{skill.permissions.length ? ` · ${skill.permissions.join(", ")}` : " · не объявлены"}</dd></div>
-                    <div><dt>Источник</dt><dd><code>{shortId(skill.source_sha256, 8, 5)}</code></dd></div>
+                    <div><dt>Довіра</dt><dd>{statusLabel(skill.trust_class)}</dd></div>
+                    <div><dt>Чутливість</dt><dd>{statusLabel(skill.sensitivity)}</dd></div>
+                    <div><dt>Дозволи</dt><dd title={skill.permissions.join(", ")}>{skill.permissions.length}{skill.permissions.length ? ` · ${skill.permissions.join(", ")}` : " · не оголошені"}</dd></div>
+                    <div><dt>Джерело</dt><dd><code>{shortId(skill.source_sha256, 8, 5)}</code></dd></div>
                   </dl>
-                  <div className="skill-card-relations"><Users size={14} /><span>{skill.related_agents.length ? skill.related_agents.map((agent) => agent.name).join(", ") : "Не назначен агентам"}</span></div>
+                  <div className="skill-card-relations"><Users size={14} /><span>{skill.related_agents.length ? skill.related_agents.map((agent) => agent.name).join(", ") : "Не призначений агентам"}</span></div>
                   <footer>
                     <span className={`skill-editability ${skill.policy.editable ? "editable" : "read-only"}`}>
-                      {skill.policy.editable ? <><Pencil size={13} />Редактируемый</> : skill.policy.forkable ? <><Copy size={13} />Только чтение · можно копировать</> : <><FileText size={13} />Только чтение</>}
+                      {skill.policy.editable ? <><Pencil size={13} />Редагований</> : skill.policy.forkable ? <><Copy size={13} />Лише читання · можна копіювати</> : <><FileText size={13} />Лише читання</>}
                     </span>
                     <StatusPill status={skill.enabled ? "enabled" : "restricted"} />
                   </footer>
-                  <button className="skill-card-open" type="button" onClick={() => openSkill(skill.skill_id)} aria-label={`Открыть skill ${skill.skill_id}`} />
+                  <button className="skill-card-open" type="button" onClick={() => openSkill(skill.skill_id)} aria-label={`Відкрити skill ${skill.skill_id}`} />
                 </article>
               ))}
             </div>
           ) : null}
 
-          {skillsQuery.data ? <section className="skill-list-summary panel"><span><strong>{skillsQuery.data.skills.length}</strong> skills</span><span><strong>{skillsQuery.data.skills.filter((skill) => skill.policy.editable).length}</strong> редактируемых</span><span><strong>{skillsQuery.data.skills.filter((skill) => !skill.policy.editable).length}</strong> read-only</span><code>{shortId(skillsQuery.data.catalog_sha256, 12, 8)}</code></section> : null}
+          {skillsQuery.data ? <section className="skill-list-summary panel"><span><strong>{skillsQuery.data.skills.length}</strong> skills</span><span><strong>{skillsQuery.data.skills.filter((skill) => skill.policy.editable).length}</strong> редагованих</span><span><strong>{skillsQuery.data.skills.filter((skill) => !skill.policy.editable).length}</strong> read-only</span><code>{shortId(skillsQuery.data.catalog_sha256, 12, 8)}</code></section> : null}
         </>
       )}
     </section>

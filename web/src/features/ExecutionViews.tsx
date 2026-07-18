@@ -28,7 +28,7 @@ function BoundaryNotice({ children, tone = "gold" }: { children: ReactNode; tone
         <ShieldCheck size={14} aria-hidden="true" /> {children}
       </span>
       <span>GET · read-only</span>
-      <span>скрытые команды и пути не выдаются</span>
+      <span>приховані команди та шляхи не видаються</span>
     </div>
   );
 }
@@ -42,20 +42,20 @@ function employeeAccent(status: string): string {
 
 function employeeReason(reason: string): string {
   const labels: Record<string, string> = {
-    digital_employees_disabled: "сотрудники отключены",
-    runtime_execution_disabled: "runtime отключён",
-    runtime_adapter_disabled: "адаптер отключён",
-    catalog_definition_disabled: "профиль не активирован",
-    operational_state_uninitialized: "только каталог",
-    configuration_revision_changed: "конфигурация изменилась",
-    persisted_operational_state: "операционное состояние"
+    digital_employees_disabled: "співробітники вимкнені",
+    runtime_execution_disabled: "runtime вимкнено",
+    runtime_adapter_disabled: "адаптер вимкнено",
+    catalog_definition_disabled: "профіль не активовано",
+    operational_state_uninitialized: "лише каталог",
+    configuration_revision_changed: "конфігурація змінилася",
+    persisted_operational_state: "операційний стан"
   };
   return labels[reason] ?? statusLabel(reason);
 }
 
 function filesystemLabel(mode: string): string {
-  if (mode === "task_worktree") return "изолированный worktree";
-  if (mode === "workspace_root_readonly") return "корень read-only";
+  if (mode === "task_worktree") return "ізольований worktree";
+  if (mode === "workspace_root_readonly") return "корінь read-only";
   return mode;
 }
 
@@ -86,7 +86,7 @@ export function DigitalEmployeesView({ onSelect }: ExecutionViewProps) {
   const employees = useDigitalEmployees();
   const [query, setQuery] = useState("");
   const filtered = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase("ru-RU");
+    const needle = query.trim().toLocaleLowerCase("uk-UA");
     if (!needle) return employees.data?.employees ?? [];
     return (employees.data?.employees ?? []).filter((employee) =>
       [
@@ -98,13 +98,13 @@ export function DigitalEmployeesView({ onSelect }: ExecutionViewProps) {
         employee.status
       ]
         .join(" ")
-        .toLocaleLowerCase("ru-RU")
+        .toLocaleLowerCase("uk-UA")
         .includes(needle)
     );
   }, [employees.data?.employees, query]);
 
   if (employees.isLoading) {
-    return <LoadingState label="Сверяем цифровых сотрудников с текущим каталогом…" />;
+    return <LoadingState label="Звіряємо цифрових співробітників з поточним каталогом…" />;
   }
   if (employees.isError || !employees.data) {
     return <ErrorState error={employees.error} onRetry={() => void employees.refetch()} />;
@@ -118,44 +118,44 @@ export function DigitalEmployeesView({ onSelect }: ExecutionViewProps) {
         <label className="search-field">
           <Search size={16} aria-hidden="true" />
           <input
-            aria-label="Найти цифрового сотрудника"
+            aria-label="Знайти цифрового співробітника"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Имя, роль, адаптер или ID"
+            placeholder="Ім'я, роль, адаптер або ID"
           />
         </label>
         <span className="inert-badge">
-          <Bot size={14} aria-hidden="true" /> {employees.data.total_catalog_employees} в каталоге
+          <Bot size={14} aria-hidden="true" /> {employees.data.total_catalog_employees} у каталозі
         </span>
       </div>
 
       {disabled ? (
-        <BoundaryNotice>Цифровые сотрудники выключены feature gate</BoundaryNotice>
+        <BoundaryNotice>Цифрові співробітники вимкнені feature gate</BoundaryNotice>
       ) : catalogOnly ? (
         <BoundaryNotice tone="cyan">
-          Каталог готов; операционное хранилище ещё не инициализировано
+          Каталог готовий; операційне сховище ще не ініціалізовано
         </BoundaryNotice>
       ) : (
-        <BoundaryNotice tone="cyan">Состояние прочитано из локального execution store</BoundaryNotice>
+        <BoundaryNotice tone="cyan">Стан прочитано з локального execution store</BoundaryNotice>
       )}
 
       {!filtered.length ? (
         <EmptyState
-          title={query ? "Сотрудники не найдены" : "В каталоге нет цифровых сотрудников"}
+          title={query ? "Співробітників не знайдено" : "У каталозі немає цифрових співробітників"}
           action={
             query ? (
               <button className="secondary-button" type="button" onClick={() => setQuery("")}>
-                Сбросить фильтр
+                Скинути фільтр
               </button>
             ) : undefined
           }
         >
           {query
-            ? "Измените запрос или сбросьте фильтр."
-            : "Сотрудники появляются только из проверенных AgentDefinition и RuntimeAdapterDefinition."}
+            ? "Змініть запит або скиньте фільтр."
+            : "Співробітники з'являються лише з перевірених AgentDefinition і RuntimeAdapterDefinition."}
         </EmptyState>
       ) : (
-        <div className="catalog-grid agent-grid" aria-label="Цифровые сотрудники">
+        <div className="catalog-grid agent-grid" aria-label="Цифрові співробітники">
           {filtered.map((employee, index) => (
             <button
               className="agent-card panel"
@@ -169,7 +169,7 @@ export function DigitalEmployeesView({ onSelect }: ExecutionViewProps) {
                   padding: 18
                 } as CSSProperties
               }
-              aria-label={`Открыть сотрудника ${employee.name}`}
+              aria-label={`Відкрити співробітника ${employee.name}`}
               onClick={() => onSelect(employeeSelection(employee, employees.data.snapshot_id))}
             >
               <span className="agent-aura" style={{ marginBottom: 18 }}>
@@ -180,7 +180,7 @@ export function DigitalEmployeesView({ onSelect }: ExecutionViewProps) {
               <p>{employee.description}</p>
               <span className="agent-capabilities">
                 <i>{filesystemLabel(employee.filesystem_policy.mode)}</i>
-                <i>{employee.enabled_skill_ids.length} навыков</i>
+                <i>{employee.enabled_skill_ids.length} навичок</i>
                 <i>×{employee.concurrency_limit}</i>
               </span>
               <footer>
@@ -192,7 +192,7 @@ export function DigitalEmployeesView({ onSelect }: ExecutionViewProps) {
         </div>
       )}
       <p className="route-footnote">
-        Карточки содержат только очищенную проекцию. Instruction paths и runtime credentials намеренно отсутствуют.
+        Картки містять лише очищену проекцію. Instruction paths і runtime credentials навмисно відсутні.
       </p>
     </div>
   );
@@ -232,11 +232,11 @@ function RunMetrics({ runs }: { runs: ExecutionRunView[] }) {
   const attention = runs.filter((run) => ["blocked", "failed", "cancelled"].includes(run.status)).length;
   const tokens = runs.reduce((total, run) => total + totalTokens(run), 0);
   return (
-    <section className="metric-quartet" aria-label="Сводка запусков">
+    <section className="metric-quartet" aria-label="Зведення запусків">
       <div><strong>{running}</strong><span>активно</span></div>
-      <div><strong>{review}</strong><span>на проверке</span></div>
-      <div><strong>{attention}</strong><span>требуют внимания</span></div>
-      <div><strong>{tokens.toLocaleString("ru-RU")}</strong><span>tokens учтено</span></div>
+      <div><strong>{review}</strong><span>на перевірці</span></div>
+      <div><strong>{attention}</strong><span>потребують уваги</span></div>
+      <div><strong>{tokens.toLocaleString("uk-UA")}</strong><span>tokens враховано</span></div>
     </section>
   );
 }
@@ -246,7 +246,7 @@ export function ExecutionRunsView({ onSelect }: ExecutionViewProps) {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
   const filtered = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase("ru-RU");
+    const needle = query.trim().toLocaleLowerCase("uk-UA");
     return (runs.data?.runs ?? []).filter(
       (run) =>
         (status === "all" || run.status === status) &&
@@ -261,13 +261,13 @@ export function ExecutionRunsView({ onSelect }: ExecutionViewProps) {
             run.summary
           ]
             .join(" ")
-            .toLocaleLowerCase("ru-RU")
+            .toLocaleLowerCase("uk-UA")
             .includes(needle))
     );
   }, [query, runs.data?.runs, status]);
 
   if (runs.isLoading) {
-    return <LoadingState label="Читаем очищенную историю execution runs…" />;
+    return <LoadingState label="Читаємо очищену історію execution runs…" />;
   }
   if (runs.isError || !runs.data) {
     return <ErrorState error={runs.error} onRetry={() => void runs.refetch()} />;
@@ -278,9 +278,9 @@ export function ExecutionRunsView({ onSelect }: ExecutionViewProps) {
   if (uninitialized && !runs.data.runs.length) {
     return (
       <div className="route-list">
-        <BoundaryNotice>Runtime выключен; execution store ещё не инициализирован</BoundaryNotice>
-        <EmptyState title="Запусков пока нет">
-          История появится после явно разрешённого запуска. GET не создаёт базу, workspace или graph snapshot.
+        <BoundaryNotice>Runtime вимкнено; execution store ще не ініціалізовано</BoundaryNotice>
+        <EmptyState title="Запусків поки немає">
+          Історія з'явиться після явно дозволеного запуску. GET не створює базу, workspace або graph snapshot.
         </EmptyState>
       </div>
     );
@@ -292,56 +292,56 @@ export function ExecutionRunsView({ onSelect }: ExecutionViewProps) {
         <label className="search-field">
           <Search size={16} aria-hidden="true" />
           <input
-            aria-label="Найти execution run"
+            aria-label="Знайти execution run"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Задача, сотрудник, provider или ID"
+            placeholder="Задача, співробітник, provider або ID"
           />
         </label>
         <label className="select-field">
           <Filter size={15} aria-hidden="true" />
-          <select aria-label="Фильтр execution runs по состоянию" value={status} onChange={(event) => setStatus(event.target.value)}>
-            <option value="all">Все состояния</option>
-            <option value="running">В работе</option>
-            <option value="review">На проверке</option>
-            <option value="succeeded">Успешно</option>
-            <option value="blocked">Заблокировано</option>
-            <option value="failed">Ошибка</option>
-            <option value="cancelled">Отменено</option>
+          <select aria-label="Фільтр execution runs за станом" value={status} onChange={(event) => setStatus(event.target.value)}>
+            <option value="all">Усі стани</option>
+            <option value="running">У роботі</option>
+            <option value="review">На перевірці</option>
+            <option value="succeeded">Успішно</option>
+            <option value="blocked">Заблоковано</option>
+            <option value="failed">Помилка</option>
+            <option value="cancelled">Скасовано</option>
           </select>
         </label>
         <span className="inert-badge">
-          <Activity size={14} aria-hidden="true" /> {runs.data.pagination.returned} записей
+          <Activity size={14} aria-hidden="true" /> {runs.data.pagination.returned} записів
         </span>
       </div>
 
       {disabled ? (
-        <BoundaryNotice>Новые запуски отключены; сохранённая история доступна только для чтения</BoundaryNotice>
+        <BoundaryNotice>Нові запуски вимкнені; збережена історія доступна лише для читання</BoundaryNotice>
       ) : (
-        <BoundaryNotice tone="cyan">Runtime включён; отображается очищенный журнал</BoundaryNotice>
+        <BoundaryNotice tone="cyan">Runtime увімкнено; відображається очищений журнал</BoundaryNotice>
       )}
 
       <RunMetrics runs={runs.data.runs} />
 
       {!filtered.length ? (
         <EmptyState
-          title={query || status !== "all" ? "Запуски не найдены" : "Запусков пока нет"}
+          title={query || status !== "all" ? "Запуски не знайдено" : "Запусків поки немає"}
           action={
             query || status !== "all" ? (
               <button className="secondary-button" type="button" onClick={() => { setQuery(""); setStatus("all"); }}>
-                Сбросить фильтры
+                Скинути фільтри
               </button>
             ) : undefined
           }
         >
           {query || status !== "all"
-            ? "Измените запрос или сбросьте фильтры."
-            : "Execution run появится только после успешной policy, workspace и lease подготовки."}
+            ? "Змініть запит або скиньте фільтри."
+            : "Execution run з'явиться лише після успішної підготовки policy, workspace і lease."}
         </EmptyState>
       ) : (
         <section className="data-table panel" aria-label="Execution runs">
           <header className="table-row table-head">
-            <span>Запуск</span><span>Состояние</span><span>Начат</span><span>Адаптер</span><span>Ресурс</span>
+            <span>Запуск</span><span>Стан</span><span>Розпочато</span><span>Адаптер</span><span>Ресурс</span>
           </header>
           {filtered.map((run) => (
             <button
@@ -357,13 +357,13 @@ export function ExecutionRunsView({ onSelect }: ExecutionViewProps) {
               <span><StatusPill status={run.status} /></span>
               <span><Clock3 size={14} aria-hidden="true" /> {formatDate(run.started_at)}</span>
               <code>{shortId(run.runtime_adapter_id, 14, 5)}</code>
-              <span><Gauge size={14} aria-hidden="true" /> {totalTokens(run).toLocaleString("ru-RU")}</span>
+              <span><Gauge size={14} aria-hidden="true" /> {totalTokens(run).toLocaleString("uk-UA")}</span>
             </button>
           ))}
         </section>
       )}
       <p className="route-footnote">
-        Команда, рабочая директория, environment и provider session не входят в эту проекцию.
+        Команда, робоча директорія, environment і provider session не входять у цю проекцію.
       </p>
     </div>
   );

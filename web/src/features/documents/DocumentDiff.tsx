@@ -128,7 +128,7 @@ interface DocumentDiffProps {
 function SourcePane({ title, content }: { title: string; content: string }) {
   const truncated = content.length > MAX_SOURCE_CHARACTERS;
   const rendered = truncated ? content.slice(0, MAX_SOURCE_CHARACTERS) : content;
-  return <section className="doc-diff-source"><header>{title}{truncated ? <span>показаны первые {MAX_SOURCE_CHARACTERS.toLocaleString("ru-RU")} символов</span> : null}</header><pre><code>{rendered}</code></pre></section>;
+  return <section className="doc-diff-source"><header>{title}{truncated ? <span>показано перші {MAX_SOURCE_CHARACTERS.toLocaleString("uk-UA")} символів</span> : null}</header><pre><code>{rendered}</code></pre></section>;
 }
 
 export function DocumentDiff({ original, current, disk }: DocumentDiffProps) {
@@ -141,18 +141,18 @@ export function DocumentDiff({ original, current, disk }: DocumentDiffProps) {
   const renderedDiff = truncated ? [...diff.slice(0, half), ...diff.slice(-half)] : diff;
   const sourceBudgetExceeded = original.length + current.length + (disk?.length ?? 0) > MAX_SOURCE_CHARACTERS * 3;
   return (
-    <div className="doc-diff" aria-label="Изменения Markdown">
-      <header className="doc-diff-summary"><FileDiff size={17} aria-hidden="true" /><strong>Локальные изменения</strong><span className="added">+{added}</span><span className="removed">−{removed}</span><button type="button" onClick={() => void navigator.clipboard.writeText(original).then(() => setCopied(true))}>{copied ? <Check size={13} /> : <Copy size={13} />}{copied ? "Скопировано" : "Копировать исходную версию"}</button></header>
-      {disk !== undefined && disk !== null && disk !== original && !sourceBudgetExceeded ? <div className="doc-diff-three"><SourcePane title="При открытии" content={original} /><SourcePane title="Сейчас на диске" content={disk} /><SourcePane title="Версия пользователя" content={current} /></div> : sourceBudgetExceeded ? <p className="doc-diff-truncated" role="status">Три полных версии не отрисованы одновременно: документ превышает безопасный UI-бюджет. Построчный diff ниже ограничен, исходники доступны по отдельности.</p> : null}
-      {truncated ? <p className="doc-diff-truncated" role="status">Показан bounded sample вместо полного diff: вход содержит {result.totalLines.toLocaleString("ru-RU")} строк. Счётчики для large-file режима являются консервативной оценкой.</p> : null}
-      <div className="doc-diff-lines" role="table" aria-label="Построчный diff">
+    <div className="doc-diff" aria-label="Зміни Markdown">
+      <header className="doc-diff-summary"><FileDiff size={17} aria-hidden="true" /><strong>Локальні зміни</strong><span className="added">+{added}</span><span className="removed">−{removed}</span><button type="button" onClick={() => void navigator.clipboard.writeText(original).then(() => setCopied(true))}>{copied ? <Check size={13} /> : <Copy size={13} />}{copied ? "Скопійовано" : "Копіювати вихідну версію"}</button></header>
+      {disk !== undefined && disk !== null && disk !== original && !sourceBudgetExceeded ? <div className="doc-diff-three"><SourcePane title="При відкритті" content={original} /><SourcePane title="Зараз на диску" content={disk} /><SourcePane title="Версія користувача" content={current} /></div> : sourceBudgetExceeded ? <p className="doc-diff-truncated" role="status">Три повні версії не відображаються одночасно: документ перевищує безпечний UI-бюджет. Порядковий diff нижче обмежений, вихідники доступні окремо.</p> : null}
+      {truncated ? <p className="doc-diff-truncated" role="status">Показано bounded sample замість повного diff: вхід містить {result.totalLines.toLocaleString("uk-UA")} рядків. Лічильники для large-file режиму є консервативною оцінкою.</p> : null}
+      <div className="doc-diff-lines" role="table" aria-label="Порядковий diff">
         {renderedDiff.map((line, index) => (
           <div className={`doc-diff-line ${line.kind}`} role="row" key={`${index}:${line.kind}`}>
-            <span role="cell">{line.oldLine ?? ""}</span><span role="cell">{line.newLine ?? ""}</span><b role="cell" aria-label={line.kind === "added" ? "Добавлено" : line.kind === "removed" ? "Удалено" : "Без изменений"}>{line.kind === "added" ? "+" : line.kind === "removed" ? "−" : " "}</b><code role="cell">{line.text || " "}</code>
+            <span role="cell">{line.oldLine ?? ""}</span><span role="cell">{line.newLine ?? ""}</span><b role="cell" aria-label={line.kind === "added" ? "Додано" : line.kind === "removed" ? "Видалено" : "Без змін"}>{line.kind === "added" ? "+" : line.kind === "removed" ? "−" : " "}</b><code role="cell">{line.text || " "}</code>
           </div>
         ))}
       </div>
-      <SourcePane title="Итоговый Markdown" content={current} />
+      <SourcePane title="Підсумковий Markdown" content={current} />
     </div>
   );
 }

@@ -1,67 +1,67 @@
 import type { AgentReadiness } from "../executionTypes";
 
 const reasonCopy: Record<string, string> = {
-  digital_employees_disabled: "Цифровые сотрудники отключены",
-  runtime_execution_disabled: "Выполнение отключено",
-  runtime_adapter_disabled: "Адаптер отключён",
-  catalog_definition_disabled: "Определение не активировано",
-  execution_store_uninitialized: "Runtime не настроен",
-  operational_record_missing: "Только каталог",
-  configuration_revision_changed: "Конфигурация изменилась",
-  definition_missing: "Определение агента отсутствует",
-  duplicate_execution_records: "Найдены конфликтующие execution records",
-  employee_identity_mismatch: "Execution identity не совпадает с определением",
-  persisted_operational_state: "Операционное состояние доступно"
+  digital_employees_disabled: "Цифрові співробітники вимкнені",
+  runtime_execution_disabled: "Виконання вимкнено",
+  runtime_adapter_disabled: "Адаптер вимкнено",
+  catalog_definition_disabled: "Визначення не активовано",
+  execution_store_uninitialized: "Runtime не налаштований",
+  operational_record_missing: "Лише каталог",
+  configuration_revision_changed: "Конфігурація змінилася",
+  definition_missing: "Визначення агента відсутнє",
+  duplicate_execution_records: "Знайдено конфліктуючі execution records",
+  employee_identity_mismatch: "Execution identity не збігається з визначенням",
+  persisted_operational_state: "Операційний стан доступний"
 };
 
 const readinessCopy: Record<AgentReadiness, string> = {
-  ready: "Готов",
-  disabled: "Отключён",
-  catalog_only: "Только каталог",
-  running: "Выполняет задачу",
-  requires_configuration: "Требует настройки",
-  degraded: "Нарушена целостность"
+  ready: "Готовий",
+  disabled: "Вимкнено",
+  catalog_only: "Лише каталог",
+  running: "Виконує завдання",
+  requires_configuration: "Потребує налаштування",
+  degraded: "Порушена цілісність"
 };
 
 const boundaryCopy: Record<string, string> = {
-  canonical_knowledge_write: "Запись в канонические знания",
-  external_side_effects: "Внешние побочные эффекты",
-  runtime_output_is_untrusted: "Runtime output считается недоверенным"
+  canonical_knowledge_write: "Запис у канонічні знання",
+  external_side_effects: "Зовнішні побічні ефекти",
+  runtime_output_is_untrusted: "Runtime output вважається недовіреним"
 };
 
 const limitationCopy: Record<string, string> = {
-  catalog_definition_is_inert: "Определение каталога инертно и само по себе не выполняется",
-  sensitive_runtime_fields_are_omitted: "Чувствительные runtime-поля скрыты из проекции"
+  catalog_definition_is_inert: "Визначення каталогу інертне і саме по собі не виконується",
+  sensitive_runtime_fields_are_omitted: "Чутливі runtime-поля приховані з проекції"
 };
 
 const valueCopy: Record<string, string> = {
-  approval_required: "Требует подтверждения",
-  allow: "Разрешено",
-  allowed: "Разрешено",
-  deny: "Запрещено",
-  denied: "Запрещено",
-  read: "Чтение",
-  write: "Запись",
-  read_write: "Чтение и запись",
-  none: "Нет",
-  block_new: "Блокировать новые запуски",
-  cancel_active: "Отменять активные запуски",
-  external_send: "Внешняя отправка",
-  filesystem_write: "Запись в файловую систему",
-  git_write: "Запись в Git",
-  network_egress: "Внешний сетевой доступ",
-  tool_use: "Использование инструмента",
-  workspace_read: "Чтение workspace",
-  staged_write: "Запись в staged-область",
-  agent_configuration_changed: "Конфигурация агента изменена",
-  assignment_created: "Назначение создано",
-  run_started: "Запуск начат",
-  run_completed: "Запуск завершён"
+  approval_required: "Потребує підтвердження",
+  allow: "Дозволено",
+  allowed: "Дозволено",
+  deny: "Заборонено",
+  denied: "Заборонено",
+  read: "Читання",
+  write: "Запис",
+  read_write: "Читання і запис",
+  none: "Немає",
+  block_new: "Блокувати нові запуски",
+  cancel_active: "Скасовувати активні запуски",
+  external_send: "Зовнішнє надсилання",
+  filesystem_write: "Запис у файлову систему",
+  git_write: "Запис у Git",
+  network_egress: "Зовнішній мережевий доступ",
+  tool_use: "Використання інструмента",
+  workspace_read: "Читання workspace",
+  staged_write: "Запис у staged-область",
+  agent_configuration_changed: "Конфігурація агента змінена",
+  assignment_created: "Призначення створено",
+  run_started: "Запуск розпочато",
+  run_completed: "Запуск завершено"
 };
 
 function humanize(value: string): string {
   const normalized = value.replaceAll("_", " ").trim();
-  return normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : "Не указано";
+  return normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : "Не вказано";
 }
 
 export function agentReasonLabel(reason: string): string {
@@ -73,17 +73,17 @@ export function agentReadinessLabel(readiness: AgentReadiness): string {
 }
 
 export function filesystemModeLabel(mode: string): string {
-  if (mode === "task_worktree") return "изолированный worktree";
-  if (mode === "workspace_root_readonly") return "корень только для чтения";
-  if (mode === "approved_external_root") return "одобренный внешний корень";
-  if (mode === "read_only") return "только чтение";
-  if (mode === "staging_only") return "только staged-изменения";
-  if (mode === "none") return "без доступа";
+  if (mode === "task_worktree") return "ізольований worktree";
+  if (mode === "workspace_root_readonly") return "корінь лише для читання";
+  if (mode === "approved_external_root") return "схвалений зовнішній корінь";
+  if (mode === "read_only") return "лише читання";
+  if (mode === "staging_only") return "лише staged-зміни";
+  if (mode === "none") return "без доступу";
   return humanize(mode);
 }
 
 export function booleanLabel(value: boolean): string {
-  return value ? "Да" : "Нет";
+  return value ? "Так" : "Ні";
 }
 
 export function boundaryLabel(boundary: string): string {
@@ -91,7 +91,7 @@ export function boundaryLabel(boundary: string): string {
 }
 
 export function safeValueLabel(value: boolean | string): string {
-  if (typeof value === "boolean") return value ? "Разрешено" : "Запрещено";
+  if (typeof value === "boolean") return value ? "Дозволено" : "Заборонено";
   return valueCopy[value.toLowerCase()] ?? humanize(value);
 }
 

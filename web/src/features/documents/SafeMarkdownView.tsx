@@ -101,7 +101,7 @@ function inlineNodes(
       } else {
         nodes.push(
           <button key={key} type="button" className={embed ? "doc-wikilink doc-embed" : "doc-wikilink"} onClick={() => props.onOpenWikilink?.(target)}>
-            {embed ? "Вложение: " : ""}{target.label}{target.heading ? ` · ${target.heading}` : ""}
+            {embed ? "Вкладення: " : ""}{target.label}{target.heading ? ` · ${target.heading}` : ""}
           </button>
         );
       }
@@ -112,11 +112,11 @@ function inlineNodes(
       const resolved = safeImageUrl(props.resolveImage?.(source) ?? "");
       nodes.push(resolved
         ? <img key={key} src={resolved} alt={alt} loading="lazy" decoding="async" />
-        : <span key={key} className="doc-blocked-image" role="note">Изображение заблокировано: {alt || source}</span>);
+        : <span key={key} className="doc-blocked-image" role="note">Зображення заблоковано: {alt || source}</span>);
     } else if (token.startsWith("[^")) {
       const id = token.slice(2, -1).trim();
       const anchor = `doc-footnote-${headingId(id)}`;
-      nodes.push(<sup key={key} className="doc-footnote-reference"><a href={`#${anchor}`} aria-label={`Сноска ${id}`}>{id}</a></sup>);
+      nodes.push(<sup key={key} className="doc-footnote-reference"><a href={`#${anchor}`} aria-label={`Виноска ${id}`}>{id}</a></sup>);
     } else if (token.startsWith("[")) {
       const labelEnd = token.indexOf("]");
       const label = token.slice(1, labelEnd);
@@ -128,7 +128,7 @@ function inlineNodes(
       } else if (safe) {
         nodes.push(<a key={key} href={safe.href} target={safe.external ? "_blank" : undefined} rel={safe.external ? "noreferrer noopener" : undefined}>{label}</a>);
       } else {
-        nodes.push(<span key={key} className="doc-unsafe-link" title="Небезопасная ссылка заблокирована">{label}</span>);
+        nodes.push(<span key={key} className="doc-unsafe-link" title="Небезпечне посилання заблоковано">{label}</span>);
       }
     } else if (token.startsWith("**")) {
       nodes.push(<strong key={key}>{inlineNodes(token.slice(2, -2), props, `${key}-b`)}</strong>);
@@ -147,10 +147,10 @@ function inlineNodes(
 
 function headingId(text: string): string {
   return text
-    .toLocaleLowerCase("ru-RU")
+    .toLocaleLowerCase("uk-UA")
     .split("").filter((character) => !"`*_~[]()".includes(character)).join("")
     .trim()
-    .replace(/[^a-zа-яё0-9]+/gi, "-")
+    .replace(/[^a-zа-яёіїєґ0-9]+/gi, "-")
     .replace(/^-|-$/g, "") || "section";
 }
 
@@ -162,7 +162,7 @@ function frontmatterBlock(lines: string[], key: string): ReactNode {
   const fields = lines.slice(1, -1).filter((line) => line.trim() && !line.trimStart().startsWith("#"));
   return (
     <details className="doc-frontmatter" key={key}>
-      <summary>Свойства документа</summary>
+      <summary>Властивості документа</summary>
       <dl>
         {fields.map((line, index) => {
           const separator = line.indexOf(":");
@@ -296,7 +296,7 @@ export function SafeMarkdownView({ content, onOpenWikilink, onOpenRelativeLink, 
         const task = /^\[([ xX])\]\s+(.*)$/.exec(text);
         items.push({ text: task ? task[2] : text, checked: task ? task[1].toLowerCase() === "x" : null });
       }
-      blocks.push(<ul key={blockKey} className={items.some((item) => item.checked !== null) ? "doc-task-list" : undefined}>{items.map((item, index) => <li key={index}>{item.checked !== null ? <input type="checkbox" checked={item.checked} readOnly aria-label={item.checked ? "Выполнено" : "Не выполнено"} /> : null}{inlineNodes(item.text, inlineProps, `${blockKey}-${index}`)}</li>)}</ul>);
+      blocks.push(<ul key={blockKey} className={items.some((item) => item.checked !== null) ? "doc-task-list" : undefined}>{items.map((item, index) => <li key={index}>{item.checked !== null ? <input type="checkbox" checked={item.checked} readOnly aria-label={item.checked ? "Виконано" : "Не виконано"} /> : null}{inlineNodes(item.text, inlineProps, `${blockKey}-${index}`)}</li>)}</ul>);
       continue;
     }
 
@@ -323,8 +323,8 @@ export function SafeMarkdownView({ content, onOpenWikilink, onOpenRelativeLink, 
   }
   if (footnotes.definitions.length) {
     blocks.push(
-      <section className="doc-footnotes" aria-label="Сноски" key={`footnotes-${key}`}>
-        <h2>Сноски</h2>
+      <section className="doc-footnotes" aria-label="Виноски" key={`footnotes-${key}`}>
+        <h2>Виноски</h2>
         <ol>{footnotes.definitions.map((footnote, index) => (
           <li id={`doc-footnote-${headingId(footnote.id)}`} key={`${footnote.id}-${index}`}>
             {renderBlocks(footnote.content, inlineProps, `footnote-${index}`, depth + 1)}
@@ -334,7 +334,7 @@ export function SafeMarkdownView({ content, onOpenWikilink, onOpenRelativeLink, 
     );
   }
   return <div className="doc-markdown">
-    {bounded.truncated ? <div className="doc-render-limit" role="status"><strong>Показана ограниченная часть большого документа</strong><span>Безопасный просмотр остановлен после {MAX_RENDER_CHARACTERS.toLocaleString("ru-RU")} символов или {MAX_RENDER_LINES.toLocaleString("ru-RU")} строк.</span>{onOpenSource ? <button type="button" onClick={onOpenSource}>Открыть Source mode</button> : null}</div> : null}
+    {bounded.truncated ? <div className="doc-render-limit" role="status"><strong>Показано обмежену частину великого документа</strong><span>Безпечний перегляд зупинено після {MAX_RENDER_CHARACTERS.toLocaleString("uk-UA")} символів або {MAX_RENDER_LINES.toLocaleString("uk-UA")} рядків.</span>{onOpenSource ? <button type="button" onClick={onOpenSource}>Відкрити Source mode</button> : null}</div> : null}
     {blocks}
   </div>;
 }

@@ -12,11 +12,11 @@ export function Runs({ onSelect }: { onSelect: (selection: Selection) => void })
   const [plane, setPlane] = useState<"execution" | "operations">("execution");
   const tabs: readonly SurfaceTab<"execution" | "operations">[] = [
     { id: "execution", label: "Live execution", icon: <Activity size={15} />, panelId: "runs-surface-panel", tabId: "runs-tab-execution" },
-    { id: "operations", label: "Зафиксированные операции", icon: <History size={15} />, panelId: "runs-surface-panel", tabId: "runs-tab-operations" }
+    { id: "operations", label: "Зафіксовані операції", icon: <History size={15} />, panelId: "runs-surface-panel", tabId: "runs-tab-operations" }
   ];
   return (
     <Surface className="route runs-surface">
-      <SurfaceTabs tabs={tabs} activeTab={plane} onTabChange={setPlane} ariaLabel="Тип журнала запусков" id="runs-surface-tabs" />
+      <SurfaceTabs tabs={tabs} activeTab={plane} onTabChange={setPlane} ariaLabel="Тип журналу запусків" id="runs-surface-tabs" />
       <SurfaceContent id="runs-surface-panel" labelledBy={`runs-tab-${plane}`}>
         {plane === "execution" ? <ExecutionRunsView onSelect={onSelect} /> : <LegacyRuns onSelect={onSelect} />}
       </SurfaceContent>
@@ -38,22 +38,22 @@ function LegacyRuns({ onSelect }: { onSelect: (selection: Selection) => void }) 
     [query, runs.data?.runs, state]
   );
 
-  if (runs.isLoading) return <LoadingState label="Читаем манифесты зафиксированных запусков…" />;
+  if (runs.isLoading) return <LoadingState label="Читаємо маніфести зафіксованих запусків…" />;
   if (runs.isError) return <ErrorState error={runs.error} onRetry={() => void runs.refetch()} />;
   return (
     <div className="route-list">
       <div className="route-tools">
-        <label className="search-field"><Search size={16} /><input aria-label="Найти запуск по операции или ID" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Операция или ID запуска" /></label>
-        <label className="select-field"><Filter size={15} /><select aria-label="Фильтр запусков по состоянию" value={state} onChange={(event) => setState(event.target.value)}><option value="all">Все состояния</option><option value="succeeded">Успешно</option><option value="terminal_failed">Ошибка</option><option value="quarantined">Карантин</option></select></label>
+        <label className="search-field"><Search size={16} /><input aria-label="Знайти запуск за операцією або ID" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Операція або ID запуску" /></label>
+        <label className="select-field"><Filter size={15} /><select aria-label="Фільтр запусків за станом" value={state} onChange={(event) => setState(event.target.value)}><option value="all">Усі стани</option><option value="succeeded">Успішно</option><option value="terminal_failed">Помилка</option><option value="quarantined">Карантин</option></select></label>
       </div>
       {!filtered.length ? (
         <EmptyState
-          title={query || state !== "all" ? "Запуски не найдены" : "Зафиксированных запусков пока нет"}
-          action={query || state !== "all" ? <button className="secondary-button" type="button" onClick={() => { setQuery(""); setState("all"); }}>Сбросить фильтры</button> : undefined}
-        >{query || state !== "all" ? "Измените запрос или сбросьте фильтры." : "История появится после того, как детерминированный CLI-процесс зафиксирует манифест."}</EmptyState>
+          title={query || state !== "all" ? "Запуски не знайдено" : "Зафіксованих запусків поки немає"}
+          action={query || state !== "all" ? <button className="secondary-button" type="button" onClick={() => { setQuery(""); setState("all"); }}>Скинути фільтри</button> : undefined}
+        >{query || state !== "all" ? "Змініть запит або скиньте фільтри." : "Історія з'явиться після того, як детермінований CLI-процес зафіксує маніфест."}</EmptyState>
       ) : (
-        <section className="data-table panel" aria-label="Зафиксированные запуски">
-          <header className="table-row table-head"><span>Операция</span><span>Состояние</span><span>Обновлено</span><span>Поколение</span><span>Манифест</span></header>
+        <section className="data-table panel" aria-label="Зафіксовані запуски">
+          <header className="table-row table-head"><span>Операція</span><span>Стан</span><span>Оновлено</span><span>Покоління</span><span>Маніфест</span></header>
           {filtered.map((run) => (
             <button
               className="table-row"
@@ -82,7 +82,7 @@ function LegacyRuns({ onSelect }: { onSelect: (selection: Selection) => void }) 
           ))}
         </section>
       )}
-      <p className="route-footnote">Запуски доступны только для просмотра. Повтор, продолжение и выполнение по-прежнему управляются через CLI.</p>
+      <p className="route-footnote">Запуски доступні лише для перегляду. Повтор, продовження та виконання й далі керуються через CLI.</p>
     </div>
   );
 }

@@ -219,12 +219,12 @@ export function inspectMarkdownForVisualEditing(content: string): MarkdownIssue[
   const normalized = normalizeLf(content);
   const { body } = splitFrontmatter(normalized);
   const issues: MarkdownIssue[] = [];
-  issueForMatch(issues, body, /(^|\n)\s*<\/?[A-Za-z][^>]*>/g, "html_fragment", "HTML-фрагмент требует Source mode.");
-  issueForMatch(issues, body, /(^|\n)\s*:::[A-Za-z][^\n]*/g, "directive", "Неизвестная Markdown-директива требует Source mode.");
-  issueForMatch(issues, body, /(^|\n)\s*\$\$[\s\S]*?\$\$/g, "math_block", "Математический блок не квалифицирован для визуального сохранения.");
-  issueForMatch(issues, body, /(^|\n)[^\n]*\s\^[A-Za-z0-9-]+\s*$/g, "block_id", "Obsidian block ID требует Source mode.");
-  issueForMatch(issues, body, /```(?:dataview|query|tasks)\b/gi, "executable_fence", "Исполняемое community-расширение доступно только как исходный Markdown.");
-  issueForMatch(issues, body, /\{\{[^\n{}]+\}\}/g, "template_expression", "Шаблонное выражение не исполняется и требует Source mode.");
+  issueForMatch(issues, body, /(^|\n)\s*<\/?[A-Za-z][^>]*>/g, "html_fragment", "HTML-фрагмент потребує Source mode.");
+  issueForMatch(issues, body, /(^|\n)\s*:::[A-Za-z][^\n]*/g, "directive", "Невідома Markdown-директива потребує Source mode.");
+  issueForMatch(issues, body, /(^|\n)\s*\$\$[\s\S]*?\$\$/g, "math_block", "Математичний блок не кваліфікований для візуального збереження.");
+  issueForMatch(issues, body, /(^|\n)[^\n]*\s\^[A-Za-z0-9-]+\s*$/g, "block_id", "Obsidian block ID потребує Source mode.");
+  issueForMatch(issues, body, /```(?:dataview|query|tasks)\b/gi, "executable_fence", "Виконуване community-розширення доступне лише як вихідний Markdown.");
+  issueForMatch(issues, body, /\{\{[^\n{}]+\}\}/g, "template_expression", "Шаблонний вираз не виконується і потребує Source mode.");
   return issues;
 }
 
@@ -274,7 +274,7 @@ export function restoreVisualMarkdown(
     if (!body.includes(item.token)) {
       issues.push({
         code: "protected_token_lost",
-        message: `Визуальный редактор изменил защищённую конструкцию: ${item.source}`,
+        message: `Візуальний редактор змінив захищену конструкцію: ${item.source}`,
         severity: "error",
         from: 0,
         to: 0
@@ -300,18 +300,18 @@ export function qualificationIssues(
     issues.push({ code: "server_warning", message: warning, severity: "warning", from: 0, to: 0 });
   }
   for (const syntax of serverQualification?.unsupported_syntax ?? []) {
-    issues.push({ code: "server_unsupported", message: `Не поддерживается визуальным редактором: ${syntax}`, severity: "error", from: 0, to: 0 });
+    issues.push({ code: "server_unsupported", message: `Не підтримується візуальним редактором: ${syntax}`, severity: "error", from: 0, to: 0 });
   }
   if (serverQualification && (!serverQualification.can_save || !serverQualification.round_trip_safe)) {
-    issues.push({ code: "server_round_trip_blocked", message: "Серверная round-trip квалификация запретила визуальное сохранение.", severity: "error", from: 0, to: 0 });
+    issues.push({ code: "server_round_trip_blocked", message: "Серверна round-trip кваліфікація заборонила візуальне збереження.", severity: "error", from: 0, to: 0 });
   }
   return issues;
 }
 
 export function visualEditorBlockReason(content: string, serverQualification?: VisualQualification): string | null {
-  if (content.length > MAX_VISUAL_EDITOR_CHARACTERS) return "Документ превышает безопасный лимит визуального редактора. Используйте Source mode.";
-  if (serverQualification?.can_open === false) return "Серверная квалификация запретила открывать этот документ в визуальном редакторе.";
-  if (inspectMarkdownForVisualEditing(content).some((issue) => issue.severity === "error")) return "Документ содержит конструкции, которые нужно редактировать в Source mode.";
+  if (content.length > MAX_VISUAL_EDITOR_CHARACTERS) return "Документ перевищує безпечний ліміт візуального редактора. Використовуйте Source mode.";
+  if (serverQualification?.can_open === false) return "Серверна кваліфікація заборонила відкривати цей документ у візуальному редакторі.";
+  if (inspectMarkdownForVisualEditing(content).some((issue) => issue.severity === "error")) return "Документ містить конструкції, які потрібно редагувати в Source mode.";
   return null;
 }
 
@@ -320,7 +320,7 @@ function yamlScalar(value: FrontmatterField["value"]): string {
   if (value === null) return "null";
   if (typeof value === "object") return JSON.stringify(value);
   if (typeof value === "string") {
-    if (/^[A-Za-zА-Яа-яЁё0-9_. /-]+$/.test(value) && !/^(true|false|null|~|[-+]?\d+(?:\.\d+)?)$/i.test(value)) return value;
+    if (/^[A-Za-zА-Яа-яЁёІіЇїЄєҐґ0-9_. /-]+$/.test(value) && !/^(true|false|null|~|[-+]?\d+(?:\.\d+)?)$/i.test(value)) return value;
     return JSON.stringify(value);
   }
   return String(value);
@@ -331,19 +331,19 @@ export function updateFrontmatterField(
   field: FrontmatterField,
   value: FrontmatterField["value"]
 ): { content: string; warning: string | null } {
-  if (!field.editable || field.type === "complex") return { content, warning: "Сложное YAML-поле можно менять только в Source mode." };
+  if (!field.editable || field.type === "complex") return { content, warning: "Складне YAML-поле можна змінювати лише в Source mode." };
   const lineEnding = normalizedLineEnding(content) === "crlf" ? "\r\n" : "\n";
   const normalized = normalizeLf(content);
   const { frontmatter, body } = splitFrontmatter(normalized);
-  if (!frontmatter) return { content, warning: "Документ не содержит YAML frontmatter." };
+  if (!frontmatter) return { content, warning: "Документ не містить YAML frontmatter." };
   const lines = frontmatter.replace(/\n$/, "").split("\n");
   const keyPattern = new RegExp(`^${field.key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}:`);
   const index = lines.findIndex((line) => keyPattern.test(line));
   if (index < 0) lines.splice(lines.length - 1, 0, `${field.key}: ${yamlScalar(value)}`);
   else {
     const existing = lines[index];
-    if (/\s+#/.test(existing)) return { content, warning: "Поле содержит YAML-комментарий; измените его в Source mode, чтобы не потерять комментарий." };
-    if (index + 1 < lines.length - 1 && /^\s+/.test(lines[index + 1])) return { content, warning: "Многострочное YAML-поле можно менять только в Source mode." };
+    if (/\s+#/.test(existing)) return { content, warning: "Поле містить YAML-коментар; змініть його в Source mode, щоб не втратити коментар." };
+    if (index + 1 < lines.length - 1 && /^\s+/.test(lines[index + 1])) return { content, warning: "Багаторядкове YAML-поле можна змінювати лише в Source mode." };
     lines[index] = `${field.key}: ${yamlScalar(value)}`;
   }
   const result = `${lines.join("\n")}\n${body}`;

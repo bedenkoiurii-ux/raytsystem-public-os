@@ -48,24 +48,24 @@ export function CommandPalette({
   };
 
   return (
-    <Dialog className="command-palette" backdropClassName="modal-backdrop palette-backdrop" label="Палитра команд" describedBy="palette-help" onClose={onClose} onKeyDown={moveFocus}>
+    <Dialog className="command-palette" backdropClassName="modal-backdrop palette-backdrop" label="Палітра команд" describedBy="palette-help" onClose={onClose} onKeyDown={moveFocus}>
         <div className="palette-search">
           <Search size={20} aria-hidden="true" />
           <input
             autoFocus
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Перейти или найти проверенный объект…"
-            aria-label="Поиск команд и объектов"
+            placeholder="Перейти або знайти перевірений об'єкт…"
+            aria-label="Пошук команд і об'єктів"
           />
-          <button className="icon-button" type="button" onClick={onClose} aria-label="Закрыть палитру команд">
+          <button className="icon-button" type="button" onClick={onClose} aria-label="Закрити палітру команд">
             <X size={18} />
           </button>
         </div>
         <div className="palette-body">
           {normalized.length === 0 ? (
             <div className="palette-group">
-              <div className="palette-label">Безопасные действия</div>
+              <div className="palette-label">Безпечні дії</div>
               <button
                 className="palette-row"
                 type="button"
@@ -75,14 +75,14 @@ export function CommandPalette({
                 }}
               >
                 <ListTodo size={17} aria-hidden="true" />
-                <span><strong>Создать задачу</strong><small>Запись только в операционный журнал</small></span>
+                <span><strong>Створити завдання</strong><small>Запис лише в операційний журнал</small></span>
                 <ArrowRight size={15} aria-hidden="true" />
               </button>
             </div>
           ) : null}
           {filteredRoutes.length ? (
             <div className="palette-group">
-              <div className="palette-label">Навигация</div>
+              <div className="palette-label">Навігація</div>
               {filteredRoutes.map((route) => (
                 <button
                   className="palette-row"
@@ -102,8 +102,8 @@ export function CommandPalette({
           ) : null}
           {query.trim().length > 1 ? (
             <div className="palette-group">
-              <div className="palette-label">Проверенные объекты</div>
-              {search.isLoading ? <div className="palette-note">Ищем в локальном срезе…</div> : null}
+              <div className="palette-label">Перевірені об'єкти</div>
+              {search.isLoading ? <div className="palette-note">Шукаємо в локальному зрізі…</div> : null}
               {search.data?.results.map((result) => (
                 <button
                   className="palette-row"
@@ -127,16 +127,16 @@ export function CommandPalette({
                 </button>
               ))}
               {search.data?.results.length === 0 ? (
-                <div className="palette-note">В этом срезе совпадений нет.</div>
+                <div className="palette-note">У цьому зрізі збігів немає.</div>
               ) : null}
             </div>
           ) : null}
         </div>
         <footer className="palette-footer" id="palette-help">
-          <span>Введите запрос для фильтрации</span>
-          <span><kbd>↑↓</kbd> выбор</span>
-          <span><kbd>esc</kbd> закрыть</span>
-          <span className="local-foot"><span /> только локальный индекс</span>
+          <span>Введіть запит для фільтрації</span>
+          <span><kbd>↑↓</kbd> вибір</span>
+          <span><kbd>esc</kbd> закрити</span>
+          <span className="local-foot"><span /> лише локальний індекс</span>
         </footer>
     </Dialog>
   );

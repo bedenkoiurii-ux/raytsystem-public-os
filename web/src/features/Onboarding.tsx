@@ -98,18 +98,18 @@ export function Onboarding() {
           <PlugZap size={30} aria-hidden="true" />
         </div>
         <div>
-          <span className="eyebrow">Подключить пространство</span>
-          <h2>Установите raytsystem в репозиторий за один предпросмотр.</h2>
+          <span className="eyebrow">Підключити простір</span>
+          <h2>Встановіть raytsystem у репозиторій за один попередній перегляд.</h2>
           <p>
-            Предпросмотр ничего не пишет. Установка только создаёт новые файлы и обратима — файлы
-            пользователя не перезаписываются, исходные данные индексируются на месте.
+            Попередній перегляд нічого не записує. Встановлення лише створює нові файли й оборотне — файли
+            користувача не перезаписуються, вихідні дані індексуються на місці.
           </p>
         </div>
       </section>
 
       <section className="panel onboarding-form">
         <label className="onboarding-label" htmlFor="onboarding-target">
-          Путь к репозиторию или папке
+          Шлях до репозиторію або теки
         </label>
         <div className="onboarding-input-row">
           <input
@@ -127,12 +127,12 @@ export function Onboarding() {
             disabled={busy || target.trim().length === 0}
             onClick={() => void preview()}
           >
-            <Sparkles size={16} aria-hidden="true" /> Предпросмотр
+            <Sparkles size={16} aria-hidden="true" /> Попередній перегляд
           </button>
         </div>
         <p className="onboarding-hint">
-          Укажите текущий проект или другую локальную папку. Абсолютный путь остаётся у вас — в
-          браузер возвращается только имя папки.
+          Вкажіть поточний проєкт або іншу локальну теку. Абсолютний шлях залишається у вас — у
+          браузер повертається лише назва теки.
         </p>
       </section>
 
@@ -152,7 +152,7 @@ export function Onboarding() {
 
           {plan.preflight.blockers.length > 0 ? (
             <div className="onboarding-notice onboarding-blockers">
-              <strong>Блокеры установки:</strong>
+              <strong>Блокери встановлення:</strong>
               <ul>
                 {plan.preflight.blockers.map((item) => (
                   <li key={item}>{item}</li>
@@ -162,7 +162,7 @@ export function Onboarding() {
           ) : null}
           {plan.preflight.warnings.length > 0 ? (
             <div className="onboarding-notice onboarding-warnings">
-              <strong>Предупреждения:</strong>
+              <strong>Попередження:</strong>
               <ul>
                 {plan.preflight.warnings.map((item) => (
                   <li key={item}>{item}</li>
@@ -174,21 +174,21 @@ export function Onboarding() {
           <div className="onboarding-facts">
             <div>
               <span className="onboarding-metric">{plan.files_to_create.length}</span>
-              <span>файлов будет создано</span>
+              <span>файлів буде створено</span>
             </div>
             <div>
               <span className="onboarding-metric">{plan.source_map.roots.length}</span>
-              <span>источников для индексации</span>
+              <span>джерел для індексації</span>
             </div>
             <div>
               <span className="onboarding-metric">{plan.post_init_steps.length}</span>
-              <span>шагов после установки</span>
+              <span>кроків після встановлення</span>
             </div>
           </div>
 
           {plan.source_map.roots.length > 0 ? (
             <div className="onboarding-roots">
-              <span className="eyebrow">Источники данных</span>
+              <span className="eyebrow">Джерела даних</span>
               <ul>
                 {plan.source_map.roots.map((root) => (
                   <li key={root.relative_path}>
@@ -200,7 +200,7 @@ export function Onboarding() {
           ) : null}
 
           <div className="onboarding-fingerprint">
-            <span className="eyebrow">Отпечаток плана</span>
+            <span className="eyebrow">Відбиток плану</span>
             <code>{plan.fingerprint}</code>
           </div>
 
@@ -211,7 +211,7 @@ export function Onboarding() {
               disabled={busy || !canInstall}
               onClick={() => void install()}
             >
-              <FolderPlus size={16} aria-hidden="true" /> Установить по этому отпечатку
+              <FolderPlus size={16} aria-hidden="true" /> Встановити за цим відбитком
             </button>
           </div>
         </section>
@@ -222,26 +222,26 @@ export function Onboarding() {
           <header className="panel-header">
             <div>
               <span className="eyebrow">Готово</span>
-              <h3>raytsystem установлен</h3>
+              <h3>raytsystem встановлено</h3>
             </div>
-            <StatusPill status="verified" label={result.index_rebuilt ? "индекс собран" : "готово"} />
+            <StatusPill status="verified" label={result.index_rebuilt ? "індекс зібрано" : "готово"} />
           </header>
           <div className="onboarding-facts">
             <div>
               <span className="onboarding-metric">{result.created.length}</span>
-              <span>создано</span>
+              <span>створено</span>
             </div>
             <div>
               <span className="onboarding-metric">{result.merged.length}</span>
-              <span>объединено</span>
+              <span>об'єднано</span>
             </div>
             <div>
               <span className="onboarding-metric">{result.skipped.length}</span>
-              <span>оставлено как есть</span>
+              <span>залишено як є</span>
             </div>
           </div>
           <p className="onboarding-hint">
-            Дальше запустите интерфейс командой <code>uv run raytsystem start --root {"<путь>"}</code>.
+            Далі запустіть інтерфейс командою <code>uv run raytsystem start --root {"<шлях>"}</code>.
           </p>
           <div className="onboarding-buttons">
             <button
@@ -250,7 +250,7 @@ export function Onboarding() {
               disabled={busy}
               onClick={() => void uninstall()}
             >
-              <RotateCcw size={16} aria-hidden="true" /> Откатить установку
+              <RotateCcw size={16} aria-hidden="true" /> Відкотити встановлення
             </button>
           </div>
         </section>

@@ -30,10 +30,10 @@ interface DocumentInspectorProps {
 }
 
 const sections: Array<{ id: DocumentWorkspaceState["inspectorSection"]; label: string; icon: typeof Tags }> = [
-  { id: "properties", label: "Свойства", icon: Tags },
-  { id: "links", label: "Ссылки", icon: Link2 },
+  { id: "properties", label: "Властивості", icon: Tags },
+  { id: "links", label: "Посилання", icon: Link2 },
   { id: "backlinks", label: "Backlinks", icon: GitBranch },
-  { id: "history", label: "История", icon: Clock3 }
+  { id: "history", label: "Історія", icon: Clock3 }
 ];
 
 function fieldValue(field: FrontmatterField): string | number {
@@ -83,9 +83,9 @@ export function DocumentInspector({
     onContentChange(result.content, result.warning ?? undefined);
   };
   return (
-    <aside className="doc-inspector" aria-label="Сведения о документе">
-      <header><div><span>{detail.document.kind}</span><strong>{detail.document.title}</strong></div>{onClose ? <button type="button" onClick={onClose} aria-label="Закрыть сведения"><X size={17} /></button> : null}</header>
-      <div className="doc-inspector-tabs" role="tablist" aria-label="Сведения о документе" aria-orientation="horizontal">
+    <aside className="doc-inspector" aria-label="Відомості про документ">
+      <header><div><span>{detail.document.kind}</span><strong>{detail.document.title}</strong></div>{onClose ? <button type="button" onClick={onClose} aria-label="Закрити відомості"><X size={17} /></button> : null}</header>
+      <div className="doc-inspector-tabs" role="tablist" aria-label="Відомості про документ" aria-orientation="horizontal">
         {sections.map(({ id, label, icon: Icon }, index) => <button ref={(node) => { tabRefs.current[index] = node; }} id={`doc-inspector-tab-${id}`} type="button" role="tab" aria-selected={section === id} aria-controls="doc-inspector-panel" tabIndex={section === id ? 0 : -1} key={id} onClick={() => onSectionChange(id)} onKeyDown={(event) => {
           let next: number | undefined;
           if (event.key === "ArrowRight") next = (index + 1) % sections.length;
@@ -101,40 +101,40 @@ export function DocumentInspector({
       <div id="doc-inspector-panel" className="doc-inspector-content" role="tabpanel" aria-labelledby={`doc-inspector-tab-${section}`} tabIndex={0}>
         {section === "properties" ? (
           <div className="doc-property-list">
-            <dl><div><dt>Путь</dt><dd><code>{detail.document.path}</code></dd></div><div><dt>Режим</dt><dd>{detail.document.mode}</dd></div><div><dt>SHA-256</dt><dd><code>{detail.content_sha256.slice(0, 16)}</code></dd></div><div><dt>Изменён</dt><dd>{formatDate(detail.document.modified_at)}</dd></div></dl>
-            {propertyEditingDisabled ? <p role="status">Свойства доступны для изменения в Source mode: открытый визуальный editor хранит собственную модель документа.</p> : null}
+            <dl><div><dt>Шлях</dt><dd><code>{detail.document.path}</code></dd></div><div><dt>Режим</dt><dd>{detail.document.mode}</dd></div><div><dt>SHA-256</dt><dd><code>{detail.content_sha256.slice(0, 16)}</code></dd></div><div><dt>Змінено</dt><dd>{formatDate(detail.document.modified_at)}</dd></div></dl>
+            {propertyEditingDisabled ? <p role="status">Властивості доступні для редагування в Source mode: відкритий візуальний editor зберігає власну модель документа.</p> : null}
             {fields.length ? fields.map((field) => (
               <label key={field.key}><span>{field.key}{!field.editable || propertyEditingDisabled ? <small>Source only</small> : null}</span>
-                {field.type === "boolean" ? <select value={field.value === true ? "true" : "false"} disabled={propertyEditingDisabled || !field.editable || !detail.document.can_edit} onChange={(event) => updateField(field, event.target.value)}><option value="true">Да</option><option value="false">Нет</option></select>
+                {field.type === "boolean" ? <select value={field.value === true ? "true" : "false"} disabled={propertyEditingDisabled || !field.editable || !detail.document.can_edit} onChange={(event) => updateField(field, event.target.value)}><option value="true">Так</option><option value="false">Ні</option></select>
                   : <input type={field.type === "date" ? "date" : field.type === "number" ? "number" : "text"} value={fieldValue(field)} disabled={propertyEditingDisabled || !field.editable || !detail.document.can_edit} onChange={(event) => updateField(field, event.target.value)} />}
               </label>
-            )) : <p>Frontmatter отсутствует.</p>}
+            )) : <p>Frontmatter відсутній.</p>}
           </div>
         ) : null}
         {section === "links" ? (
           <div className="doc-link-list">
             {links?.items.length ? links.items.map((link, index) => (
               <article key={`${link.target}:${index}`}><div><Link2 size={14} /><strong>{link.label || link.target}</strong>{link.heading ? <small>#{link.heading}</small> : null}</div><p>{link.context}</p>
-                {link.target_document_id ? <button type="button" onClick={() => onOpenDocument(link.target_document_id!, link.heading)}>Открыть</button> : link.ambiguous ? <div>{link.candidates?.map((candidate) => <button type="button" key={candidate.document_id} onClick={() => onOpenDocument(candidate.document_id, link.heading)}>{candidate.title}<small>{candidate.path}</small></button>)}</div> : <span>Цель не найдена</span>}
+                {link.target_document_id ? <button type="button" onClick={() => onOpenDocument(link.target_document_id!, link.heading)}>Відкрити</button> : link.ambiguous ? <div>{link.candidates?.map((candidate) => <button type="button" key={candidate.document_id} onClick={() => onOpenDocument(candidate.document_id, link.heading)}>{candidate.title}<small>{candidate.path}</small></button>)}</div> : <span>Ціль не знайдена</span>}
               </article>
-            )) : <p>Исходящих ссылок нет.</p>}
-            {links?.next_cursor ? <p role="status">Показана первая страница ссылок. Уточните фильтр или откройте граф для полного bounded neighborhood.</p> : null}
+            )) : <p>Вихідних посилань немає.</p>}
+            {links?.next_cursor ? <p role="status">Показано першу сторінку посилань. Уточніть фільтр або відкрийте граф для повного bounded neighborhood.</p> : null}
           </div>
         ) : null}
         {section === "backlinks" ? (
           <div className="doc-link-list">
-            {backlinks?.items.length ? backlinks.items.map((backlink, index) => <article key={`${backlink.source_document_id}:${index}`}><div><GitBranch size={14} /><strong>{backlink.source_title}</strong></div><small>{backlink.source_path}{backlink.line ? `:${backlink.line}` : ""}</small><p>{backlink.context}</p><button type="button" onClick={() => onOpenDocument(backlink.source_document_id)}>Перейти</button></article>) : <p>Обратных ссылок нет.</p>}
-            {backlinks?.next_cursor ? <p role="status">Backlinks ограничены первой страницей; полный контекст доступен через граф.</p> : null}
+            {backlinks?.items.length ? backlinks.items.map((backlink, index) => <article key={`${backlink.source_document_id}:${index}`}><div><GitBranch size={14} /><strong>{backlink.source_title}</strong></div><small>{backlink.source_path}{backlink.line ? `:${backlink.line}` : ""}</small><p>{backlink.context}</p><button type="button" onClick={() => onOpenDocument(backlink.source_document_id)}>Перейти</button></article>) : <p>Зворотних посилань немає.</p>}
+            {backlinks?.next_cursor ? <p role="status">Backlinks обмежені першою сторінкою; повний контекст доступний через граф.</p> : null}
           </div>
         ) : null}
         {section === "history" ? (
           <div className="doc-history-list">
-            {history?.items.length ? history.items.map((entry) => <article key={entry.history_id}><div><Clock3 size={14} /><strong>{formatDate(entry.recorded_at)}</strong><span>{entry.source}</span></div><code>{entry.content_sha256?.slice(0, 14) ?? "hash при открытии"}</code>{entry.author ? <small>{entry.author}</small> : null}{entry.summary ? <p>{entry.summary}</p> : null}<footer><button type="button" onClick={() => onPreviewRevision(entry)}>Diff и копия</button><button type="button" disabled={!detail.document.can_edit} onClick={() => onRequestRestore(entry)}><RotateCcw size={13} />Восстановить…</button></footer></article>) : <p>История пока недоступна.</p>}
-            {history?.next_cursor ? <p role="status">Показана первая страница истории.</p> : null}
+            {history?.items.length ? history.items.map((entry) => <article key={entry.history_id}><div><Clock3 size={14} /><strong>{formatDate(entry.recorded_at)}</strong><span>{entry.source}</span></div><code>{entry.content_sha256?.slice(0, 14) ?? "hash при відкритті"}</code>{entry.author ? <small>{entry.author}</small> : null}{entry.summary ? <p>{entry.summary}</p> : null}<footer><button type="button" onClick={() => onPreviewRevision(entry)}>Diff і копія</button><button type="button" disabled={!detail.document.can_edit} onClick={() => onRequestRestore(entry)}><RotateCcw size={13} />Відновити…</button></footer></article>) : <p>Історія поки недоступна.</p>}
+            {history?.next_cursor ? <p role="status">Показано першу сторінку історії.</p> : null}
           </div>
         ) : null}
       </div>
-      <footer><button type="button" onClick={onShowInGraph}><Network size={15} />Показать в графе</button><button type="button" onClick={() => void navigator.clipboard.writeText(detail.document.path)}><ExternalLink size={15} />Скопировать путь</button><span><ListTree size={14} />{detail.document.backlink_count} / {detail.document.outgoing_link_count}</span></footer>
+      <footer><button type="button" onClick={onShowInGraph}><Network size={15} />Показати в графі</button><button type="button" onClick={() => void navigator.clipboard.writeText(detail.document.path)}><ExternalLink size={15} />Скопіювати шлях</button><span><ListTree size={14} />{detail.document.backlink_count} / {detail.document.outgoing_link_count}</span></footer>
     </aside>
   );
 }

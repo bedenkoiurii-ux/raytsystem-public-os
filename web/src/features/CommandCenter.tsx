@@ -30,7 +30,7 @@ export function CommandCenter({ onCreateTask, onNavigate, onSelect }: CommandCen
   const tasks = useTasks();
   const runs = useRuns();
 
-  if (system.isLoading) return <LoadingState label="Читаем проверенную панель управления…" />;
+  if (system.isLoading) return <LoadingState label="Читаємо перевірену панель керування…" />;
   if (system.isError || !system.data) return <ErrorState error={system.error} onRetry={() => void system.refetch()} />;
   const data = system.data;
   const attentionTotal =
@@ -39,28 +39,28 @@ export function CommandCenter({ onCreateTask, onNavigate, onSelect }: CommandCen
 
   return (
     <div className="route route-command-center">
-      <section className="trust-strip" aria-label="Граница текущего среза">
-        <span className="local-indicator"><i /> Только локально</span>
-        <span><Database size={14} /> знания <code>{shortId(data.fingerprint.knowledge_generation_id)}</code></span>
-        <span><ListTodo size={14} /> задачи <code>{shortId(data.fingerprint.task_generation_id)}</code></span>
+      <section className="trust-strip" aria-label="Межа поточного зрізу">
+        <span className="local-indicator"><i /> Тільки локально</span>
+        <span><Database size={14} /> знання <code>{shortId(data.fingerprint.knowledge_generation_id)}</code></span>
+        <span><ListTodo size={14} /> задачі <code>{shortId(data.fingerprint.task_generation_id)}</code></span>
         <span><ShieldCheck size={14} /> каталог <code>{shortId(data.fingerprint.catalog_sha256)}</code></span>
       </section>
 
       <div className="command-grid">
         <section className="mission-hero panel panel-glow">
           <div className="hero-copy">
-            <span className="eyebrow">Центр управления · проверенный срез</span>
-            <h2>Все ваши системы —<br /><em>в одном поле зрения.</em></h2>
+            <span className="eyebrow">Центр керування · перевірений зріз</span>
+            <h2>Усі ваші системи —<br /><em>в одному полі зору.</em></h2>
             <p>
-              Знания, работа, агенты и точные доказательства остаются связаны, а браузер не получает
-              права выполнять команды.
+              Знання, робота, агенти та точні докази залишаються пов'язаними, а браузер не отримує
+              прав виконувати команди.
             </p>
             <div className="hero-actions">
               <button className="primary-button" type="button" onClick={() => onNavigate("universe")}>
-                <Orbit size={17} /> Открыть вселенную
+                <Orbit size={17} /> Відкрити Всесвіт
               </button>
               <button className="secondary-button" type="button" onClick={onCreateTask}>
-                <Plus size={17} /> Создать задачу
+                <Plus size={17} /> Створити задачу
               </button>
             </div>
           </div>
@@ -71,32 +71,32 @@ export function CommandCenter({ onCreateTask, onNavigate, onSelect }: CommandCen
             <i className="mini-core"><span>OS</span></i>
             <i className="mini-node n1" /><i className="mini-node n2" /><i className="mini-node n3" />
             <i className="mini-node n4" /><i className="mini-node n5" /><i className="mini-node n6" />
-            <div className="orbit-caption"><strong>{totalKnowledge}</strong><span>{pluralRu(totalKnowledge, "проверенный объект", "проверенных объекта", "проверенных объектов")}</span></div>
+            <div className="orbit-caption"><strong>{totalKnowledge}</strong><span>{pluralRu(totalKnowledge, "перевірений об'єкт", "перевірених об'єкти", "перевірених об'єктів")}</span></div>
           </div>
         </section>
 
         <section className={`attention-panel panel ${attentionTotal ? "has-attention" : "is-clear"}`}>
           <header className="panel-header">
             <div>
-              <span className="eyebrow">Требует внимания</span>
-              <h3>{attentionTotal ? `${attentionTotal} ${pluralRu(attentionTotal, "сигнал", "сигнала", "сигналов")}` : "Всё в порядке"}</h3>
+              <span className="eyebrow">Потребує уваги</span>
+              <h3>{attentionTotal ? `${attentionTotal} ${pluralRu(attentionTotal, "сигнал", "сигнали", "сигналів")}` : "Все гаразд"}</h3>
             </div>
             {attentionTotal ? <CircleAlert size={22} /> : <CheckCircle2 size={22} />}
           </header>
           <div className="attention-list">
             <button type="button" onClick={() => onNavigate("tasks")}>
               <span className="attention-icon rose"><ListTodo size={17} /></span>
-              <span><strong>Заблокированные задачи</strong><small>Только операционное состояние</small></span>
+              <span><strong>Заблоковані задачі</strong><small>Тільки операційний стан</small></span>
               <b>{data.attention.blocked_tasks}</b>
             </button>
             <button type="button" onClick={() => onNavigate("runs")}>
               <span className="attention-icon gold"><FileCheck2 size={17} /></span>
-              <span><strong>Неудачные запуски</strong><small>Зафиксированные записи</small></span>
+              <span><strong>Невдалі запуски</strong><small>Зафіксовані записи</small></span>
               <b>{data.attention.failed_runs}</b>
             </button>
             <button type="button" onClick={() => onNavigate("skills")}>
               <span className="attention-icon violet"><LockKeyhole size={17} /></span>
-              <span><strong>Ограниченные навыки</strong><small>Контроль чувствительности</small></span>
+              <span><strong>Обмежені навички</strong><small>Контроль чутливості</small></span>
               <b>{data.attention.restricted_skills}</b>
             </button>
           </div>
@@ -104,8 +104,8 @@ export function CommandCenter({ onCreateTask, onNavigate, onSelect }: CommandCen
 
         <section className="work-panel panel">
           <header className="panel-header">
-            <div><span className="eyebrow">Состояние работы</span><h3>Операционный журнал</h3></div>
-            <button className="text-button" type="button" onClick={() => onNavigate("tasks")}>Открыть доску <ArrowUpRight size={14} /></button>
+            <div><span className="eyebrow">Стан роботи</span><h3>Операційний журнал</h3></div>
+            <button className="text-button" type="button" onClick={() => onNavigate("tasks")}>Відкрити дошку <ArrowUpRight size={14} /></button>
           </header>
           <div className="work-bars">
             {workStates.map((status) => {
@@ -145,8 +145,8 @@ export function CommandCenter({ onCreateTask, onNavigate, onSelect }: CommandCen
 
         <section className="runs-panel panel">
           <header className="panel-header">
-            <div><span className="eyebrow">Последние запуски</span><h3>Зафиксированная история</h3></div>
-            <button className="text-button" type="button" onClick={() => onNavigate("runs")}>Открыть <ArrowUpRight size={14} /></button>
+            <div><span className="eyebrow">Останні запуски</span><h3>Зафіксована історія</h3></div>
+            <button className="text-button" type="button" onClick={() => onNavigate("runs")}>Відкрити <ArrowUpRight size={14} /></button>
           </header>
           <div className="timeline-list">
             {runs.data?.runs.slice(0, 5).map((run) => (
@@ -167,31 +167,31 @@ export function CommandCenter({ onCreateTask, onNavigate, onSelect }: CommandCen
                 <StatusPill status={run.state} />
               </button>
             ))}
-            {!runs.data?.runs.length ? <p className="muted-copy">Зафиксированных запусков пока нет.</p> : null}
+            {!runs.data?.runs.length ? <p className="muted-copy">Зафіксованих запусків поки немає.</p> : null}
           </div>
         </section>
 
         <section className="knowledge-panel panel">
           <header className="panel-header">
-            <div><span className="eyebrow">Слой знаний</span><h3>{data.counts.claims} {pluralRu(data.counts.claims, "каноническое утверждение", "канонических утверждения", "канонических утверждений")}</h3></div>
+            <div><span className="eyebrow">Шар знань</span><h3>{data.counts.claims} {pluralRu(data.counts.claims, "канонічне твердження", "канонічних твердження", "канонічних тверджень")}</h3></div>
             <Database size={21} />
           </header>
           <div className="metric-quartet">
-            <div><strong>{data.counts.claims}</strong><span>утверждения</span></div>
-            <div><strong>{data.counts.entities}</strong><span>сущности</span></div>
-            <div><strong>{data.counts.sources}</strong><span>источники</span></div>
-            <div><strong>{data.counts.evidence}</strong><span>фрагменты</span></div>
+            <div><strong>{data.counts.claims}</strong><span>твердження</span></div>
+            <div><strong>{data.counts.entities}</strong><span>сутності</span></div>
+            <div><strong>{data.counts.sources}</strong><span>джерела</span></div>
+            <div><strong>{data.counts.evidence}</strong><span>фрагменти</span></div>
           </div>
-          <div className="generation-line"><span>Активное поколение</span><code>{shortId(data.fingerprint.knowledge_generation_id, 12, 8)}</code></div>
+          <div className="generation-line"><span>Активне покоління</span><code>{shortId(data.fingerprint.knowledge_generation_id, 12, 8)}</code></div>
         </section>
 
         <section className="agents-panel panel">
           <header className="panel-header">
-            <div><span className="eyebrow">Реестр агентов</span><h3>{data.counts.agents} {pluralRu(data.counts.agents, "объявленный профиль", "объявленных профиля", "объявленных профилей")}</h3></div>
+            <div><span className="eyebrow">Реєстр агентів</span><h3>{data.counts.agents} {pluralRu(data.counts.agents, "оголошений профіль", "оголошених профілі", "оголошених профілів")}</h3></div>
             <Bot size={21} />
           </header>
-          <p>Наличие профиля или назначенной задачи не означает, что агент выполняется.</p>
-          <div className="boundary-chip"><LockKeyhole size={14} /> выполнение отключено</div>
+          <p>Наявність профілю або призначеної задачі не означає, що агент виконується.</p>
+          <div className="boundary-chip"><LockKeyhole size={14} /> виконання вимкнено</div>
         </section>
       </div>
     </div>

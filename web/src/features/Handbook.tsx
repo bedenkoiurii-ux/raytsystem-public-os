@@ -5,14 +5,14 @@ import { EmptyState, ErrorState, LoadingState } from "../components/StatePanel";
 import type { HandbookArticleRef } from "../types";
 
 const STATUS_LABEL: Record<string, string> = {
-  stable: "стабильно",
-  experimental: "эксперимент",
-  disabled: "отключено",
-  draft: "черновик"
+  stable: "стабільно",
+  experimental: "експеримент",
+  disabled: "вимкнено",
+  draft: "чернетка"
 };
 
 function StatusTag({ status, generated }: { status: string; generated: boolean }) {
-  if (generated) return <span className="hb-tag hb-tag-generated">генерируется</span>;
+  if (generated) return <span className="hb-tag hb-tag-generated">генерується</span>;
   if (!status) return null;
   return <span className={`hb-tag hb-tag-${status}`}>{STATUS_LABEL[status] ?? status}</span>;
 }
@@ -138,23 +138,23 @@ export function Handbook() {
   const article = useHandbookArticle(slug);
 
   const filtered = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase("ru-RU");
+    const needle = query.trim().toLocaleLowerCase("uk-UA");
     if (!needle) return tree.data?.sections ?? [];
     return (tree.data?.sections ?? [])
       .map((section) => ({
         ...section,
-        articles: section.articles.filter((a) => a.title.toLocaleLowerCase("ru-RU").includes(needle))
+        articles: section.articles.filter((a) => a.title.toLocaleLowerCase("uk-UA").includes(needle))
       }))
-      .filter((section) => section.articles.length > 0 || section.label.toLocaleLowerCase("ru-RU").includes(needle));
+      .filter((section) => section.articles.length > 0 || section.label.toLocaleLowerCase("uk-UA").includes(needle));
   }, [query, tree.data?.sections]);
 
-  if (tree.isLoading) return <LoadingState label="Читаем базу знаний…" />;
+  if (tree.isLoading) return <LoadingState label="Читаємо базу знань…" />;
   if (tree.isError || !tree.data) return <ErrorState error={tree.error} onRetry={() => void tree.refetch()} />;
   if (!tree.data.available) {
     return (
       <div className="route route-list">
-        <EmptyState title="База знаний недоступна">
-          Каталог документации <code>website/docs</code> не найден рядом с установкой raytsystem.
+        <EmptyState title="База знань недоступна">
+          Каталог документації <code>website/docs</code> не знайдено поруч із встановленням raytsystem.
         </EmptyState>
       </div>
     );
@@ -179,14 +179,14 @@ export function Handbook() {
 
   return (
     <div className="route handbook-route">
-      <aside className="hb-sidebar" aria-label="Разделы базы знаний">
+      <aside className="hb-sidebar" aria-label="Розділи бази знань">
         <div className="hb-search">
           <Search size={15} aria-hidden="true" />
           <input
-            aria-label="Поиск по базе знаний"
+            aria-label="Пошук по базі знань"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Поиск статьи"
+            placeholder="Пошук статті"
           />
         </div>
         <nav className="hb-nav">
@@ -201,13 +201,13 @@ export function Handbook() {
       </aside>
       <article className="hb-article panel" aria-live="polite">
         {article.isLoading ? (
-          <LoadingState label="Открываем статью…" />
+          <LoadingState label="Відкриваємо статтю…" />
         ) : article.isError || !article.data ? (
           <ErrorState error={article.error} onRetry={() => void article.refetch()} />
         ) : (
           <>
             <header className="hb-article-head">
-              <div className="hb-eyebrow"><BookOpen size={14} aria-hidden="true" /> База знаний raytsystem</div>
+              <div className="hb-eyebrow"><BookOpen size={14} aria-hidden="true" /> База знань raytsystem</div>
               <div className="hb-article-title">
                 <StatusTag status={article.data.status} generated={article.data.generated} />
               </div>

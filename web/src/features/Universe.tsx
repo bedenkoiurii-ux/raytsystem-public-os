@@ -80,19 +80,19 @@ function isVisible(kind: string, lens: GraphLens): boolean {
 }
 
 function nodeLabel(node: GraphNode): string {
-  if (node.kind === "workspace") return "Рабочее пространство raytsystem";
-  if (node.kind === "generation") return "Активное поколение знаний";
-  if (node.kind === "task_generation") return "Активное поколение задач";
+  if (node.kind === "workspace") return "Робочий простір raytsystem";
+  if (node.kind === "generation") return "Активне покоління знань";
+  if (node.kind === "task_generation") return "Активне покоління задач";
   return localizedCatalogLabel(node.node_id, node.label);
 }
 
 function nodeSubtitle(node: GraphNode): string {
-  if (node.kind === "workspace") return "Локальная система управления";
-  if (node.kind === "generation") return "Канонический срез знаний";
-  if (node.kind === "task_generation") return "Операционный срез задач";
+  if (node.kind === "workspace") return "Локальна система керування";
+  if (node.kind === "generation") return "Канонічний зріз знань";
+  if (node.kind === "task_generation") return "Операційний зріз задач";
   if (node.kind === "adapter") return isolationLabel(node.subtitle);
   if (node.kind === "agent") return roleLabel(node.subtitle);
-  if (node.kind === "instruction") return "Документ инструкций";
+  if (node.kind === "instruction") return "Документ інструкцій";
   if (["pack", "skill"].includes(node.kind)) return catalogDescription(node.node_id, node.subtitle);
   return node.subtitle;
 }
@@ -163,16 +163,16 @@ function focusCameraOnNodes(sigma: Sigma, ids: ReadonlySet<string>): void {
 }
 
 function legendForLens(lens: GraphLens): Array<[string, string]> {
-  if (lens === "code") return [["repository", "Репозитории"], ["module", "Модули"], ["class", "Классы"], ["function", "Функции"], ["test", "Тесты"]];
-  if (lens === "knowledge") return [["generation", "Поколения"], ["claim", "Знания"], ["entity", "Сущности"], ["source", "Источники"], ["evidence", "Доказательства"]];
-  if (lens === "work") return [["task_generation", "Поколения задач"], ["task", "Задачи"], ["run", "Запуски"], ["agent", "Агенты"], ["skill", "Навыки"]];
-  if (lens === "agent") return [["pack", "Пакеты"], ["agent", "Агенты"], ["skill", "Навыки"], ["instruction", "Инструкции"], ["adapter", "Адаптеры"]];
-  if (lens === "evidence") return [["claim", "Утверждения"], ["evidence", "Фрагменты"], ["source", "Источники"], ["generation", "Поколения"]];
-  return [["workspace", "Пространство"], ["manual_document", "Документы"], ["claim", "Знания"], ["task", "Работа"], ["skill", "Возможности"], ["repository", "Код"]];
+  if (lens === "code") return [["repository", "Репозиторії"], ["module", "Модулі"], ["class", "Класи"], ["function", "Функції"], ["test", "Тести"]];
+  if (lens === "knowledge") return [["generation", "Покоління"], ["claim", "Знання"], ["entity", "Сутності"], ["source", "Джерела"], ["evidence", "Докази"]];
+  if (lens === "work") return [["task_generation", "Покоління задач"], ["task", "Задачі"], ["run", "Запуски"], ["agent", "Агенти"], ["skill", "Навички"]];
+  if (lens === "agent") return [["pack", "Пакети"], ["agent", "Агенти"], ["skill", "Навички"], ["instruction", "Інструкції"], ["adapter", "Адаптери"]];
+  if (lens === "evidence") return [["claim", "Твердження"], ["evidence", "Фрагменти"], ["source", "Джерела"], ["generation", "Покоління"]];
+  return [["workspace", "Простір"], ["manual_document", "Документи"], ["claim", "Знання"], ["task", "Робота"], ["skill", "Можливості"], ["repository", "Код"]];
 }
 
 function lensControlLabel(lens: GraphLens): string {
-  return lens === "universe" ? "Вся вселенная" : lensLabel(lens);
+  return lens === "universe" ? "Весь Всесвіт" : lensLabel(lens);
 }
 
 // Layout/visual tests mount a real Chromium but must never spawn a background FA2 worker;
@@ -717,39 +717,39 @@ function SigmaCanvas({
   };
 
   const physicsLabel = filtersPending
-    ? "Обновляем активный подграф…"
+    ? "Оновлюємо активний підграф…"
     : physics === "layouting"
-      ? "Раскладываем граф…"
+      ? "Розкладаємо граф…"
       : physics === "running"
-        ? "Физика активна"
+        ? "Фізика активна"
         : physics === "paused"
-          ? "Физика приостановлена"
-          : "Раскладка стабилизирована";
+          ? "Фізика призупинена"
+          : "Розкладка стабілізована";
 
   return (
-    <div className={`sigma-stage${reducedMotion ? " reduced-motion" : ""}`} aria-label="Интерактивная вселенная знаний" aria-busy={layout === "force" && (physics === "layouting" || filtersPending)} data-layout={layout} data-physics={physics}>
+    <div className={`sigma-stage${reducedMotion ? " reduced-motion" : ""}`} aria-label="Інтерактивний Всесвіт знань" aria-busy={layout === "force" && (physics === "layouting" || filtersPending)} data-layout={layout} data-physics={physics}>
       <div className="cosmic-grid" aria-hidden="true"><i /><i /><i /><i /></div>
       <div ref={container} className="sigma-container" aria-hidden="true" />
-      <button className="fit-graph" type="button" onClick={() => { void renderer.current?.getCamera().animatedReset({ duration: prefersReducedMotion() ? 0 : 360 }); }}><Crosshair size={15} /> Показать всё</button>
+      <button className="fit-graph" type="button" onClick={() => { void renderer.current?.getCamera().animatedReset({ duration: prefersReducedMotion() ? 0 : 360 }); }}><Crosshair size={15} /> Показати все</button>
       {layout === "force" ? (
-        <div className="physics-panel" role="group" aria-label="Управление силовой раскладкой">
+        <div className="physics-panel" role="group" aria-label="Керування силовою розкладкою">
           <div className={`physics-status state-${filtersPending ? "layouting" : physics}`} aria-live="polite"><i />{physicsLabel}</div>
-          <span className="physics-count">{activeCount.nodes} узлов · {activeCount.edges} связей{pinned ? ` · ${pinned} закреплено` : ""}</span>
-          {hoverDirection ? <span className="physics-direction"><b>↓ {hoverDirection.incoming}</b> входящих · <b>↑ {hoverDirection.outgoing}</b> исходящих</span> : null}
-          {activeCount.nodes > FORCE_DETAIL_BUDGET ? <span className="physics-budget" title="Все узлы участвуют в worker-раскладке; подписи и толщина рёбер снижены">экономный уровень детализации</span> : null}
-          {reducedMotion ? <span className="physics-budget">движение скрыто до конечной worker-итерации</span> : null}
+          <span className="physics-count">{activeCount.nodes} вузлів · {activeCount.edges} зв'язків{pinned ? ` · ${pinned} закріплено` : ""}</span>
+          {hoverDirection ? <span className="physics-direction"><b>↓ {hoverDirection.incoming}</b> вхідних · <b>↑ {hoverDirection.outgoing}</b> вихідних</span> : null}
+          {activeCount.nodes > FORCE_DETAIL_BUDGET ? <span className="physics-budget" title="Усі вузли беруть участь у worker-розкладці; підписи та товщина ребер знижені">економний рівень деталізації</span> : null}
+          {reducedMotion ? <span className="physics-budget">рух приховано до кінцевої worker-ітерації</span> : null}
           <div className="physics-actions">
-            <button type="button" aria-label={physics === "running" || physics === "layouting" ? "Приостановить физику" : "Запустить физику"} title={physics === "running" || physics === "layouting" ? "Пауза" : "Пуск"} onClick={() => controllerRef.current?.toggle()}>{physics === "running" || physics === "layouting" ? <Pause size={14} /> : <Play size={14} />}</button>
-            <button type="button" aria-label="Переразложить граф" title="Переразложить" onClick={relayout}><RotateCw size={14} /></button>
-            {selectedId && visibleIds.has(selectedId) ? <button type="button" aria-label={selectedPinned ? "Открепить выбранный узел" : "Закрепить выбранный узел"} title={selectedPinned ? "Открепить выбранный" : "Закрепить выбранный"} onClick={toggleSelectedPin}>{selectedPinned ? <PinOff size={14} /> : <Pin size={14} />}</button> : null}
-            <button type="button" aria-label="Открепить узлы" title="Открепить всё" onClick={unpinAll} disabled={!pinned}><PinOff size={14} /></button>
+            <button type="button" aria-label={physics === "running" || physics === "layouting" ? "Призупинити фізику" : "Запустити фізику"} title={physics === "running" || physics === "layouting" ? "Пауза" : "Старт"} onClick={() => controllerRef.current?.toggle()}>{physics === "running" || physics === "layouting" ? <Pause size={14} /> : <Play size={14} />}</button>
+            <button type="button" aria-label="Перерозкласти граф" title="Перерозкласти" onClick={relayout}><RotateCw size={14} /></button>
+            {selectedId && visibleIds.has(selectedId) ? <button type="button" aria-label={selectedPinned ? "Відкріпити вибраний вузол" : "Закріпити вибраний вузол"} title={selectedPinned ? "Відкріпити вибраний" : "Закріпити вибраний"} onClick={toggleSelectedPin}>{selectedPinned ? <PinOff size={14} /> : <Pin size={14} />}</button> : null}
+            <button type="button" aria-label="Відкріпити вузли" title="Відкріпити все" onClick={unpinAll} disabled={!pinned}><PinOff size={14} /></button>
             {focusRoot ? (
               <>
-                <button type="button" aria-label="Показать больше соседей" title="Ещё уровень" onClick={() => setFocusDepth((value) => (value === 1 ? 2 : 1))}><Focus size={14} /> {focusDepth === 1 ? "2 уровня" : "1 уровень"}</button>
-                <button type="button" aria-label="Вернуться ко всему графу" title="Ко всему графу" onClick={() => { setFocusRoot(null); setFocusDepth(1); void renderer.current?.getCamera().animatedReset({ duration: prefersReducedMotion() ? 0 : 360 }); }}><Shrink size={14} /> Весь граф</button>
+                <button type="button" aria-label="Показати більше сусідів" title="Ще рівень" onClick={() => setFocusDepth((value) => (value === 1 ? 2 : 1))}><Focus size={14} /> {focusDepth === 1 ? "2 рівні" : "1 рівень"}</button>
+                <button type="button" aria-label="Повернутися до всього графа" title="До всього графа" onClick={() => { setFocusRoot(null); setFocusDepth(1); void renderer.current?.getCamera().animatedReset({ duration: prefersReducedMotion() ? 0 : 360 }); }}><Shrink size={14} /> Весь граф</button>
               </>
             ) : selectedId && visibleIds.has(selectedId) ? (
-              <button type="button" aria-label="Сфокусироваться на выбранном" title="Сфокусироваться" onClick={() => { setFocusDepth(1); setFocusRoot(selectedId); }}><Focus size={14} /> Сфокусироваться</button>
+              <button type="button" aria-label="Сфокусуватися на вибраному" title="Сфокусуватися" onClick={() => { setFocusDepth(1); setFocusRoot(selectedId); }}><Focus size={14} /> Сфокусуватися</button>
             ) : null}
           </div>
         </div>
@@ -942,14 +942,14 @@ export function Universe({
     return () => window.removeEventListener("raytsystem:code-action", listener);
   }, [canTraverse, codeStatus.data?.snapshot_id, depth, impact, neighbors, updateGraph]);
 
-  if (universe.isLoading || (focusedDocumentId && documentGraph.isLoading)) return <LoadingState label="Читаем проверенный срез графа…" />;
+  if (universe.isLoading || (focusedDocumentId && documentGraph.isLoading)) return <LoadingState label="Читаємо перевірений зріз графа…" />;
   if (universe.isError || !universe.data) return <ErrorState error={universe.error} onRetry={() => void universe.refetch()} />;
   if (focusedDocumentId && documentGraph.isError) return <ErrorState error={documentGraph.error} onRetry={() => void documentGraph.refetch()} />;
-  if (!graph?.nodes.length) return <EmptyState title="Нет канонического поколения знаний">Импортируйте источники через документированный CLI-процесс, чтобы создать проверенную вселенную.</EmptyState>;
+  if (!graph?.nodes.length) return <EmptyState title="Немає канонічного покоління знань">Імпортуйте джерела через задокументований CLI-процес, щоб створити перевірений Всесвіт.</EmptyState>;
   return (
     <div className="route universe-route">
       <div className="universe-toolbar">
-        <div className="lens-switch" aria-label="Слой вселенной">
+        <div className="lens-switch" aria-label="Шар Всесвіту">
           {graph.supported_lenses.map((item) => (
             <button aria-pressed={lens === item} className={lens === item ? "active" : ""} type="button" key={item} onClick={() => setLens(item)}>
               {item === "universe" ? <Orbit size={15} /> : item === "evidence" ? <Focus size={15} /> : item === "code" ? <Braces size={15} /> : <Waypoints size={15} />}
@@ -957,69 +957,69 @@ export function Universe({
             </button>
           ))}
         </div>
-        <label className="graph-search"><span className="sr-only">Найти узел вселенной</span><Search size={15} /><input aria-label="Найти узел вселенной" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Найти узел" /></label>
-        <div className="layout-switch" role="toolbar" aria-label="Раскладка графа">
-          <button aria-label="Орбита — обзор слоёв" aria-pressed={layout === "orbit"} className={layout === "orbit" ? "active" : ""} type="button" onClick={() => setLayout("orbit")} title="Орбита — детерминированный обзор слоёв"><Orbit size={15} /> Орбита</button>
-          <button aria-label="Связи — интерактивный граф отношений" aria-pressed={layout === "force"} className={layout === "force" ? "active" : ""} type="button" onClick={() => setLayout("force")} title="Связи — интерактивный force-граф отношений"><Sparkles size={15} /> Связи</button>
-          <button aria-label="Структура — иерархическое представление" aria-pressed={layout === "structured"} className={layout === "structured" ? "active" : ""} type="button" onClick={() => setLayout("structured")} title="Структура — слоистое иерархическое представление"><Share2 size={15} /> Структура</button>
+        <label className="graph-search"><span className="sr-only">Знайти вузол Всесвіту</span><Search size={15} /><input aria-label="Знайти вузол Всесвіту" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Знайти вузол" /></label>
+        <div className="layout-switch" role="toolbar" aria-label="Розкладка графа">
+          <button aria-label="Орбіта — огляд шарів" aria-pressed={layout === "orbit"} className={layout === "orbit" ? "active" : ""} type="button" onClick={() => setLayout("orbit")} title="Орбіта — детермінований огляд шарів"><Orbit size={15} /> Орбіта</button>
+          <button aria-label="Зв'язки — інтерактивний граф відносин" aria-pressed={layout === "force"} className={layout === "force" ? "active" : ""} type="button" onClick={() => setLayout("force")} title="Зв'язки — інтерактивний force-граф відносин"><Sparkles size={15} /> Зв'язки</button>
+          <button aria-label="Структура — ієрархічне представлення" aria-pressed={layout === "structured"} className={layout === "structured" ? "active" : ""} type="button" onClick={() => setLayout("structured")} title="Структура — шарувате ієрархічне представлення"><Share2 size={15} /> Структура</button>
         </div>
-        <div className="view-switch" aria-label="Граф или список"><button aria-pressed={view === "graph"} className={view === "graph" ? "active" : ""} type="button" onClick={() => setView("graph")}><Waypoints size={15} /> Граф</button><button aria-pressed={view === "list"} className={view === "list" ? "active" : ""} type="button" onClick={() => setView("list")}><List size={15} /> Список</button></div>
+        <div className="view-switch" aria-label="Граф або список"><button aria-pressed={view === "graph"} className={view === "graph" ? "active" : ""} type="button" onClick={() => setView("graph")}><Waypoints size={15} /> Граф</button><button aria-pressed={view === "list"} className={view === "list" ? "active" : ""} type="button" onClick={() => setView("list")}><List size={15} /> Список</button></div>
       </div>
       <div className="universe-meta">
-        <div className="universe-fingerprint"><span><i /> {focusedDocumentId ? "document projection" : "проверенный срез"}</span><code>{shortId(focusedDocumentId ? documentGraph.data?.snapshot_id : lens === "code" ? graph.code_snapshot_id : graph.graph_snapshot_id, 12, 8)}</code><span>видно {nodes.length} из {lens === "code" ? graph.code_node_count : graph.nodes.length}</span><span><Filter size={13} /> линза: {lensControlLabel(lens)}</span></div>
-        {focusedDocumentId ? <div className="selection-hidden-note" role="status"><Network size={14} /><span>Фокус на документе и его ссылках. Эта проекция не делает заметку canonical claim.</span>{documentGraph.data?.truncated ? <em>Срез ограничен бюджетом</em> : null}</div> : null}
-        {selectedHidden ? <div className="selection-hidden-note" role="status"><AlertTriangle size={14} /><span>{selectedNode ? "Выбранный узел скрыт текущим слоем или фильтрами; Inspector остаётся открыт." : "Выбранный узел отсутствует в новом snapshot; Inspector показывает предыдущий контекст."}</span>{selectedNode ? <button type="button" onClick={revealSelected}>Показать выбранный</button> : null}</div> : null}
+        <div className="universe-fingerprint"><span><i /> {focusedDocumentId ? "document projection" : "перевірений зріз"}</span><code>{shortId(focusedDocumentId ? documentGraph.data?.snapshot_id : lens === "code" ? graph.code_snapshot_id : graph.graph_snapshot_id, 12, 8)}</code><span>видно {nodes.length} з {lens === "code" ? graph.code_node_count : graph.nodes.length}</span><span><Filter size={13} /> лінза: {lensControlLabel(lens)}</span></div>
+        {focusedDocumentId ? <div className="selection-hidden-note" role="status"><Network size={14} /><span>Фокус на документі та його посиланнях. Ця проекція не робить нотатку canonical claim.</span>{documentGraph.data?.truncated ? <em>Зріз обмежений бюджетом</em> : null}</div> : null}
+        {selectedHidden ? <div className="selection-hidden-note" role="status"><AlertTriangle size={14} /><span>{selectedNode ? "Вибраний вузол прихований поточним шаром або фільтрами; Inspector залишається відкритим." : "Вибраний вузол відсутній у новому snapshot; Inspector показує попередній контекст."}</span>{selectedNode ? <button type="button" onClick={revealSelected}>Показати вибраний</button> : null}</div> : null}
         {lens === "code" ? (
-          <section className="code-graph-console panel" aria-label="Управление графом кода">
+          <section className="code-graph-console panel" aria-label="Керування графом коду">
             <header>
               <div className={`code-freshness state-${codeStatus.data?.state ?? "missing"}`}><i /><span>{statusLabel(codeStatus.data?.state ?? "missing")}</span><code>{shortId(codeStatus.data?.snapshot_fingerprint, 9, 6)}</code></div>
-              <div className="code-metrics"><span>{codeStatus.data?.file_count ?? 0} файлов</span><span>{codeStatus.data?.node_count ?? 0} узлов</span><span>{codeStatus.data?.edge_count ?? 0} связей</span><span>{codeStatus.data?.ambiguous_edges ?? 0} неоднозначных</span></div>
+              <div className="code-metrics"><span>{codeStatus.data?.file_count ?? 0} файлів</span><span>{codeStatus.data?.node_count ?? 0} вузлів</span><span>{codeStatus.data?.edge_count ?? 0} зв'язків</span><span>{codeStatus.data?.ambiguous_edges ?? 0} неоднозначних</span></div>
               <div className="code-maintenance">
-                <button type="button" onClick={() => void codeStatus.refetch()} disabled={codeStatus.isFetching} title="Полная проверка свежести"><RefreshCw className={codeStatus.isFetching ? "spin" : ""} size={14} /> Проверить</button>
-                <button type="button" onClick={() => updateGraph.mutate({ expected_snapshot_id: codeStatus.data?.snapshot_id ?? null })} disabled={mutationPending || codeStatus.data?.state === "missing"}><GitCompareArrows size={14} /> Обновить изменённое</button>
-                <button type="button" className={codeStatus.data?.state === "missing" ? "primary-action" : undefined} onClick={() => rebuildGraph.mutate({ expected_snapshot_id: codeStatus.data?.snapshot_id ?? null })} disabled={mutationPending}><RotateCcw className={rebuildGraph.isPending ? "spin" : ""} size={14} /> {codeStatus.data?.state === "missing" ? "Построить граф" : "Пересобрать"}</button>
+                <button type="button" onClick={() => void codeStatus.refetch()} disabled={codeStatus.isFetching} title="Повна перевірка свіжості"><RefreshCw className={codeStatus.isFetching ? "spin" : ""} size={14} /> Перевірити</button>
+                <button type="button" onClick={() => updateGraph.mutate({ expected_snapshot_id: codeStatus.data?.snapshot_id ?? null })} disabled={mutationPending || codeStatus.data?.state === "missing"}><GitCompareArrows size={14} /> Оновити змінене</button>
+                <button type="button" className={codeStatus.data?.state === "missing" ? "primary-action" : undefined} onClick={() => rebuildGraph.mutate({ expected_snapshot_id: codeStatus.data?.snapshot_id ?? null })} disabled={mutationPending}><RotateCcw className={rebuildGraph.isPending ? "spin" : ""} size={14} /> {codeStatus.data?.state === "missing" ? "Побудувати граф" : "Перезібрати"}</button>
               </div>
             </header>
-            {codeStatus.data?.state !== "current" ? <div className="code-warning"><AlertTriangle size={14} /><span>{codeStatus.data?.state === "missing" ? "Постройте локальный граф. Канонические знания не изменятся." : "Граф устарел или ещё не проверен: traversal временно заблокирован."}</span></div> : null}
+            {codeStatus.data?.state !== "current" ? <div className="code-warning"><AlertTriangle size={14} /><span>{codeStatus.data?.state === "missing" ? "Побудуйте локальний граф. Канонічні знання не зміняться." : "Граф застарів або ще не перевірений: traversal тимчасово заблокований."}</span></div> : null}
             <form className="graph-natural-query" onSubmit={(event) => {
               event.preventDefault();
               const snapshotId = codeStatus.data?.snapshot_id;
               if (!snapshotId || !naturalQuery.trim() || !canTraverse) return;
               graphQuery.mutate({ query: naturalQuery.trim(), expected_snapshot_id: snapshotId, depth }, { onSuccess: setGraphResult });
             }}>
-              <Network size={16} /><input value={naturalQuery} onChange={(event) => setNaturalQuery(event.target.value)} aria-label="Вопрос к графу кода" placeholder="Как связаны QueryService и Universe?" /><select aria-label="Глубина графового запроса" value={depth} onChange={(event) => setDepth(Number(event.target.value) as 1 | 2)}><option value={1}>1 переход</option><option value={2}>2 перехода</option></select><button type="submit" disabled={!canTraverse || graphQuery.isPending}>Исследовать</button>
+              <Network size={16} /><input value={naturalQuery} onChange={(event) => setNaturalQuery(event.target.value)} aria-label="Питання до графа коду" placeholder="Як пов'язані QueryService і Universe?" /><select aria-label="Глибина графового запиту" value={depth} onChange={(event) => setDepth(Number(event.target.value) as 1 | 2)}><option value={1}>1 перехід</option><option value={2}>2 переходи</option></select><button type="submit" disabled={!canTraverse || graphQuery.isPending}>Дослідити</button>
             </form>
-            <div className="code-filter-grid" aria-label="Фильтры графа кода">
-              <label>Тип узла<select aria-label="Тип узла" value={kindFilter} onChange={(event) => setKindFilter(event.target.value)}><option value="all">Все типы</option>{codeKindsAvailable.map((kind) => <option key={kind} value={kind}>{kindLabel(kind)}</option>)}</select></label>
-              <label>Тип связи<select aria-label="Тип связи" value={relationFilter} onChange={(event) => setRelationFilter(event.target.value)}><option value="all">Все связи</option>{codeRelations.map((relation) => <option key={relation} value={relation}>{relationLabel(relation)}</option>)}</select></label>
-              <label>Достоверность<select aria-label="Достоверность связи" value={confidenceFilter} onChange={(event) => setConfidenceFilter(event.target.value as EdgeConfidence | "all")}><option value="all">Любая</option><option value="EXTRACTED">Извлечено</option><option value="INFERRED">Предположено</option><option value="AMBIGUOUS">Неоднозначно</option></select></label>
-              <label>Сообщество<select aria-label="Сообщество" value={communityFilter} onChange={(event) => setCommunityFilter(event.target.value)}><option value="all">Все</option>{communities.map((community) => <option key={community} value={community}>#{community}</option>)}</select></label>
-              <label>Роль узла<select aria-label="Роль узла" value={importanceFilter} onChange={(event) => setImportanceFilter(event.target.value as "all" | "god" | "bridge")}><option value="all">Все</option><option value="god">God nodes</option><option value="bridge">Bridge nodes</option></select></label>
-              <label className="code-check"><input type="checkbox" checked={changedOnly} onChange={(event) => setChangedOnly(event.target.checked)} disabled={!codeStatus.data?.changed_paths.length} /> Только изменённое</label>
+            <div className="code-filter-grid" aria-label="Фільтри графа коду">
+              <label>Тип вузла<select aria-label="Тип вузла" value={kindFilter} onChange={(event) => setKindFilter(event.target.value)}><option value="all">Усі типи</option>{codeKindsAvailable.map((kind) => <option key={kind} value={kind}>{kindLabel(kind)}</option>)}</select></label>
+              <label>Тип зв'язку<select aria-label="Тип зв'язку" value={relationFilter} onChange={(event) => setRelationFilter(event.target.value)}><option value="all">Усі зв'язки</option>{codeRelations.map((relation) => <option key={relation} value={relation}>{relationLabel(relation)}</option>)}</select></label>
+              <label>Достовірність<select aria-label="Достовірність зв'язку" value={confidenceFilter} onChange={(event) => setConfidenceFilter(event.target.value as EdgeConfidence | "all")}><option value="all">Будь-яка</option><option value="EXTRACTED">Вилучено</option><option value="INFERRED">Припущено</option><option value="AMBIGUOUS">Неоднозначно</option></select></label>
+              <label>Спільнота<select aria-label="Спільнота" value={communityFilter} onChange={(event) => setCommunityFilter(event.target.value)}><option value="all">Усі</option>{communities.map((community) => <option key={community} value={community}>#{community}</option>)}</select></label>
+              <label>Роль вузла<select aria-label="Роль вузла" value={importanceFilter} onChange={(event) => setImportanceFilter(event.target.value as "all" | "god" | "bridge")}><option value="all">Усі</option><option value="god">God nodes</option><option value="bridge">Bridge nodes</option></select></label>
+              <label className="code-check"><input type="checkbox" checked={changedOnly} onChange={(event) => setChangedOnly(event.target.checked)} disabled={!codeStatus.data?.changed_paths.length} /> Тільки змінене</label>
             </div>
             <div className="code-path-builder">
-              <GitCompareArrows size={15} /><select aria-label="Начало пути" value={pathSource} onChange={(event) => setPathSource(event.target.value)}><option value="">Откуда</option>{codeNodes.map((node) => <option key={node.node_id} value={node.node_id}>{nodeLabel(node)}</option>)}</select><span>→</span><select aria-label="Конец пути" value={pathTarget} onChange={(event) => setPathTarget(event.target.value)}><option value="">Куда</option>{codeNodes.map((node) => <option key={node.node_id} value={node.node_id}>{nodeLabel(node)}</option>)}</select><button type="button" disabled={!canTraverse || !pathSource || !pathTarget || pathQuery.isPending} onClick={() => {
+              <GitCompareArrows size={15} /><select aria-label="Початок шляху" value={pathSource} onChange={(event) => setPathSource(event.target.value)}><option value="">Звідки</option>{codeNodes.map((node) => <option key={node.node_id} value={node.node_id}>{nodeLabel(node)}</option>)}</select><span>→</span><select aria-label="Кінець шляху" value={pathTarget} onChange={(event) => setPathTarget(event.target.value)}><option value="">Куди</option>{codeNodes.map((node) => <option key={node.node_id} value={node.node_id}>{nodeLabel(node)}</option>)}</select><button type="button" disabled={!canTraverse || !pathSource || !pathTarget || pathQuery.isPending} onClick={() => {
                 const snapshotId = codeStatus.data?.snapshot_id;
                 if (!snapshotId) return;
                 pathQuery.mutate({ source_node_id: pathSource, target_node_id: pathTarget, expected_snapshot_id: snapshotId }, { onSuccess: setGraphResult });
-              }}>Кратчайший путь</button><button type="button" disabled={!canTraverse || !selectedId || impact.isPending} onClick={() => {
+              }}>Найкоротший шлях</button><button type="button" disabled={!canTraverse || !selectedId || impact.isPending} onClick={() => {
                 const snapshotId = codeStatus.data?.snapshot_id;
                 if (!snapshotId || !selectedId) return;
                 impact.mutate({ node_id: selectedId, expected_snapshot_id: snapshotId, depth: 3 }, { onSuccess: setGraphResult });
-              }}>Влияние выбранного</button>
+              }}>Вплив вибраного</button>
             </div>
-            {graphResult ? <div className="code-query-result" aria-live="polite"><strong>{graphResult.operation === "path" ? "Кратчайший путь" : graphResult.operation === "impact" ? "Область влияния" : "Графовый контекст"}</strong><span>{graphResult.nodes.length} узлов · {graphResult.edges.length} связей · {graphResult.estimated_context_bytes} байт</span>{graphResult.truncated ? <em>ответ ограничен бюджетом</em> : null}<button type="button" onClick={() => setGraphResult(null)}>Сбросить</button>{graphResult.ordered_node_ids.length ? <ol>{graphResult.ordered_node_ids.map((nodeId) => <li key={nodeId}>{graphResult.nodes.find((node) => node.node_id === nodeId)?.label ?? shortId(nodeId)}</li>)}</ol> : null}<ul>{graphResult.edges.slice(0, 12).map((edge) => <li key={edge.edge_id}><code>{graphResult.nodes.find((node) => node.node_id === edge.source)?.label ?? shortId(edge.source)}</code><span>{relationLabel(edge.relation)} · {statusLabel(edge.confidence)}</span><code>{graphResult.nodes.find((node) => node.node_id === edge.target)?.label ?? shortId(edge.target)}</code></li>)}</ul></div> : null}
+            {graphResult ? <div className="code-query-result" aria-live="polite"><strong>{graphResult.operation === "path" ? "Найкоротший шлях" : graphResult.operation === "impact" ? "Область впливу" : "Графовий контекст"}</strong><span>{graphResult.nodes.length} вузлів · {graphResult.edges.length} зв'язків · {graphResult.estimated_context_bytes} байт</span>{graphResult.truncated ? <em>відповідь обмежена бюджетом</em> : null}<button type="button" onClick={() => setGraphResult(null)}>Скинути</button>{graphResult.ordered_node_ids.length ? <ol>{graphResult.ordered_node_ids.map((nodeId) => <li key={nodeId}>{graphResult.nodes.find((node) => node.node_id === nodeId)?.label ?? shortId(nodeId)}</li>)}</ol> : null}<ul>{graphResult.edges.slice(0, 12).map((edge) => <li key={edge.edge_id}><code>{graphResult.nodes.find((node) => node.node_id === edge.source)?.label ?? shortId(edge.source)}</code><span>{relationLabel(edge.relation)} · {statusLabel(edge.confidence)}</span><code>{graphResult.nodes.find((node) => node.node_id === edge.target)?.label ?? shortId(edge.target)}</code></li>)}</ul></div> : null}
           </section>
         ) : null}
       </div>
       {!nodes.length ? (
-        <EmptyState title="Узлы не найдены" action={<button className="secondary-button" type="button" onClick={() => setQuery("")}>Сбросить поиск</button>}>Измените запрос или выберите другой слой.</EmptyState>
+        <EmptyState title="Вузли не знайдено" action={<button className="secondary-button" type="button" onClick={() => setQuery("")}>Скинути пошук</button>}>Змініть запит або виберіть інший шар.</EmptyState>
       ) : view === "graph" ? (
         <SigmaCanvas snapshot={graph} lens={lens} layout={layout} theme={theme} visibleIds={layoutVisibleIds} visibleEdgeIds={layoutVisibleEdgeIds} filtersPending={forceFiltersPending} selectedId={selectedId} onSelect={onSelect} onClear={onClear} />
       ) : (
-        <section className="graph-table panel" aria-label="Доступный список узлов графа">
-          <header><Table2 size={17} /><strong>Объекты вселенной</strong><span>Равноценное представление для клавиатуры</span></header>
-          <table><thead><tr><th>Объект</th><th>Тип</th><th>Путь</th><th>Статус</th><th>Связи</th></tr></thead><tbody>{nodes.map((node) => {
+        <section className="graph-table panel" aria-label="Доступний список вузлів графа">
+          <header><Table2 size={17} /><strong>Об'єкти Всесвіту</strong><span>Рівноцінне представлення для клавіатури</span></header>
+          <table><thead><tr><th>Об'єкт</th><th>Тип</th><th>Шлях</th><th>Статус</th><th>Зв'язки</th></tr></thead><tbody>{nodes.map((node) => {
               const connections = visibleEdges.filter((edge) => edge.source === node.node_id || edge.target === node.node_id).length;
               return <tr key={node.node_id}><td><button type="button" onClick={() => onSelect(toSelection(node, graph))}><i style={{ background: (theme === "light" ? lightKindColor : darkKindColor)[node.kind] ?? "#a6afbb" }} /><span><strong>{nodeLabel(node)}</strong><small>{shortId(node.node_id, 11, 7)}</small></span></button></td><td>{kindLabel(node.kind)}</td><td><code>{node.metadata.path || "—"}{node.metadata.start_line ? `:${node.metadata.start_line}` : ""}</code></td><td><StatusPill status={node.status} /></td><td>{connections}</td></tr>;
             })}</tbody></table>

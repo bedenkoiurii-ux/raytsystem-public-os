@@ -19,12 +19,12 @@ import { agentReadinessLabel, agentReasonLabel, filesystemModeLabel } from "./ag
 type AgentFilter = "all" | "ready" | "disabled" | "catalog_only" | "running" | "setup";
 
 const filterCopy: Array<{ id: AgentFilter; label: string }> = [
-  { id: "all", label: "Все" },
-  { id: "ready", label: "Готовы" },
-  { id: "disabled", label: "Отключены" },
-  { id: "catalog_only", label: "Только каталог" },
-  { id: "running", label: "Выполняют задачу" },
-  { id: "setup", label: "Требуют настройки" }
+  { id: "all", label: "Усі" },
+  { id: "ready", label: "Готові" },
+  { id: "disabled", label: "Вимкнені" },
+  { id: "catalog_only", label: "Лише каталог" },
+  { id: "running", label: "Виконують завдання" },
+  { id: "setup", label: "Потребують налаштування" }
 ];
 
 function selectedAgentFromUrl(): string | null {
@@ -61,7 +61,7 @@ export function AgentsSurface({ onOpenSkill }: { onOpenSkill: (skillId: string) 
   }, []);
 
   const filtered = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase("ru-RU");
+    const needle = query.trim().toLocaleLowerCase("uk-UA");
     return (agents.data?.agents ?? []).filter((agent) => {
       if (!matchesFilter(agent, filter)) return false;
       if (!needle) return true;
@@ -76,7 +76,7 @@ export function AgentsSurface({ onOpenSkill }: { onOpenSkill: (skillId: string) 
         agent.runtime_adapter.adapter_id,
         agent.runtime_adapter.name,
         ...agent.skill_ids
-      ].join(" ").toLocaleLowerCase("ru-RU").includes(needle);
+      ].join(" ").toLocaleLowerCase("uk-UA").includes(needle);
     });
   }, [agents.data?.agents, filter, query]);
 
@@ -90,8 +90,8 @@ export function AgentsSurface({ onOpenSkill }: { onOpenSkill: (skillId: string) 
   };
 
   return (
-    <Surface className="route agents-surface" aria-label="Агенты">
-      {agents.isLoading ? <LoadingState label="Соединяем определения и execution-состояние по стабильным ID…" /> : null}
+    <Surface className="route agents-surface" aria-label="Агенти">
+      {agents.isLoading ? <LoadingState label="Поєднуємо визначення та execution-стан за стабільними ID…" /> : null}
       {agents.isError ? <ErrorState error={agents.error} onRetry={() => void agents.refetch()} /> : null}
 
       {agents.data && selectedAgent ? (
@@ -109,46 +109,46 @@ export function AgentsSurface({ onOpenSkill }: { onOpenSkill: (skillId: string) 
             <label className="search-field">
               <Search size={16} aria-hidden="true" />
               <input
-                aria-label="Найти агента"
+                aria-label="Знайти агента"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Имя, ID, роль, адаптер или skill"
+                placeholder="Ім'я, ID, роль, адаптер або skill"
               />
             </label>
             <label className="select-field">
               <Filter size={15} aria-hidden="true" />
               <select
-                aria-label="Фильтр агентов"
+                aria-label="Фільтр агентів"
                 value={filter}
                 onChange={(event) => setFilter(event.target.value as AgentFilter)}
               >
                 {filterCopy.map((item) => <option value={item.id} key={item.id}>{item.label}</option>)}
               </select>
             </label>
-            <span className="inert-badge"><Bot size={14} /> {agents.data.total_agents} агентов</span>
+            <span className="inert-badge"><Bot size={14} /> {agents.data.total_agents} агентів</span>
           </div>
 
           <div className="agent-plane-state panel" role="status">
             <Settings2 size={16} aria-hidden="true" />
             <span>
               {agents.data.storage_state === "uninitialized"
-                ? "Runtime не настроен"
-                : "Определение и состояние выполнения объединены в одной проекции"}
+                ? "Runtime не налаштований"
+                : "Визначення та стан виконання об'єднані в одній проекції"}
             </span>
             {!agents.data.features.runtime_execution_enabled
-              ? <StatusPill status="disabled" label="Выполнение отключено" />
+              ? <StatusPill status="disabled" label="Виконання вимкнено" />
               : null}
           </div>
 
           {!filtered.length ? (
             <EmptyState
-              title="Агенты не найдены"
-              action={<button className="secondary-button" type="button" onClick={() => { setQuery(""); setFilter("all"); }}>Сбросить фильтры</button>}
+              title="Агентів не знайдено"
+              action={<button className="secondary-button" type="button" onClick={() => { setQuery(""); setFilter("all"); }}>Скинути фільтри</button>}
             >
-              Измените запрос или выберите другой статус.
+              Змініть запит або виберіть інший статус.
             </EmptyState>
           ) : (
-            <div className="catalog-grid agent-grid" aria-label="Единый список агентов">
+            <div className="catalog-grid agent-grid" aria-label="Єдиний список агентів">
               {filtered.map((agent, index) => (
                 <article
                   className="agent-card unified-agent-card panel"
@@ -165,23 +165,23 @@ export function AgentsSurface({ onOpenSkill }: { onOpenSkill: (skillId: string) 
                   <p>{catalogDescription(agent.agent_id, agent.description)}</p>
                   <dl className="agent-card-facts">
                     <div><dt>Адаптер</dt><dd>{localizedCatalogLabel(agent.runtime_adapter.adapter_id, agent.runtime_adapter.name)}</dd></div>
-                    <div><dt>Выполнение</dt><dd>{statusLabel(agent.execution_status)}</dd></div>
-                    <div><dt>Навыки</dt><dd>{agent.skills_count}</dd></div>
-                    <div><dt>Файлы</dt><dd>{filesystemModeLabel(agent.filesystem_policy.mode)}</dd></div>
-                    <div><dt>Параллельность</dt><dd>×{agent.concurrency_limit}</dd></div>
-                    <div><dt>Задача</dt><dd>{agent.current_task_id ? shortId(agent.current_task_id) : "Нет"}</dd></div>
+                    <div><dt>Виконання</dt><dd>{statusLabel(agent.execution_status)}</dd></div>
+                    <div><dt>Навички</dt><dd>{agent.skills_count}</dd></div>
+                    <div><dt>Файли</dt><dd>{filesystemModeLabel(agent.filesystem_policy.mode)}</dd></div>
+                    <div><dt>Паралельність</dt><dd>×{agent.concurrency_limit}</dd></div>
+                    <div><dt>Завдання</dt><dd>{agent.current_task_id ? shortId(agent.current_task_id) : "Немає"}</dd></div>
                   </dl>
                   <footer>
                     <StatusPill status={agent.readiness} label={agentReadinessLabel(agent.readiness)} />
                     <span>{agentReasonLabel(agent.unavailable_reason)}</span>
                   </footer>
-                  <button className="agent-card-open" type="button" aria-label={`Открыть агента ${canonicalAgentName(agent)}`} onClick={() => openAgent(agent.agent_id)} />
+                  <button className="agent-card-open" type="button" aria-label={`Відкрити агента ${canonicalAgentName(agent)}`} onClick={() => openAgent(agent.agent_id)} />
                 </article>
               ))}
             </div>
           )}
           <p className="route-footnote">
-            Каждый stable agent_id показан один раз. Credentials, абсолютные пути и runtime-команды не раскрываются.
+            Кожен stable agent_id показано один раз. Credentials, абсолютні шляхи та runtime-команди не розкриваються.
           </p>
         </>
       ) : null}

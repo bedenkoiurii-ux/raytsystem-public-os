@@ -162,23 +162,23 @@ export function SkillEditor({ detail, onCancel, onDirtyChange, onSaved }: SkillE
     >
       <header className="skill-editor-header">
         <div>
-          <span className="eyebrow">Локальный skill · CAS-защита</span>
-          <h3>Редактирование {detail.skill.skill_id}</h3>
+          <span className="eyebrow">Локальний skill · CAS-захист</span>
+          <h3>Редагування {detail.skill.skill_id}</h3>
           <small>{detail.policy.source_path}</small>
         </div>
-        <button className="icon-button" type="button" onClick={requestCancel} aria-label="Закрыть редактор"><X size={18} /></button>
+        <button className="icon-button" type="button" onClick={requestCancel} aria-label="Закрити редактор"><X size={18} /></button>
       </header>
 
       <div className="skill-editor-toolbar" role="group" aria-label="Режим редактора">
         <button aria-pressed={mode === "markdown"} className={mode === "markdown" ? "active" : ""} type="button" onClick={() => setMode("markdown")}><Code2 size={15} />Markdown</button>
-        <button aria-pressed={mode === "preview"} className={mode === "preview" ? "active" : ""} type="button" onClick={() => setMode("preview")}><Eye size={15} />Предпросмотр</button>
-        <span className={dirty ? "editor-dirty" : "editor-clean"}>{dirty ? "Есть несохранённые изменения" : "Изменений нет"}</span>
+        <button aria-pressed={mode === "preview"} className={mode === "preview" ? "active" : ""} type="button" onClick={() => setMode("preview")}><Eye size={15} />Попередній перегляд</button>
+        <span className={dirty ? "editor-dirty" : "editor-clean"}>{dirty ? "Є незбережені зміни" : "Змін немає"}</span>
       </div>
 
       {mode === "markdown" ? (
         <textarea
           className="skill-markdown-editor"
-          aria-label="Исходный Markdown skill"
+          aria-label="Вихідний Markdown skill"
           value={draft}
           onChange={(event) => updateDraft(event.target.value)}
           spellCheck={false}
@@ -190,41 +190,41 @@ export function SkillEditor({ detail, onCancel, onDirtyChange, onSaved }: SkillE
 
       {validationIssues.length ? (
         <section className="editor-validation" role="alert">
-          <h4><AlertTriangle size={16} />Исправьте ошибки в frontmatter</h4>
+          <h4><AlertTriangle size={16} />Виправте помилки в frontmatter</h4>
           <ul>{validationIssues.map((issue, index) => <li key={`${issue.field}-${issue.code}-${index}`}><code>{issue.field}</code> — {issue.message}</li>)}</ul>
         </section>
       ) : null}
 
       {preview ? (
-        <section className="editor-diff" aria-label="Предпросмотр изменений">
+        <section className="editor-diff" aria-label="Попередній перегляд змін">
           <header>
-            <span><CheckCircle2 size={16} />Проверка пройдена</span>
+            <span><CheckCircle2 size={16} />Перевірку пройдено</span>
             <StatusPill status={preview.validation.effective_test_status} />
           </header>
-          <p>После записи test status будет <strong>pending</strong>. Skill автоматически не запускается.</p>
-          {preview.affected_agents.length ? <p>Изменение затронет агентов: {preview.affected_agents.map((agent) => agent.name).join(", ")}.</p> : null}
-          <p><AlertTriangle size={14} /> Typed связь с активными workflows пока не моделируется. Считайте, что изменение может повлиять на использующий этот skill workflow, и проверьте его вручную.</p>
-          <pre><code>{preview.diff || "Содержимое не изменилось."}</code></pre>
+          <p>Після запису test status буде <strong>pending</strong>. Skill автоматично не запускається.</p>
+          {preview.affected_agents.length ? <p>Зміна вплине на агентів: {preview.affected_agents.map((agent) => agent.name).join(", ")}.</p> : null}
+          <p><AlertTriangle size={14} /> Typed зв'язок з активними workflows поки не моделюється. Вважайте, що зміна може вплинути на workflow, який використовує цей skill, і перевірте його вручну.</p>
+          <pre><code>{preview.diff || "Вміст не змінився."}</code></pre>
         </section>
       ) : null}
 
       {conflict ? (
         <section className="editor-conflict" role="alert">
-          <h4><AlertTriangle size={17} />Файл изменился после открытия редактора</h4>
-          <p>raytsystem ничего не перезаписал. Сравните версии и примените нужные изменения вручную.</p>
-          {conflict.content_withheld ? <p>Текущее содержимое скрыто sensitivity policy.</p> : (
+          <h4><AlertTriangle size={17} />Файл змінився після відкриття редактора</h4>
+          <p>raytsystem нічого не перезаписав. Порівняйте версії та застосуйте потрібні зміни вручну.</p>
+          {conflict.content_withheld ? <p>Поточний вміст прихований sensitivity policy.</p> : (
             <div className="conflict-versions">
-              <div><strong>Ваша версия</strong><pre>{conflictText(conflict.proposed_content, draft)}</pre></div>
-              <div><strong>Актуальная версия</strong><pre>{conflictText(conflict.current_content, "Недоступно")}</pre></div>
+              <div><strong>Ваша версія</strong><pre>{conflictText(conflict.proposed_content, draft)}</pre></div>
+              <div><strong>Актуальна версія</strong><pre>{conflictText(conflict.current_content, "Недоступно")}</pre></div>
             </div>
           )}
           {typeof conflict.diff === "string" ? <pre className="conflict-diff"><code>{conflict.diff}</code></pre> : null}
           {!conflict.content_withheld && typeof conflict.current_catalog_sha256 === "string" && typeof conflict.current_source_sha256 === "string" ? (
             <button className="secondary-button" type="button" onClick={loadCurrentBase}>
-              Загрузить актуальную основу
+              Завантажити актуальну основу
             </button>
           ) : null}
-          <p>Автоматического merge нет. После загрузки основы вручную перенесите нужные фрагменты из вашей предыдущей версии.</p>
+          <p>Автоматичного merge немає. Після завантаження основи вручну перенесіть потрібні фрагменти з вашої попередньої версії.</p>
         </section>
       ) : null}
 
@@ -232,17 +232,17 @@ export function SkillEditor({ detail, onCancel, onDirtyChange, onSaved }: SkillE
       {saveMutation.isError && !validationIssues.length && !conflict ? <ErrorState error={saveMutation.error} /> : null}
 
       <footer className="skill-editor-actions">
-        <span><kbd>⌘/Ctrl S</kbd> проверить или сохранить · <kbd>Esc</kbd> отменить</span>
-        <button className="secondary-button" type="button" onClick={requestCancel}>Отмена</button>
-        <button className="secondary-button" type="button" onClick={requestPreview} disabled={!dirty || previewMutation.isPending}>{previewMutation.isPending ? "Проверяем…" : "Проверить и показать diff"}</button>
-        <button className="primary-button" type="button" onClick={requestSave} disabled={!preview || !previewCurrent || saveMutation.isPending}><Save size={15} />{saveMutation.isPending ? "Сохраняем…" : "Сохранить"}</button>
+        <span><kbd>⌘/Ctrl S</kbd> перевірити або зберегти · <kbd>Esc</kbd> скасувати</span>
+        <button className="secondary-button" type="button" onClick={requestCancel}>Скасувати</button>
+        <button className="secondary-button" type="button" onClick={requestPreview} disabled={!dirty || previewMutation.isPending}>{previewMutation.isPending ? "Перевіряємо…" : "Перевірити і показати diff"}</button>
+        <button className="primary-button" type="button" onClick={requestSave} disabled={!preview || !previewCurrent || saveMutation.isPending}><Save size={15} />{saveMutation.isPending ? "Зберігаємо…" : "Зберегти"}</button>
       </footer>
     </section>
     {discardConfirm ? (
       <Dialog className="small-modal panel" role="alertdialog" labelledBy="discard-skill-title" describedBy="discard-skill-description" closeOnBackdrop={false} initialFocus="cancel" onClose={() => setDiscardConfirm(false)}>
-        <header><div><span className="eyebrow">Несохранённые изменения</span><h2 id="discard-skill-title">Закрыть редактор без сохранения?</h2></div></header>
-        <p id="discard-skill-description">Изменённый Markdown не был записан. Исходный skill и его история остались без изменений.</p>
-        <footer><button type="button" data-dialog-cancel onClick={() => setDiscardConfirm(false)}>Продолжить редактирование</button><button className="danger-button" type="button" onClick={onCancel}>Закрыть без сохранения</button></footer>
+        <header><div><span className="eyebrow">Незбережені зміни</span><h2 id="discard-skill-title">Закрити редактор без збереження?</h2></div></header>
+        <p id="discard-skill-description">Змінений Markdown не був записаний. Вихідний skill та його історія залишилися без змін.</p>
+        <footer><button type="button" data-dialog-cancel onClick={() => setDiscardConfirm(false)}>Продовжити редагування</button><button className="danger-button" type="button" onClick={onCancel}>Закрити без збереження</button></footer>
       </Dialog>
     ) : null}
     </>

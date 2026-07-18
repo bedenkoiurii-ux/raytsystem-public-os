@@ -65,14 +65,14 @@ export function Inspector({ selection, onClose, onSelect, onCreateTask }: { sele
   const codePath = typeof codeNode?.path === "string" ? codeNode.path : selection.metadata?.path;
 
   return (
-    <aside className="inspector" aria-label={`Инспектор: ${kindLabel(selection.kind)}`}>
+    <aside className="inspector" aria-label={`Інспектор: ${kindLabel(selection.kind)}`}>
       <header className="inspector-header">
         <div className="object-glyph" data-kind={selection.kind}><Database size={18} /></div>
         <div>
           <span className="eyebrow">{kindLabel(selection.kind)}</span>
           <h2>{selection.label}</h2>
         </div>
-        <button className="icon-button" type="button" onClick={onClose} aria-label="Закрыть инспектор">
+        <button className="icon-button" type="button" onClick={onClose} aria-label="Закрити інспектор">
           <X size={19} />
         </button>
       </header>
@@ -84,16 +84,16 @@ export function Inspector({ selection, onClose, onSelect, onCreateTask }: { sele
           onClick={() => {
             void navigator.clipboard.writeText(selection.id).then(() => setCopiedId(selection.id));
           }}
-          aria-label={copiedId === selection.id ? "ID скопирован" : "Скопировать ID объекта"}
+          aria-label={copiedId === selection.id ? "ID скопійовано" : "Скопіювати ID об'єкта"}
         >
           <code>{shortId(selection.id, 10, 7)}</code>
           {copiedId === selection.id ? <Check size={14} /> : <Copy size={14} />}
         </button>
       </div>
-      <div className="inspector-section-label"><span>Обзор объекта</span><GitBranch size={14} aria-hidden="true" /></div>
+      <div className="inspector-section-label"><span>Огляд об'єкта</span><GitBranch size={14} aria-hidden="true" /></div>
       <div className="inspector-scroll">
         {selection.subtitle ? <p className="inspector-summary">{selection.subtitle}</p> : null}
-        {detail.isLoading ? <LoadingState label="Сверяем объект с выбранным срезом…" /> : null}
+        {detail.isLoading ? <LoadingState label="Звіряємо об'єкт з обраним зрізом…" /> : null}
         {detail.isError ? <ErrorState error={detail.error} /> : null}
         {rows.length ? (
           <dl className="detail-list">
@@ -107,14 +107,14 @@ export function Inspector({ selection, onClose, onSelect, onCreateTask }: { sele
         ) : null}
         {content ? (
           <section className="inert-content">
-            <div><FileText size={15} /> {selection.kind === "evidence" ? "Проверенный точный фрагмент" : "Безопасный просмотр источника"}</div>
+            <div><FileText size={15} /> {selection.kind === "evidence" ? "Перевірений точний фрагмент" : "Безпечний перегляд джерела"}</div>
             <pre>{content}</pre>
           </section>
         ) : null}
         {evidenceIds.length ? (
-          <section className="related-evidence" aria-label="Путь к проверенному доказательству">
-            <div><FileText size={15} /><strong>Проверенное доказательство</strong></div>
-            <p>Откройте неизменяемый фрагмент источника, подтверждающий это утверждение.</p>
+          <section className="related-evidence" aria-label="Шлях до перевіреного доказу">
+            <div><FileText size={15} /><strong>Перевірений доказ</strong></div>
+            <p>Відкрийте незмінний фрагмент джерела, що підтверджує це твердження.</p>
             {evidenceIds.map((evidenceId) => (
               <button
                 type="button"
@@ -122,61 +122,61 @@ export function Inspector({ selection, onClose, onSelect, onCreateTask }: { sele
                 onClick={() => onSelect({
                   id: evidenceId,
                   kind: "evidence",
-                  label: `Доказательство ${shortId(evidenceId, 10, 7)}`,
+                  label: `Доказ ${shortId(evidenceId, 10, 7)}`,
                   status: "verified",
-                  subtitle: "Точный фрагмент источника",
+                  subtitle: "Точний фрагмент джерела",
                   snapshotId: selection.snapshotId
                 })}
               >
-                <FileText size={14} /><code>{shortId(evidenceId, 12, 8)}</code><span>Открыть фрагмент</span>
+                <FileText size={14} /><code>{shortId(evidenceId, 12, 8)}</code><span>Відкрити фрагмент</span>
               </button>
             ))}
           </section>
         ) : null}
         {evidence && typeof evidence.source_id === "string" ? (
-          <section className="related-evidence" aria-label="Источник доказательства">
-            <div><GitBranch size={15} /><strong>Источник доказательства</strong></div>
+          <section className="related-evidence" aria-label="Джерело доказу">
+            <div><GitBranch size={15} /><strong>Джерело доказу</strong></div>
             <button
               type="button"
               onClick={() => onSelect({
                 id: String(evidence.source_id),
                 kind: "source",
-                label: typeof evidence.source_label === "string" ? evidence.source_label : "Источник",
+                label: typeof evidence.source_label === "string" ? evidence.source_label : "Джерело",
                 status: "verified",
-                subtitle: "Неизменяемая запись источника",
+                subtitle: "Незмінний запис джерела",
                 snapshotId: selection.snapshotId
               })}
             >
-              <Database size={14} /><code>{shortId(String(evidence.source_id), 12, 8)}</code><span>Открыть источник</span>
+              <Database size={14} /><code>{shortId(String(evidence.source_id), 12, 8)}</code><span>Відкрити джерело</span>
             </button>
           </section>
         ) : null}
         {isCode ? (
-          <section className="code-node-actions" aria-label="Действия с узлом кода">
-            <div><FileCode2 size={15} /><strong>Граф кода</strong></div>
+          <section className="code-node-actions" aria-label="Дії з вузлом коду">
+            <div><FileCode2 size={15} /><strong>Граф коду</strong></div>
             <div className="code-action-grid">
-              <button type="button" onClick={() => dispatchCodeAction("neighbors", selection.id, "both")}><Network size={14} /> Показать соседей</button>
-              <button type="button" onClick={() => dispatchCodeAction("path-source", selection.id)}><GitCompareArrows size={14} /> Найти путь</button>
-              <button type="button" onClick={() => dispatchCodeAction("neighbors", selection.id, "out")}><GitBranch size={14} /> Зависимости</button>
-              <button type="button" onClick={() => dispatchCodeAction("neighbors", selection.id, "in")}><GitBranch size={14} /> Обратные зависимости</button>
-              <button type="button" onClick={() => dispatchCodeAction("impact", selection.id)}><SearchCheck size={14} /> Оценить влияние</button>
-              <button type="button" onClick={() => dispatchCodeAction("refresh", selection.id)}><RefreshCw size={14} /> Обновить файл</button>
-              <button type="button" onClick={() => dispatchCodeAction("ambiguous", selection.id)}><SearchCheck size={14} /> Неоднозначные связи</button>
-              <button type="button" onClick={onCreateTask}><Database size={14} /> Создать задачу</button>
-              <button type="button" disabled title="Настройте локальный editor adapter"><ExternalLink size={14} /> Открыть исходник</button>
-              <button type="button" disabled={!codePath} onClick={() => { if (codePath) void navigator.clipboard.writeText(codePath); }}><Copy size={14} /> Скопировать путь</button>
+              <button type="button" onClick={() => dispatchCodeAction("neighbors", selection.id, "both")}><Network size={14} /> Показати сусідів</button>
+              <button type="button" onClick={() => dispatchCodeAction("path-source", selection.id)}><GitCompareArrows size={14} /> Знайти шлях</button>
+              <button type="button" onClick={() => dispatchCodeAction("neighbors", selection.id, "out")}><GitBranch size={14} /> Залежності</button>
+              <button type="button" onClick={() => dispatchCodeAction("neighbors", selection.id, "in")}><GitBranch size={14} /> Зворотні залежності</button>
+              <button type="button" onClick={() => dispatchCodeAction("impact", selection.id)}><SearchCheck size={14} /> Оцінити вплив</button>
+              <button type="button" onClick={() => dispatchCodeAction("refresh", selection.id)}><RefreshCw size={14} /> Оновити файл</button>
+              <button type="button" onClick={() => dispatchCodeAction("ambiguous", selection.id)}><SearchCheck size={14} /> Неоднозначні зв'язки</button>
+              <button type="button" onClick={onCreateTask}><Database size={14} /> Створити завдання</button>
+              <button type="button" disabled title="Налаштуйте локальний editor adapter"><ExternalLink size={14} /> Відкрити вихідний файл</button>
+              <button type="button" disabled={!codePath} onClick={() => { if (codePath) void navigator.clipboard.writeText(codePath); }}><Copy size={14} /> Скопіювати шлях</button>
             </div>
           </section>
         ) : null}
         <section className="snapshot-boundary">
-          <span>Граница среза</span>
+          <span>Межа зрізу</span>
           <code>{shortId(selection.snapshotId)}</code>
-          <p>Сервер отклоняет детали, которые не совпадают с отпечатком этого слоя. Содержимое никогда не исполняется.</p>
+          <p>Сервер відхиляє деталі, які не збігаються з відбитком цього шару. Вміст ніколи не виконується.</p>
         </section>
       </div>
       <footer className="inspector-footer">
         <button className="secondary-button" type="button" disabled={!isCode} onClick={() => isCode && dispatchCodeAction("neighbors", selection.id, "both")}>
-          <ExternalLink size={15} /> {isCode ? "Показать в графе" : "Действия среды выполнения недоступны"}
+          <ExternalLink size={15} /> {isCode ? "Показати в графі" : "Дії середовища виконання недоступні"}
         </button>
       </footer>
     </aside>

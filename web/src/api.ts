@@ -29,7 +29,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
     throw new ApiError(
       response.status,
       payload.error?.code ?? "request_failed",
-      payload.error?.message ?? "Локальная система не ответила на запрос.",
+      payload.error?.message ?? "Локальна система не відповіла на запит.",
       payload.error?.details ?? {}
     );
   }
@@ -85,10 +85,10 @@ export function shortId(value: string | null | undefined, head = 7, tail = 5): s
 }
 
 export function formatDate(value: string | null | undefined): string {
-  if (!value) return "Не указано";
+  if (!value) return "Не вказано";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("ru-RU", {
+  return new Intl.DateTimeFormat("uk-UA", {
     month: "short",
     day: "numeric",
     hour: "2-digit",

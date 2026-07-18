@@ -35,12 +35,12 @@ import {
 type AgentDetailTab = "overview" | "instruction" | "skills" | "runtime" | "access" | "history";
 
 const detailTabs = [
-  { id: "overview", label: "Обзор", icon: <Boxes size={15} /> },
-  { id: "instruction", label: "Инструкция", icon: <BookOpenText size={15} /> },
+  { id: "overview", label: "Огляд", icon: <Boxes size={15} /> },
+  { id: "instruction", label: "Інструкція", icon: <BookOpenText size={15} /> },
   { id: "skills", label: "Skills", icon: <ShieldCheck size={15} /> },
   { id: "runtime", label: "Runtime", icon: <PlayCircle size={15} /> },
   { id: "access", label: "Доступ", icon: <KeyRound size={15} /> },
-  { id: "history", label: "История", icon: <Clock3 size={15} /> }
+  { id: "history", label: "Історія", icon: <Clock3 size={15} /> }
 ] as const;
 
 type DetailValue = string | number | boolean | null;
@@ -51,7 +51,7 @@ function DetailList({ values }: { values: Array<[string, DetailValue]> }) {
       {values.map(([label, value], index) => (
         <div key={`${label}-${index}`}>
           <dt>{label}</dt>
-          <dd>{value === null || value === "" ? "Не указано" : typeof value === "boolean" ? booleanLabel(value) : String(value)}</dd>
+          <dd>{value === null || value === "" ? "Не вказано" : typeof value === "boolean" ? booleanLabel(value) : String(value)}</dd>
         </div>
       ))}
     </dl>
@@ -76,14 +76,14 @@ function safeRecordNumber(record: Record<string, unknown>, key: string): number 
 }
 
 function shortSafeId(value: string | null, left = 12, right = 6): string {
-  return value ? shortId(value, left, right) : "Не указано";
+  return value ? shortId(value, left, right) : "Не вказано";
 }
 
 function dateTimeLabel(value: string | null): string {
-  if (!value) return "Не указано";
+  if (!value) return "Не вказано";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Не указано";
-  return new Intl.DateTimeFormat("ru-RU", {
+  if (Number.isNaN(date.getTime())) return "Не вказано";
+  return new Intl.DateTimeFormat("uk-UA", {
     dateStyle: "medium",
     timeStyle: "short",
     timeZone: "UTC"
@@ -91,12 +91,12 @@ function dateTimeLabel(value: string | null): string {
 }
 
 function contextSourcesLabel(paths: string[]): string {
-  if (!paths.length) return "Не заявлены";
-  return `${paths.length} · значения путей скрыты в безопасной проекции`;
+  if (!paths.length) return "Не заявлені";
+  return `${paths.length} · значення шляхів приховані в безпечній проекції`;
 }
 
 function tokenLimitLabel(tokens: { input_tokens: number; output_tokens: number; cached_tokens: number }): string {
-  return `вход ${tokens.input_tokens} · выход ${tokens.output_tokens} · кэш ${tokens.cached_tokens}`;
+  return `вхід ${tokens.input_tokens} · вихід ${tokens.output_tokens} · кеш ${tokens.cached_tokens}`;
 }
 
 export function AgentDetailView({
@@ -118,7 +118,7 @@ export function AgentDetailView({
     if (detail.data) headingRef.current?.focus();
   }, [agentId, detail.data]);
 
-  if (detail.isLoading) return <LoadingState label="Собираем определение и execution-состояние агента…" />;
+  if (detail.isLoading) return <LoadingState label="Збираємо визначення та execution-стан агента…" />;
   if (detail.isError || !detail.data) {
     return <ErrorState error={detail.error} onRetry={() => void detail.refetch()} />;
   }
@@ -126,7 +126,7 @@ export function AgentDetailView({
   const { agent } = detail.data;
   const panelId = `agent-${agent.agent_id}-panel`;
   const returnToAgentList = () => {
-    const returnTargetLabel = `Открыть агента ${canonicalAgentName(agent)}`;
+    const returnTargetLabel = `Відкрити агента ${canonicalAgentName(agent)}`;
     onBack();
     window.requestAnimationFrame(() => {
       const target = Array.from(document.querySelectorAll<HTMLButtonElement>("button[aria-label]"))
@@ -138,7 +138,7 @@ export function AgentDetailView({
     <>
       <header className="detail-hero panel">
         <button className="secondary-button" type="button" onClick={returnToAgentList}>
-          <ArrowLeft size={15} /> Все агенты
+          <ArrowLeft size={15} /> Усі агенти
         </button>
         <div className="detail-hero-copy">
           <span className="eyebrow">Роль: {roleLabel(agent.role)}</span>
@@ -151,7 +151,7 @@ export function AgentDetailView({
         </div>
       </header>
 
-      <Surface className="detail-tab-surface" aria-label={`Подробности агента ${agent.name}`}>
+      <Surface className="detail-tab-surface" aria-label={`Деталі агента ${agent.name}`}>
         <SurfaceTabs
           tabs={detailTabs.map((item) => ({
             ...item,
@@ -159,22 +159,22 @@ export function AgentDetailView({
           }))}
           activeTab={tab}
           onTabChange={setTab}
-          ariaLabel="Разделы подробностей агента"
+          ariaLabel="Розділи деталей агента"
           id={`agent-detail-tabs-${agent.agent_id}`}
         />
         <SurfaceContent id={panelId} labelledBy={`agent-detail-tabs-${agent.agent_id}-tab-${tab}`}>
           {tab === "overview" ? (
             <section className="detail-section panel">
-              <h3>Профиль агента</h3>
+              <h3>Профіль агента</h3>
               <DetailList values={[
-                ["Имя", canonicalAgentName(agent)],
+                ["Ім'я", canonicalAgentName(agent)],
                 ["ID", agent.agent_id],
                 ["Роль", roleLabel(agent.role)],
-                ["Описание", catalogDescription(agent.agent_id, agent.description)],
+                ["Опис", catalogDescription(agent.agent_id, agent.description)],
                 ["Пакет", agent.pack_id],
-                ["Версия", agent.version],
-                ["Статус определения", statusLabel(agent.definition_state)],
-                ["Назначение", agent.definition?.capabilities.map(capabilityLabel).join(", ") ?? null]
+                ["Версія", agent.version],
+                ["Статус визначення", statusLabel(agent.definition_state)],
+                ["Призначення", agent.definition?.capabilities.map(capabilityLabel).join(", ") ?? null]
               ]} />
             </section>
           ) : null}
@@ -182,54 +182,54 @@ export function AgentDetailView({
           {tab === "instruction" ? (
             <div className="detail-section-grid">
               <section className="detail-section panel">
-                <h3>Контекст и возможности</h3>
+                <h3>Контекст і можливості</h3>
                 <DetailList values={[
-                  ["Контекстные источники", contextSourcesLabel(detail.data.instruction.context_paths)],
-                  ["Возможности", detail.data.instruction.capabilities.map(capabilityLabel).join(", ") || "Не заявлены"],
-                  ["Ограничения", detail.data.instruction.limitations.map(limitationLabel).join(" · ") || "Не заявлены"]
+                  ["Контекстні джерела", contextSourcesLabel(detail.data.instruction.context_paths)],
+                  ["Можливості", detail.data.instruction.capabilities.map(capabilityLabel).join(", ") || "Не заявлені"],
+                  ["Обмеження", detail.data.instruction.limitations.map(limitationLabel).join(" · ") || "Не заявлені"]
                 ]} />
               </section>
               <section className="detail-section panel">
-                <h3>Системные границы</h3>
+                <h3>Системні межі</h3>
                 {Object.entries(detail.data.instruction.system_boundaries).length ? (
                   <DetailList values={Object.entries(detail.data.instruction.system_boundaries).map(([key, value]) => [
                     boundaryLabel(key),
                     safeValueLabel(value)
                   ])} />
-                ) : <EmptyState>Системные границы не заявлены.</EmptyState>}
+                ) : <EmptyState>Системні межі не заявлені.</EmptyState>}
               </section>
               <section className="detail-section panel">
-                <h3>Безопасная проекция определения</h3>
+                <h3>Безпечна проекція визначення</h3>
                 {agent.definition ? (
                   <DetailList values={[
                     ["ID", agent.definition.agent_id],
-                    ["Имя", canonicalAgentName(agent.definition)],
+                    ["Ім'я", canonicalAgentName(agent.definition)],
                     ["Роль", roleLabel(agent.definition.role)],
-                    ["Описание", catalogDescription(agent.definition.agent_id, agent.definition.description)],
-                    ["Версия", agent.definition.version],
+                    ["Опис", catalogDescription(agent.definition.agent_id, agent.definition.description)],
+                    ["Версія", agent.definition.version],
                     ["Пакет", agent.definition.pack_id],
-                    ["Адаптер выполнения", agent.definition.runtime_adapter_id],
-                    ["Skills", agent.definition.skill_ids.join(", ") || "Не назначены"],
-                    ["Запрошенный доступ к файлам", filesystemModeLabel(agent.definition.requested_filesystem_mode)],
-                    ["Классы данных", agent.definition.approved_data_classes.map(statusLabel).join(", ") || "Не заявлены"],
-                    ["Внешняя передача данных заявлена", agent.definition.egress_declared],
-                    ["Определение включено", agent.definition.enabled]
+                    ["Адаптер виконання", agent.definition.runtime_adapter_id],
+                    ["Skills", agent.definition.skill_ids.join(", ") || "Не призначені"],
+                    ["Запитаний доступ до файлів", filesystemModeLabel(agent.definition.requested_filesystem_mode)],
+                    ["Класи даних", agent.definition.approved_data_classes.map(statusLabel).join(", ") || "Не заявлені"],
+                    ["Зовнішня передача даних заявлена", agent.definition.egress_declared],
+                    ["Визначення увімкнено", agent.definition.enabled]
                   ]} />
-                ) : <EmptyState>Определение агента отсутствует; показана только execution-запись.</EmptyState>}
+                ) : <EmptyState>Визначення агента відсутнє; показано лише execution-запис.</EmptyState>}
               </section>
             </div>
           ) : null}
 
           {tab === "skills" ? (
             <section className="detail-section panel">
-              <h3>Назначенные Skills</h3>
+              <h3>Призначені Skills</h3>
               <div className="related-object-list">
                 {detail.data.skills.length ? detail.data.skills.map((skill) => (
                   <button type="button" key={skill.skill_id} onClick={() => onOpenSkill(skill.skill_id)}>
-                    <span><strong>{skill.skill_id}</strong><small>{skill.permissions.join(", ") || "Разрешения не заявлены"}</small></span>
+                    <span><strong>{skill.skill_id}</strong><small>{skill.permissions.join(", ") || "Дозволи не заявлені"}</small></span>
                     <StatusPill status={skill.status} />
                   </button>
-                )) : <p className="muted-copy">Skills не назначены.</p>}
+                )) : <p className="muted-copy">Skills не призначені.</p>}
               </div>
             </section>
           ) : null}
@@ -237,46 +237,46 @@ export function AgentDetailView({
           {tab === "runtime" ? (
             <div className="detail-section-grid">
               <section className="detail-section panel">
-                <h3>Состояние выполнения</h3>
+                <h3>Стан виконання</h3>
                 <DetailList values={[
                   ["Адаптер", localizedCatalogLabel(agent.runtime_adapter.adapter_id, agent.runtime_adapter.name)],
-                  ["Состояние адаптера", statusLabel(agent.runtime_adapter.state)],
-                  ["Статус выполнения", statusLabel(agent.execution_status)],
-                  ["Текущая сессия", agent.current_session_id ? shortId(agent.current_session_id) : null],
-                  ["Режим рабочей области", filesystemModeLabel(agent.filesystem_policy.mode)],
-                  ["Текущая задача", agent.current_task_id ? shortId(agent.current_task_id) : null],
-                  ["Параллельность", agent.concurrency_limit],
-                  ["Причина блокировки", agentReasonLabel(agent.unavailable_reason)]
+                  ["Стан адаптера", statusLabel(agent.runtime_adapter.state)],
+                  ["Статус виконання", statusLabel(agent.execution_status)],
+                  ["Поточна сесія", agent.current_session_id ? shortId(agent.current_session_id) : null],
+                  ["Режим робочого простору", filesystemModeLabel(agent.filesystem_policy.mode)],
+                  ["Поточне завдання", agent.current_task_id ? shortId(agent.current_task_id) : null],
+                  ["Паралельність", agent.concurrency_limit],
+                  ["Причина блокування", agentReasonLabel(agent.unavailable_reason)]
                 ]} />
               </section>
               <section className="detail-section panel">
-                <h3>Сессии</h3>
+                <h3>Сесії</h3>
                 {detail.data.runtime.sessions.length ? detail.data.runtime.sessions.map((session) => (
                   <div className="history-row" key={session.session_id}>
                     <code>{shortId(session.session_id)}</code>
                     <StatusPill status={session.status} label={statusLabel(session.status)} />
                     <span>
-                      Задача {shortSafeId(session.task_id)} · {session.provider}
+                      Завдання {shortSafeId(session.task_id)} · {session.provider}
                       {session.model ? ` · ${session.model}` : ""} · старт {dateTimeLabel(session.started_at)}
                     </span>
                   </div>
-                )) : <EmptyState>Сессии ещё не создавались или хранилище выполнения не инициализировано.</EmptyState>}
+                )) : <EmptyState>Сесії ще не створювалися або сховище виконання не ініціалізоване.</EmptyState>}
               </section>
               <section className="detail-section panel">
-                <h3>Бюджеты</h3>
+                <h3>Бюджети</h3>
                 {detail.data.runtime.budgets.length ? detail.data.runtime.budgets.map((budget) => (
                   <div className="history-row" key={budget.budget_policy_id}>
                     <code>{shortId(budget.budget_policy_id)}</code>
-                    <StatusPill status="configured" label="Настроен" />
+                    <StatusPill status="configured" label="Налаштовано" />
                     <span>
-                      Лимиты: {tokenLimitLabel(budget.token_limit)} · запуски {budget.usage?.run_count ?? 0}/{budget.run_limit}
-                      {` · при лимите: ${accessValueLabel(budget.active_run_action)}`}
+                      Ліміти: {tokenLimitLabel(budget.token_limit)} · запуски {budget.usage?.run_count ?? 0}/{budget.run_limit}
+                      {` · при ліміті: ${accessValueLabel(budget.active_run_action)}`}
                     </span>
                   </div>
-                )) : <EmptyState>Бюджеты для агента не настроены.</EmptyState>}
+                )) : <EmptyState>Бюджети для агента не налаштовані.</EmptyState>}
               </section>
               <section className="detail-section panel">
-                <h3>Аренды задач</h3>
+                <h3>Оренди завдань</h3>
                 {detail.data.runtime.leases.length ? detail.data.runtime.leases.map((lease, index) => {
                   const leaseId = safeRecordText(lease, "lease_id");
                   const taskId = safeRecordText(lease, "task_id");
@@ -288,13 +288,13 @@ export function AgentDetailView({
                       <code>{shortSafeId(leaseId)}</code>
                       <StatusPill status={status} label={statusLabel(status)} />
                       <span>
-                        Задача {shortSafeId(taskId)} · до {dateTimeLabel(expiresAt)}
-                        {fencingToken === null ? "" : ` · маркер ограждения ${fencingToken}`}
+                        Завдання {shortSafeId(taskId)} · до {dateTimeLabel(expiresAt)}
+                        {fencingToken === null ? "" : ` · маркер огородження ${fencingToken}`}
                       </span>
                     </div>
                   );
-                }) : <EmptyState>Активных аренд задач нет.</EmptyState>}
-                <p className="muted-copy">Команды, рабочие пути и сессия провайдера скрыты из этой проекции.</p>
+                }) : <EmptyState>Активних оренд завдань немає.</EmptyState>}
+                <p className="muted-copy">Команди, робочі шляхи та сесія провайдера приховані з цієї проекції.</p>
               </section>
             </div>
           ) : null}
@@ -302,29 +302,29 @@ export function AgentDetailView({
           {tab === "access" ? (
             <div className="detail-section-grid">
               <section className="detail-section panel">
-                <h3>Файловая система и данные</h3>
+                <h3>Файлова система та дані</h3>
                 <DetailList values={[
                   ["Режим", filesystemModeLabel(detail.data.access.filesystem.mode)],
-                  ["Чтение рабочей области", detail.data.access.filesystem.allow_workspace_read],
-                  ["Запись в staged-область", detail.data.access.filesystem.allow_staged_write],
-                  ["Чтение Git", detail.data.access.filesystem.allow_git_read],
-                  ["Запись в Git", detail.data.access.filesystem.allow_git_write],
-                  ["Классы данных", detail.data.access.data_classes.map(statusLabel).join(", ") || "Не заявлены"]
+                  ["Читання робочого простору", detail.data.access.filesystem.allow_workspace_read],
+                  ["Запис у staged-область", detail.data.access.filesystem.allow_staged_write],
+                  ["Читання Git", detail.data.access.filesystem.allow_git_read],
+                  ["Запис у Git", detail.data.access.filesystem.allow_git_write],
+                  ["Класи даних", detail.data.access.data_classes.map(statusLabel).join(", ") || "Не заявлені"]
                 ]} />
               </section>
               <section className="detail-section panel">
-                <h3>Эффективные разрешения</h3>
+                <h3>Ефективні дозволи</h3>
                 <DetailList values={[
-                  ["Чтение рабочей области", detail.data.access.effective_permissions.workspace_read],
-                  ["Запись в staged-область", detail.data.access.effective_permissions.staged_write],
-                  ["Запись в Git", detail.data.access.effective_permissions.git_write],
-                  ["Сетевой доступ", detail.data.access.effective_permissions.network],
-                  ["Внешняя передача данных заявлена", detail.data.access.network.egress_declared],
-                  ["Подтверждение обязательно", detail.data.access.network.approval_required]
+                  ["Читання робочого простору", detail.data.access.effective_permissions.workspace_read],
+                  ["Запис у staged-область", detail.data.access.effective_permissions.staged_write],
+                  ["Запис у Git", detail.data.access.effective_permissions.git_write],
+                  ["Мережевий доступ", detail.data.access.effective_permissions.network],
+                  ["Зовнішня передача даних заявлена", detail.data.access.network.egress_declared],
+                  ["Підтвердження обов'язкове", detail.data.access.network.approval_required]
                 ]} />
               </section>
               <section className="detail-section panel">
-                <h3>Инструменты</h3>
+                <h3>Інструменти</h3>
                 {detail.data.access.tools.length ? detail.data.access.tools.map((tool, index) => {
                   const toolId = safeRecordText(tool, "tool_id", "id") ?? `tool-${index + 1}`;
                   const provider = safeRecordText(tool, "provider");
@@ -336,49 +336,49 @@ export function AgentDetailView({
                       <code>{toolId}</code>
                       <StatusPill status={status} label={statusLabel(status)} />
                       <span>
-                        {provider ? `Провайдер ${provider}` : "Провайдер не указан"}
+                        {provider ? `Провайдер ${provider}` : "Провайдер не вказаний"}
                         {access ? ` · ${accessValueLabel(access)}` : ""}
-                        {approvalPolicy ? ` · политика: ${accessValueLabel(approvalPolicy)}` : ""}
+                        {approvalPolicy ? ` · політика: ${accessValueLabel(approvalPolicy)}` : ""}
                       </span>
                     </div>
                   );
-                }) : <EmptyState>Связанные инструменты Tool Hub не заявлены.</EmptyState>}
+                }) : <EmptyState>Пов'язані інструменти Tool Hub не заявлені.</EmptyState>}
               </section>
               <section className="detail-section panel">
-                <h3>Подтверждения</h3>
+                <h3>Підтвердження</h3>
                 {detail.data.access.approvals.length ? detail.data.access.approvals.map((approval) => (
                   <div className="history-row" key={approval.approval_id}>
                     <code>{shortId(approval.approval_id)}</code>
-                    <StatusPill status="confirmed" label="Подтверждено" />
+                    <StatusPill status="confirmed" label="Підтверджено" />
                     <span>
-                      {activityLabel(approval.action)} · область: {approval.scope.map(activityLabel).join(", ") || "не указана"} · до {dateTimeLabel(approval.expires_at)}
-                      {approval.destination_present ? " · назначение скрыто" : ""}
+                      {activityLabel(approval.action)} · область: {approval.scope.map(activityLabel).join(", ") || "не вказана"} · до {dateTimeLabel(approval.expires_at)}
+                      {approval.destination_present ? " · призначення приховано" : ""}
                     </span>
                   </div>
-                )) : <EmptyState>Активных подтверждений нет.</EmptyState>}
+                )) : <EmptyState>Активних підтверджень немає.</EmptyState>}
               </section>
             </div>
           ) : null}
 
           {tab === "history" ? (
             <section className="detail-section panel">
-              <h3>Безопасная история выполнения</h3>
+              <h3>Безпечна історія виконання</h3>
               <DetailList values={[
-                ["Ревизия конфигурации", shortId(detail.data.history.configuration_revision, 12, 8)],
-                ["Назначения", detail.data.history.assignments.length],
+                ["Ревізія конфігурації", shortId(detail.data.history.configuration_revision, 12, 8)],
+                ["Призначення", detail.data.history.assignments.length],
                 ["Запуски", detail.data.history.runs.length],
-                ["Аудит-события", detail.data.history.audit_events.length]
+                ["Аудит-події", detail.data.history.audit_events.length]
               ]} />
-              <h3 className="section-subheading">Назначения</h3>
+              <h3 className="section-subheading">Призначення</h3>
               {detail.data.history.assignments.length ? detail.data.history.assignments.map((assignment) => (
                 <div className="history-row" key={assignment.assignment_id}>
                   <code>{shortId(assignment.assignment_id)}</code>
                   <StatusPill status="assigned" label={statusLabel("assigned")} />
                   <span>
-                    Задача {shortId(assignment.task_id)} · ревизия {assignment.task_revision} · адаптер {assignment.runtime_adapter_id}
+                    Завдання {shortId(assignment.task_id)} · ревізія {assignment.task_revision} · адаптер {assignment.runtime_adapter_id}
                   </span>
                 </div>
-              )) : <EmptyState>Назначений задач ещё нет.</EmptyState>}
+              )) : <EmptyState>Призначень завдань ще немає.</EmptyState>}
 
               <h3 className="section-subheading">Запуски</h3>
               {detail.data.history.runs.length ? detail.data.history.runs.map((run) => (
@@ -386,12 +386,12 @@ export function AgentDetailView({
                   <code>{shortId(run.run_id)}</code>
                   <StatusPill status={run.status} label={statusLabel(run.status)} />
                   <span>
-                    Задача {shortId(run.task_id)} · {run.provider}{run.model ? ` / ${run.model}` : ""} · изменено файлов: {run.changed_file_count} · тестов: {run.tests.length}
+                    Завдання {shortId(run.task_id)} · {run.provider}{run.model ? ` / ${run.model}` : ""} · змінено файлів: {run.changed_file_count} · тестів: {run.tests.length}
                   </span>
                 </div>
-              )) : <EmptyState>Запусков для агента ещё нет.</EmptyState>}
+              )) : <EmptyState>Запусків для агента ще немає.</EmptyState>}
 
-              <h3 className="section-subheading">Аудит-события</h3>
+              <h3 className="section-subheading">Аудит-події</h3>
               {detail.data.history.audit_events.length ? detail.data.history.audit_events.map((event, index) => {
                 const eventId = safeRecordText(event, "event_id", "audit_event_id") ?? `audit-${index + 1}`;
                 const eventType = safeRecordText(event, "event_type", "type", "action") ?? "event";
@@ -407,7 +407,7 @@ export function AgentDetailView({
                     </span>
                   </div>
                 );
-              }) : <EmptyState>Аудит-события для этого агента не зафиксированы.</EmptyState>}
+              }) : <EmptyState>Аудит-події для цього агента не зафіксовані.</EmptyState>}
             </section>
           ) : null}
         </SurfaceContent>

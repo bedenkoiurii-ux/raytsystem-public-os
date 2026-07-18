@@ -10,14 +10,14 @@ import { Dialog } from "../components/Dialog";
 import { ActionMenu } from "../components/Menu";
 
 const columns: Array<{ status: TaskStatus; label: string }> = [
-  { status: "inbox", label: "Входящие" },
-  { status: "planned", label: "Запланировано" },
+  { status: "inbox", label: "Вхідні" },
+  { status: "planned", label: "Заплановано" },
   { status: "ready", label: "Готово" },
-  { status: "running", label: "В работе" },
-  { status: "review", label: "На проверке" },
-  { status: "blocked", label: "Заблокировано" },
+  { status: "running", label: "У роботі" },
+  { status: "review", label: "На перевірці" },
+  { status: "blocked", label: "Заблоковано" },
   { status: "done", label: "Завершено" },
-  { status: "cancelled", label: "Отменено" }
+  { status: "cancelled", label: "Скасовано" }
 ];
 
 const advance: Partial<Record<TaskStatus, TaskStatus>> = {
@@ -70,7 +70,7 @@ export function Tasks({ createOpen, onCreateOpenChange, onSelect }: TasksProps) 
       setActionMenu(null);
     },
     onSuccess: (result) => {
-      setNotice({ kind: "success", message: `Задача «${result.task.title}» перемещена в «${taskStatusLabel(result.task.status)}».` });
+      setNotice({ kind: "success", message: `Задача «${result.task.title}» переміщена в «${taskStatusLabel(result.task.status)}».` });
       setBlocking(null);
       setCancelling(null);
       setBlockedReason("");
@@ -79,8 +79,8 @@ export function Tasks({ createOpen, onCreateOpenChange, onSelect }: TasksProps) 
       setNotice({
         kind: "error",
         message: error instanceof ApiError
-          ? localizeError(error.code, "Не удалось изменить состояние задачи.")
-          : "Не удалось изменить состояние задачи."
+          ? localizeError(error.code, "Не вдалося змінити стан задачі.")
+          : "Не вдалося змінити стан задачі."
       });
     },
     onSettled: () => {
@@ -97,26 +97,26 @@ export function Tasks({ createOpen, onCreateOpenChange, onSelect }: TasksProps) 
     [query, tasks.data?.tasks]
   );
 
-  if (tasks.isLoading) return <LoadingState label="Читаем текущее поколение задач…" />;
+  if (tasks.isLoading) return <LoadingState label="Читаємо поточне покоління задач…" />;
   if (tasks.isError) return <ErrorState error={tasks.error} onRetry={() => void tasks.refetch()} />;
 
   return (
     <div className="route tasks-route">
       <div className="route-tools task-tools">
-        <label className="search-field"><Search size={16} /><input aria-label="Фильтр задач по названию, описанию или тегам" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Найти задачу, описание или тег" /></label>
-        <span className="generation-badge">поколение <code>{shortId(tasks.data?.generation_id)}</code></span>
-        <button className="primary-button" type="button" onClick={() => onCreateOpenChange(true)}><Plus size={16} /> Новая задача</button>
+        <label className="search-field"><Search size={16} /><input aria-label="Фільтр задач за назвою, описом або тегами" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Знайти задачу, опис або тег" /></label>
+        <span className="generation-badge">покоління <code>{shortId(tasks.data?.generation_id)}</code></span>
+        <button className="primary-button" type="button" onClick={() => onCreateOpenChange(true)}><Plus size={16} /> Нова задача</button>
       </div>
-      <div className="task-view-switch" aria-label="Представление задач"><button className="active" aria-pressed="true" type="button"><Columns3 size={15} aria-hidden="true" /> Доска</button></div>
+      <div className="task-view-switch" aria-label="Представлення задач"><button className="active" aria-pressed="true" type="button"><Columns3 size={15} aria-hidden="true" /> Дошка</button></div>
       {!filtered.length ? (
         <EmptyState
-          title={query ? "Задачи не найдены" : "В операционном журнале пока нет задач"}
+          title={query ? "Задачі не знайдено" : "В операційному журналі поки немає задач"}
           action={query
-            ? <button className="secondary-button" type="button" onClick={() => setQuery("")}>Сбросить фильтр</button>
-            : <button className="primary-button" type="button" onClick={() => onCreateOpenChange(true)}><Plus size={16} /> Создать первую задачу</button>}
-        >{query ? "Измените запрос или сбросьте фильтр." : "Создайте задачу, не затрагивая канонические знания."}</EmptyState>
+            ? <button className="secondary-button" type="button" onClick={() => setQuery("")}>Скинути фільтр</button>
+            : <button className="primary-button" type="button" onClick={() => onCreateOpenChange(true)}><Plus size={16} /> Створити першу задачу</button>}
+        >{query ? "Змініть запит або скиньте фільтр." : "Створіть задачу, не зачіпаючи канонічні знання."}</EmptyState>
       ) : (
-        <div className="kanban" aria-label="Доска задач">
+        <div className="kanban" aria-label="Дошка задач">
           {columns.map((column) => {
             const items = filtered.filter((task) => task.status === column.status);
             return (
@@ -125,7 +125,7 @@ export function Tasks({ createOpen, onCreateOpenChange, onSelect }: TasksProps) 
                 <div className="kanban-stack">
                   {items.map((task) => (
                     <article className={`task-card panel ${pendingTask === task.task_id ? "is-pending" : ""}`} key={task.task_id} aria-busy={pendingTask === task.task_id}>
-                      {pendingTask === task.task_id ? <span className="pending-label">Сохраняется…</span> : null}
+                      {pendingTask === task.task_id ? <span className="pending-label">Зберігається…</span> : null}
                       <button
                         className="task-card-main"
                         type="button"
@@ -150,7 +150,7 @@ export function Tasks({ createOpen, onCreateOpenChange, onSelect }: TasksProps) 
                         <span className="task-meta"><code>{shortId(task.task_id)}</code><small>{formatDate(task.updated_at)}</small></span>
                       </button>
                       <footer>
-                        <span className="assignee-stack" aria-label={`Исполнителей: ${task.assignee_ids.length}`}>
+                        <span className="assignee-stack" aria-label={`Виконавців: ${task.assignee_ids.length}`}>
                           {task.assignee_ids.length ? task.assignee_ids.slice(0, 3).map((id) => <i key={id}>{id.slice(-2).toUpperCase()}</i>) : <i>—</i>}
                         </span>
                         {advance[task.status] ? (
@@ -159,7 +159,7 @@ export function Tasks({ createOpen, onCreateOpenChange, onSelect }: TasksProps) 
                             type="button"
                             disabled={pendingTask === task.task_id}
                             onClick={() => transition.mutate({ task, target: advance[task.status]! })}
-                            aria-label={`Переместить задачу «${task.title}» в «${taskStatusLabel(advance[task.status]!) }»`}
+                            aria-label={`Перемістити задачу «${task.title}» в «${taskStatusLabel(advance[task.status]!) }»`}
                           >
                             {taskStatusLabel(advance[task.status]!)} <ArrowRight size={13} />
                           </button>
@@ -167,47 +167,47 @@ export function Tasks({ createOpen, onCreateOpenChange, onSelect }: TasksProps) 
                         {!['done', 'cancelled'].includes(task.status) ? (
                           <ActionMenu
                             id={`task-menu-${task.task_id}`}
-                            label={`Действия для задачи «${task.title}»`}
-                            triggerLabel={`Другие действия для задачи «${task.title}»`}
+                            label={`Дії для задачі «${task.title}»`}
+                            triggerLabel={`Інші дії для задачі «${task.title}»`}
                             open={actionMenu === task.task_id}
                             onOpenChange={(open) => setActionMenu(open ? task.task_id : null)}
                             trigger={<MoreHorizontal size={16} aria-hidden="true" />}
                             actions={[
-                              ...(task.status !== "inbox" && task.status !== "blocked" ? [{ id: "block", label: "Заблокировать…", icon: <CircleSlash2 size={14} aria-hidden="true" />, onSelect: () => setBlocking(task) }] : []),
-                              ...(task.status === "review" ? [{ id: "running", label: "Вернуть в работу", icon: <ArrowRight size={14} aria-hidden="true" />, onSelect: () => transition.mutate({ task, target: "running" }) }] : []),
+                              ...(task.status !== "inbox" && task.status !== "blocked" ? [{ id: "block", label: "Заблокувати…", icon: <CircleSlash2 size={14} aria-hidden="true" />, onSelect: () => setBlocking(task) }] : []),
+                              ...(task.status === "review" ? [{ id: "running", label: "Повернути в роботу", icon: <ArrowRight size={14} aria-hidden="true" />, onSelect: () => transition.mutate({ task, target: "running" }) }] : []),
                               ...(task.status === "blocked" ? [
-                                { id: "ready", label: "Вернуть в готовые", icon: <ArrowRight size={14} aria-hidden="true" />, onSelect: () => transition.mutate({ task, target: "ready" }) },
-                                { id: "resume", label: "Вернуть в работу", icon: <ArrowRight size={14} aria-hidden="true" />, onSelect: () => transition.mutate({ task, target: "running" }) }
+                                { id: "ready", label: "Повернути в готові", icon: <ArrowRight size={14} aria-hidden="true" />, onSelect: () => transition.mutate({ task, target: "ready" }) },
+                                { id: "resume", label: "Повернути в роботу", icon: <ArrowRight size={14} aria-hidden="true" />, onSelect: () => transition.mutate({ task, target: "running" }) }
                               ] : []),
-                              { id: "cancel", label: "Отменить…", icon: <Ban size={14} aria-hidden="true" />, destructive: true, onSelect: () => setCancelling(task) }
+                              { id: "cancel", label: "Скасувати…", icon: <Ban size={14} aria-hidden="true" />, destructive: true, onSelect: () => setCancelling(task) }
                             ]}
                           />
                         ) : null}
                       </footer>
                     </article>
                   ))}
-                  {!items.length ? <div className="column-empty">Задач нет</div> : null}
+                  {!items.length ? <div className="column-empty">Задач немає</div> : null}
                 </div>
               </section>
             );
           })}
         </div>
       )}
-      {notice ? <div className={`task-notice notice-${notice.kind}`} role={notice.kind === "error" ? "alert" : "status"} aria-live={notice.kind === "error" ? "assertive" : "polite"}><span>{notice.message}</span><button type="button" onClick={() => setNotice(null)} aria-label="Скрыть сообщение"><X size={14} aria-hidden="true" /></button></div> : null}
+      {notice ? <div className={`task-notice notice-${notice.kind}`} role={notice.kind === "error" ? "alert" : "status"} aria-live={notice.kind === "error" ? "assertive" : "polite"}><span>{notice.message}</span><button type="button" onClick={() => setNotice(null)} aria-label="Приховати повідомлення"><X size={14} aria-hidden="true" /></button></div> : null}
       {createOpen ? <CreateTaskModal generationId={tasks.data?.generation_id ?? null} onClose={() => onCreateOpenChange(false)} onCreated={() => { onCreateOpenChange(false); void invalidate(); }} /> : null}
       {blocking ? (
         <Dialog className="small-modal panel" labelledBy="block-title" describedBy="block-description" closeOnBackdrop={false} busy={transition.isPending} onClose={() => setBlocking(null)}>
-            <header><div><span className="eyebrow">Смена состояния</span><h2 id="block-title">Заблокировать задачу</h2></div><button className="icon-button" type="button" disabled={transition.isPending} onClick={() => setBlocking(null)} aria-label="Закрыть окно"><X size={18} /></button></header>
-            <p id="block-description">Укажите конкретную причину. История задачи останется неизменяемой.</p>
-            <label><span>Причина блокировки</span><textarea name="blocked_reason" value={blockedReason} onChange={(event) => setBlockedReason(event.target.value)} autoFocus required maxLength={4096} /></label>
-            <footer><button className="secondary-button" data-dialog-cancel type="button" disabled={transition.isPending} onClick={() => setBlocking(null)}>Отмена</button><button className="danger-button" type="button" disabled={!blockedReason.trim() || transition.isPending} onClick={() => transition.mutate({ task: blocking, target: "blocked", reason: blockedReason.trim() })}><CircleSlash2 size={15} /> {transition.isPending ? "Блокируем…" : "Заблокировать задачу"}</button></footer>
+            <header><div><span className="eyebrow">Зміна стану</span><h2 id="block-title">Заблокувати задачу</h2></div><button className="icon-button" type="button" disabled={transition.isPending} onClick={() => setBlocking(null)} aria-label="Закрити вікно"><X size={18} /></button></header>
+            <p id="block-description">Вкажіть конкретну причину. Історія задачі залишиться незмінною.</p>
+            <label><span>Причина блокування</span><textarea name="blocked_reason" value={blockedReason} onChange={(event) => setBlockedReason(event.target.value)} autoFocus required maxLength={4096} /></label>
+            <footer><button className="secondary-button" data-dialog-cancel type="button" disabled={transition.isPending} onClick={() => setBlocking(null)}>Скасувати</button><button className="danger-button" type="button" disabled={!blockedReason.trim() || transition.isPending} onClick={() => transition.mutate({ task: blocking, target: "blocked", reason: blockedReason.trim() })}><CircleSlash2 size={15} /> {transition.isPending ? "Блокуємо…" : "Заблокувати задачу"}</button></footer>
         </Dialog>
       ) : null}
       {cancelling ? (
         <Dialog className="small-modal panel" role="alertdialog" labelledBy="cancel-title" describedBy="cancel-description" closeOnBackdrop={false} initialFocus="cancel" busy={transition.isPending} onClose={() => setCancelling(null)}>
-            <header><div><span className="eyebrow">Финальное состояние</span><h2 id="cancel-title">Отменить задачу?</h2></div><button className="icon-button" type="button" disabled={transition.isPending} onClick={() => setCancelling(null)} aria-label="Закрыть окно"><X size={18} /></button></header>
-            <p id="cancel-description">Задача <strong>«{cancelling.title}»</strong> перейдёт в финальное состояние. Её неизменяемая история останется доступной.</p>
-            <footer><button className="secondary-button" data-dialog-cancel type="button" disabled={transition.isPending} onClick={() => setCancelling(null)}>Оставить задачу</button><button className="danger-button" type="button" disabled={transition.isPending} onClick={() => transition.mutate({ task: cancelling, target: "cancelled" })}><Ban size={15} /> {transition.isPending ? "Отменяем…" : "Отменить задачу"}</button></footer>
+            <header><div><span className="eyebrow">Фінальний стан</span><h2 id="cancel-title">Скасувати задачу?</h2></div><button className="icon-button" type="button" disabled={transition.isPending} onClick={() => setCancelling(null)} aria-label="Закрити вікно"><X size={18} /></button></header>
+            <p id="cancel-description">Задача <strong>«{cancelling.title}»</strong> перейде у фінальний стан. Її незмінна історія залишиться доступною.</p>
+            <footer><button className="secondary-button" data-dialog-cancel type="button" disabled={transition.isPending} onClick={() => setCancelling(null)}>Залишити задачу</button><button className="danger-button" type="button" disabled={transition.isPending} onClick={() => transition.mutate({ task: cancelling, target: "cancelled" })}><Ban size={15} /> {transition.isPending ? "Скасовуємо…" : "Скасувати задачу"}</button></footer>
         </Dialog>
       ) : null}
     </div>
@@ -230,7 +230,7 @@ function CreateTaskModal({ generationId, onClose, onCreated }: { generationId: s
       }),
     onSuccess: onCreated,
     onError: (reason: unknown) => setError(
-      reason instanceof ApiError ? localizeError(reason.code, "Не удалось создать задачу.") : "Не удалось создать задачу."
+      reason instanceof ApiError ? localizeError(reason.code, "Не вдалося створити задачу.") : "Не вдалося створити задачу."
     )
   });
   const dirty = Boolean(title || description || priority !== "normal");
@@ -242,22 +242,22 @@ function CreateTaskModal({ generationId, onClose, onCreated }: { generationId: s
   return (
     <>
       <Dialog className="task-create-modal panel" labelledBy="create-task-title" describedBy="create-task-boundary" busy={create.isPending} onClose={requestClose}>
-        <header><div><span className="eyebrow">Операционный журнал</span><h2 id="create-task-title">Создать задачу</h2></div><button className="icon-button" type="button" disabled={create.isPending} onClick={requestClose} aria-label="Закрыть окно"><X size={19} /></button></header>
-        <div className="modal-boundary" id="create-task-boundary"><span /> Изменится только состояние задач. Канонические знания останутся нетронутыми.</div>
+        <header><div><span className="eyebrow">Операційний журнал</span><h2 id="create-task-title">Створити задачу</h2></div><button className="icon-button" type="button" disabled={create.isPending} onClick={requestClose} aria-label="Закрити вікно"><X size={19} /></button></header>
+        <div className="modal-boundary" id="create-task-boundary"><span /> Зміниться лише стан задач. Канонічні знання залишаться недоторканими.</div>
         {error ? <p className="form-error" role="alert">{error}</p> : null}
         <form onSubmit={(event) => { event.preventDefault(); setError(""); create.mutate(); }}>
-          <label><span>Название</span><input name="title" value={title} onChange={(event) => setTitle(event.target.value)} autoFocus required maxLength={4096} placeholder="Конкретный ожидаемый результат" /></label>
-          <label><span>Описание <small>необязательно</small></span><textarea name="description" value={description} onChange={(event) => setDescription(event.target.value)} maxLength={32768} placeholder="Контекст, ограничения и критерии готовности" /></label>
-          <label><span>Приоритет</span><select name="priority" value={priority} onChange={(event) => setPriority(event.target.value as TaskPriority)}><option value="low">Низкий</option><option value="normal">Обычный</option><option value="high">Высокий</option><option value="urgent">Срочный</option></select></label>
-          <div className="generation-line"><span>Ожидаемое поколение</span><code>{shortId(generationId, 11, 7)}</code></div>
-          <footer><button className="secondary-button" data-dialog-cancel type="button" disabled={create.isPending} onClick={requestClose}>Отмена</button><button className="primary-button" type="submit" disabled={!title.trim() || create.isPending}>{create.isPending ? "Сохраняется…" : "Создать задачу"}<ArrowRight size={15} /></button></footer>
+          <label><span>Назва</span><input name="title" value={title} onChange={(event) => setTitle(event.target.value)} autoFocus required maxLength={4096} placeholder="Конкретний очікуваний результат" /></label>
+          <label><span>Опис <small>необов'язково</small></span><textarea name="description" value={description} onChange={(event) => setDescription(event.target.value)} maxLength={32768} placeholder="Контекст, обмеження та критерії готовності" /></label>
+          <label><span>Пріоритет</span><select name="priority" value={priority} onChange={(event) => setPriority(event.target.value as TaskPriority)}><option value="low">Низький</option><option value="normal">Звичайний</option><option value="high">Високий</option><option value="urgent">Терміновий</option></select></label>
+          <div className="generation-line"><span>Очікуване покоління</span><code>{shortId(generationId, 11, 7)}</code></div>
+          <footer><button className="secondary-button" data-dialog-cancel type="button" disabled={create.isPending} onClick={requestClose}>Скасувати</button><button className="primary-button" type="submit" disabled={!title.trim() || create.isPending}>{create.isPending ? "Зберігається…" : "Створити задачу"}<ArrowRight size={15} /></button></footer>
         </form>
       </Dialog>
       {discardConfirm ? (
         <Dialog className="small-modal panel" role="alertdialog" labelledBy="discard-task-title" describedBy="discard-task-description" closeOnBackdrop={false} initialFocus="cancel" onClose={() => setDiscardConfirm(false)}>
-          <header><div><span className="eyebrow">Несохранённые данные</span><h2 id="discard-task-title">Закрыть без сохранения?</h2></div></header>
-          <p id="discard-task-description">Название и описание новой задачи будут потеряны. Операционный журнал ещё не изменён.</p>
-          <footer><button type="button" data-dialog-cancel onClick={() => setDiscardConfirm(false)}>Продолжить редактирование</button><button className="danger-button" type="button" onClick={onClose}>Закрыть без сохранения</button></footer>
+          <header><div><span className="eyebrow">Незбережені дані</span><h2 id="discard-task-title">Закрити без збереження?</h2></div></header>
+          <p id="discard-task-description">Назва і опис нової задачі будуть втрачені. Операційний журнал ще не змінено.</p>
+          <footer><button type="button" data-dialog-cancel onClick={() => setDiscardConfirm(false)}>Продовжити редагування</button><button className="danger-button" type="button" onClick={onClose}>Закрити без збереження</button></footer>
         </Dialog>
       ) : null}
     </>

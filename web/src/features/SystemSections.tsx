@@ -48,62 +48,62 @@ const sectionMeta: Record<
   { label: string; detail: string; icon: typeof Beaker; collections: string[] }
 > = {
   evals: {
-    label: "Оценки",
-    detail: "Детерминированные проверки, результаты и неизменяемые baseline",
+    label: "Оцінки",
+    detail: "Детерміновані перевірки, результати та незмінні baseline",
     icon: Beaker,
     collections: ["runs", "baselines"]
   },
   traces: {
-    label: "Трассировка",
-    detail: "Локальные trace/span без raw prompts и секретов",
+    label: "Трасування",
+    detail: "Локальні trace/span без raw prompts і секретів",
     icon: Activity,
     collections: ["traces"]
   },
   replays: {
-    label: "Повторы",
-    detail: "Replay и fork по зафиксированному execution record",
+    label: "Повтори",
+    detail: "Replay і fork за зафіксованим execution record",
     icon: Repeat2,
     collections: ["plans"]
   },
   policies: {
-    label: "Политики",
-    detail: "Dry-run тем же policy engine, что защищает выполнение",
+    label: "Політики",
+    detail: "Dry-run тим самим policy engine, що захищає виконання",
     icon: ShieldCheck,
     collections: []
   },
   tools: {
-    label: "Инструменты",
-    detail: "MCP-каталог, схемы и per-tool разрешения",
+    label: "Інструменти",
+    detail: "MCP-каталог, схеми та per-tool дозволи",
     icon: Wrench,
     collections: ["servers", "tools"]
   },
   protocols: {
-    label: "Протоколы",
-    detail: "Опциональные ACP и loopback-only A2A границы",
+    label: "Протоколи",
+    detail: "Опціональні ACP та loopback-only A2A межі",
     icon: Radio,
     collections: []
   },
   packages: {
-    label: "Пакеты",
-    detail: "Карантин, проверка, установка и отдельная активация",
+    label: "Пакети",
+    detail: "Карантин, перевірка, встановлення та окрема активація",
     icon: Package,
     collections: ["packages", "active"]
   },
   workflows: {
-    label: "Процессы",
-    detail: "Типизированные DAG без raw shell-команд",
+    label: "Процеси",
+    detail: "Типізовані DAG без raw shell-команд",
     icon: Workflow,
     collections: ["workflows", "runs"]
   },
   notifications: {
-    label: "Уведомления",
-    detail: "Локальный inbox и состояния подтверждений",
+    label: "Сповіщення",
+    detail: "Локальний inbox і стани підтверджень",
     icon: Bell,
     collections: ["notifications"]
   },
   backups: {
-    label: "Резервные копии",
-    detail: "Проверяемые private backup и public export bundles",
+    label: "Резервні копії",
+    detail: "Перевірювані private backup та public export bundles",
     icon: Archive,
     collections: ["backups"]
   }
@@ -114,27 +114,27 @@ const sectionIds = Object.keys(sectionMeta) as SystemSectionId[];
 const collectionCopy: Record<string, string> = {
   runs: "Запуски",
   baselines: "Baseline",
-  traces: "Трассы",
-  plans: "Планы replay / fork",
-  servers: "MCP-серверы",
-  tools: "Инструменты",
-  packages: "Ревизии пакетов",
-  active: "Активные версии",
+  traces: "Траси",
+  plans: "Плани replay / fork",
+  servers: "MCP-сервери",
+  tools: "Інструменти",
+  packages: "Ревізії пакетів",
+  active: "Активні версії",
   workflows: "Workflow DAG",
-  notifications: "Локальный inbox",
-  backups: "Созданные bundles"
+  notifications: "Локальний inbox",
+  backups: "Створені bundles"
 };
 
 const emergencyActions: Array<{ value: EmergencyAction; label: string; effect: string }> = [
-  { value: "pause_all_employees", label: "Поставить всех сотрудников на паузу", effect: "Новые и текущие циклы сотрудников блокируются" },
-  { value: "cancel_active_runs", label: "Отменить активные запуски", effect: "Активные запуски получают машинный запрет продолжения" },
-  { value: "disable_runtime_execution", label: "Отключить выполнение", effect: "Runtime gate отклоняет любое новое выполнение" },
-  { value: "disable_network_adapters", label: "Отключить сетевые адаптеры", effect: "Любой сетевой маршрут блокируется политикой" },
-  { value: "disable_external_providers", label: "Отключить внешних провайдеров", effect: "Модельный egress становится недоступен" },
-  { value: "freeze_task_checkout", label: "Заморозить checkout задач", effect: "Новые рабочие области задач не выдаются" },
-  { value: "revoke_runtime_sessions", label: "Отозвать runtime-сессии", effect: "Текущие runtime-сессии считаются недействительными" },
-  { value: "revoke_pending_approvals", label: "Отозвать ожидающие approvals", effect: "Старые approvals нельзя использовать" },
-  { value: "emergency_budget_stop", label: "Аварийно остановить бюджет", effect: "Новые расходы и токены блокируются" }
+  { value: "pause_all_employees", label: "Поставити всіх співробітників на паузу", effect: "Нові та поточні цикли співробітників блокуються" },
+  { value: "cancel_active_runs", label: "Скасувати активні запуски", effect: "Активні запуски отримують машинну заборону продовження" },
+  { value: "disable_runtime_execution", label: "Вимкнути виконання", effect: "Runtime gate відхиляє будь-яке нове виконання" },
+  { value: "disable_network_adapters", label: "Вимкнути мережеві адаптери", effect: "Будь-який мережевий маршрут блокується політикою" },
+  { value: "disable_external_providers", label: "Вимкнути зовнішніх провайдерів", effect: "Модельний egress стає недоступним" },
+  { value: "freeze_task_checkout", label: "Заморозити checkout завдань", effect: "Нові робочі простори завдань не видаються" },
+  { value: "revoke_runtime_sessions", label: "Відкликати runtime-сесії", effect: "Поточні runtime-сесії вважаються недійсними" },
+  { value: "revoke_pending_approvals", label: "Відкликати очікувані approvals", effect: "Старі approvals не можна використовувати" },
+  { value: "emergency_budget_stop", label: "Аварійно зупинити бюджет", effect: "Нові витрати та токени блокуються" }
 ];
 
 function sectionFromLocation(): SystemSectionId {
@@ -162,7 +162,7 @@ export function SystemSections() {
   return (
     <div className="route systems-route">
       <SystemsOverview features={features.data} loading={features.isLoading} error={features.error} />
-      <nav className="systems-tabs" aria-label="Системные возможности" role="tablist">
+      <nav className="systems-tabs" aria-label="Системні можливості" role="tablist">
         {sectionIds.map((key, index) => {
           const Icon = sectionMeta[key].icon;
           return (
@@ -201,7 +201,7 @@ export function SystemSections() {
           <span><span className="eyebrow">{sectionMeta[section].label}</span><h2>{sectionMeta[section].detail}</h2></span>
           {snapshot.data ? <StatusPill status={snapshot.data.state} /> : null}
         </header>
-        {snapshot.isLoading ? <LoadingState label={`Читаем раздел «${sectionMeta[section].label}»…`} /> : null}
+        {snapshot.isLoading ? <LoadingState label={`Читаємо розділ «${sectionMeta[section].label}»…`} /> : null}
         {snapshot.isError ? <ErrorState error={snapshot.error} onRetry={() => void snapshot.refetch()} /> : null}
         {snapshot.data ? (
           <SystemSectionBody section={section} snapshot={snapshot.data} features={features.data} />
@@ -220,7 +220,7 @@ function SystemsOverview({
   loading: boolean;
   error: unknown;
 }) {
-  if (loading) return <div className="systems-overview panel"><LoadingState label="Проверяем системный контур…" /></div>;
+  if (loading) return <div className="systems-overview panel"><LoadingState label="Перевіряємо системний контур…" /></div>;
   if (error || !features) return <div className="systems-overview panel"><ErrorState error={error} /></div>;
   const enabled = Object.values(features.active_feature_flags ?? {}).filter(Boolean).length;
   const total = Object.keys(features.active_feature_flags ?? {}).length;
@@ -228,22 +228,22 @@ function SystemsOverview({
     <section className="systems-overview panel panel-glow">
       <div className="systems-radar" aria-hidden="true"><i /><i /><i /><b>OS</b></div>
       <div className="systems-overview-copy">
-        <span className="eyebrow">Flight recorder · локальный control plane</span>
-        <h2>Система видит качество, политику и восстановление.</h2>
-        <p>Все данные читаются из отдельного операционного хранилища. Внешнее выполнение, отправка и сетевой A2A остаются выключенными.</p>
+        <span className="eyebrow">Flight recorder · локальний control plane</span>
+        <h2>Система бачить якість, політику та відновлення.</h2>
+        <p>Усі дані читаються з окремого операційного сховища. Зовнішнє виконання, надсилання та мережевий A2A залишаються вимкненими.</p>
       </div>
-      <div className="systems-metrics" aria-label="Состояние raytsystem">
-        <Metric value={`${enabled}/${total}`} label="функций включено" status={features.state} />
+      <div className="systems-metrics" aria-label="Стан raytsystem">
+        <Metric value={`${enabled}/${total}`} label="функцій увімкнено" status={features.state} />
         <Metric value={String(features.event_backlog ?? 0)} label="audit events" />
         <Metric value={formatBytes(features.trace_storage_size ?? 0)} label="trace storage" />
-        <Metric value={String(features.eval_regression_count ?? 0)} label="регрессий" status={(features.eval_regression_count ?? 0) > 0 ? "blocked" : "ready"} />
+        <Metric value={String(features.eval_regression_count ?? 0)} label="регресій" status={(features.eval_regression_count ?? 0) > 0 ? "blocked" : "ready"} />
       </div>
       <div className="systems-healthline">
         <span><CircleDot size={13} /> store <b>{features.platform_store ?? "unavailable"}</b></span>
         <span>MCP <b>{features.mcp_health ?? "unavailable"}</b></span>
         <span>ACP <b>{features.acp_health ?? "disabled"}</b></span>
         <span>A2A <b>{features.a2a_state ?? "disabled"}</b></span>
-        <span>шифрование <b>{features.encryption_provider?.state ?? "unavailable"}</b></span>
+        <span>шифрування <b>{features.encryption_provider?.state ?? "unavailable"}</b></span>
       </div>
     </section>
   );
@@ -282,8 +282,8 @@ function CollectionPanels({ section, snapshot }: { section: SystemSectionId; sna
   const collections = sectionMeta[section].collections;
   if (collections.every((key) => records(snapshot, key).length === 0)) {
     return (
-      <EmptyState title="Проверенных записей ещё нет">
-        Раздел готов. Пустое состояние не означает, что операция выполняется в фоне.
+      <EmptyState title="Перевірених записів ще немає">
+        Розділ готовий. Порожній стан не означає, що операція виконується у фоні.
       </EmptyState>
     );
   }
@@ -310,7 +310,7 @@ function RecordCard({ record }: { record: Record<string, unknown> }) {
     "name", "title", "eval_run_id", "baseline_id", "replay_plan_id", "workflow_id",
     "workflow_run_id", "notification_id", "revision_id", "server_id", "tool_id", "backup_id",
     "package_id", "record_id", "run_id"
-  ]) ?? "Типизированная запись";
+  ]) ?? "Типізований запис";
   const state = firstString(record, ["state", "status", "outcome", "trust_state"]) ?? "recorded";
   const fields = [
     "suite_id", "target_id", "case_id", "mode", "original_run_id", "new_run_id", "version",
@@ -335,11 +335,11 @@ function TracePanel({ traces }: { traces: TraceSummary[] }) {
     : traces[0]?.trace_id ?? null;
   const detail = useTraceDetail(activeTraceId);
   if (!traces.length) {
-    return <EmptyState title="Трасс пока нет">Первый instrumented run появится здесь после локальной записи trace.</EmptyState>;
+    return <EmptyState title="Трас поки немає">Перший instrumented run з'явиться тут після локального запису trace.</EmptyState>;
   }
   return (
     <div className="trace-console">
-      <aside className="trace-list" aria-label="Список трасс">
+      <aside className="trace-list" aria-label="Список трас">
         {traces.map((trace) => (
           <button type="button" className={activeTraceId === trace.trace_id ? "active" : ""} key={trace.trace_id} onClick={() => setSelected(trace.trace_id)}>
             <span><Activity size={14} /><strong>{shortId(trace.trace_id)}</strong></span>
@@ -350,7 +350,7 @@ function TracePanel({ traces }: { traces: TraceSummary[] }) {
         ))}
       </aside>
       <section className="trace-detail" aria-live="polite">
-        {detail.isLoading ? <LoadingState label="Строим waterfall по очищенным span…" /> : null}
+        {detail.isLoading ? <LoadingState label="Будуємо waterfall за очищеними span…" /> : null}
         {detail.isError ? <ErrorState error={detail.error} onRetry={() => void detail.refetch()} /> : null}
         {detail.data ? <TraceWaterfall trace={detail.data.trace} spans={detail.data.spans} /> : null}
       </section>
@@ -398,7 +398,7 @@ function TraceWaterfall({ trace, spans }: { trace: TraceSummary; spans: TraceSpa
           );
         })}
       </div>
-      {!spans.length ? <EmptyState title="Span ещё не записаны">Trace существует, но детальные интервалы пока отсутствуют.</EmptyState> : null}
+      {!spans.length ? <EmptyState title="Span ще не записані">Trace існує, але детальні інтервали поки відсутні.</EmptyState> : null}
     </div>
   );
 }
@@ -446,36 +446,36 @@ function PolicyPanel({ snapshot, features }: { snapshot: SystemSectionSnapshot; 
   return (
     <div className="policy-console">
       <section className="policy-simulator-card">
-        <header><span><Play size={18} /><strong>Policy simulator</strong></span><StatusPill status="ready" label="только dry-run" /></header>
-        <p>Проверка не создаёт workspace, не вызывает модель, не выдаёт секреты и не меняет задачу.</p>
+        <header><span><Play size={18} /><strong>Policy simulator</strong></span><StatusPill status="ready" label="лише dry-run" /></header>
+        <p>Перевірка не створює workspace, не викликає модель, не видає секрети і не змінює завдання.</p>
         <div className="policy-facts">
           <span><small>Workspace</small><b>{snapshot.workspace_default ?? "staging_only"}</b></span>
-          <span><small>Сеть</small><b>{snapshot.network_default ?? "none"}</b></span>
-          <span><small>Внешние действия</small><b>{snapshot.external_actions_default ?? "approval_required"}</b></span>
+          <span><small>Мережа</small><b>{snapshot.network_default ?? "none"}</b></span>
+          <span><small>Зовнішні дії</small><b>{snapshot.external_actions_default ?? "approval_required"}</b></span>
           <span><small>Policy hash</small><code>{shortId(snapshot.policy_sha256)}</code></span>
         </div>
-        <ActionBoundary scope="Локальный тестовый execution plan" effect="Только решение allowed / blocked / approval required" approval="Не требуется: side effects отсутствуют" recovery="Изменений состояния нет">
+        <ActionBoundary scope="Локальний тестовий execution plan" effect="Лише рішення allowed / blocked / approval required" approval="Не потрібне: side effects відсутні" recovery="Змін стану немає">
           <button className="primary-button" type="button" onClick={runSimulation} disabled={simulation.isPending || !snapshot.policy_sha256}>
-            {simulation.isPending ? <RefreshCw className="spin" size={15} /> : <ShieldCheck size={15} />} Проверить запуск
+            {simulation.isPending ? <RefreshCw className="spin" size={15} /> : <ShieldCheck size={15} />} Перевірити запуск
           </button>
         </ActionBoundary>
         {simulation.isError ? <ErrorState error={simulation.error} /> : null}
         {simulation.data ? <SimulationResult simulation={simulation.data} /> : null}
       </section>
       <section className="emergency-card">
-        <header><span><ShieldAlert size={18} /><strong>Аварийный контур</strong></span><StatusPill status={features?.emergency_state?.state ?? "unavailable"} /></header>
-        <p>Команда записывается идемпотентно и немедленно попадает в тот же machine-enforced gate.</p>
-        <label>Действие<select value={action} onChange={(event) => { setAction(event.target.value as EmergencyAction); setConfirmed(false); }}>{emergencyActions.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}</select></label>
-        <label>Причина<textarea value={reason} onChange={(event) => setReason(event.target.value)} maxLength={4096} placeholder="Почему требуется аварийная блокировка" /></label>
-        <ActionBoundary scope="Всё локальное рабочее пространство" effect={selectedAction.effect} approval="Локальная emergency authority; действие остаётся в audit" recovery="Только вручную, со свежим approval">
-          <label className="emergency-confirm"><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />Понимаю область и способ восстановления</label>
+        <header><span><ShieldAlert size={18} /><strong>Аварійний контур</strong></span><StatusPill status={features?.emergency_state?.state ?? "unavailable"} /></header>
+        <p>Команда записується ідемпотентно і негайно потрапляє в той самий machine-enforced gate.</p>
+        <label>Дія<select value={action} onChange={(event) => { setAction(event.target.value as EmergencyAction); setConfirmed(false); }}>{emergencyActions.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}</select></label>
+        <label>Причина<textarea value={reason} onChange={(event) => setReason(event.target.value)} maxLength={4096} placeholder="Чому потрібне аварійне блокування" /></label>
+        <ActionBoundary scope="Весь локальний робочий простір" effect={selectedAction.effect} approval="Локальна emergency authority; дія залишається в audit" recovery="Лише вручну, зі свіжим approval">
+          <label className="emergency-confirm"><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />Розумію область і спосіб відновлення</label>
           <button className="danger-button" type="button" onClick={activateEmergency} disabled={emergency.isPending || !confirmed || reason.trim().length < 3 || features?.emergency_state?.state === "unavailable"}>
-            <Ban size={15} /> Применить блокировку
+            <Ban size={15} /> Застосувати блокування
           </button>
         </ActionBoundary>
         {features?.emergency_state?.active_actions?.length ? <div className="active-emergency"><strong>Активно</strong>{features.emergency_state.active_actions.map((item) => <code key={item}>{item}</code>)}</div> : null}
         {emergency.isError ? <ErrorState error={emergency.error} /> : null}
-        {emergency.data ? <div className="action-success" role="status"><CheckCircle2 size={18} /><span><strong>Блокировка подтверждена</strong><small>{emergency.data.recovery}</small></span></div> : null}
+        {emergency.data ? <div className="action-success" role="status"><CheckCircle2 size={18} /><span><strong>Блокування підтверджено</strong><small>{emergency.data.recovery}</small></span></div> : null}
       </section>
     </div>
   );
@@ -486,9 +486,9 @@ function SimulationResult({ simulation }: { simulation: PolicySimulation }) {
     <div className={`simulation-result simulation-${simulation.outcome}`} role="status">
       <header><GitCompare size={17} /><strong>{statusLabel(simulation.outcome)}</strong><StatusPill status={simulation.outcome} /></header>
       <dl>
-        <div><dt>Required approvals</dt><dd>{simulation.required_approvals.length ? simulation.required_approvals.join(", ") : "не требуются"}</dd></div>
-        <div><dt>Potential side effects</dt><dd>{simulation.potential_side_effects.length ? simulation.potential_side_effects.join(", ") : "отсутствуют"}</dd></div>
-        <div><dt>Allowed tools</dt><dd>{simulation.allowed_tools.join(", ") || "нет"}</dd></div>
+        <div><dt>Required approvals</dt><dd>{simulation.required_approvals.length ? simulation.required_approvals.join(", ") : "не потрібні"}</dd></div>
+        <div><dt>Potential side effects</dt><dd>{simulation.potential_side_effects.length ? simulation.potential_side_effects.join(", ") : "відсутні"}</dd></div>
+        <div><dt>Allowed tools</dt><dd>{simulation.allowed_tools.join(", ") || "немає"}</dd></div>
         <div><dt>Policy hash</dt><dd><code>{shortId(simulation.policy_sha256)}</code></dd></div>
       </dl>
     </div>
@@ -501,8 +501,8 @@ const notificationTransitions: Array<{
   label: string;
 }> = [
   { from: ["unread"], next: "read", label: "Прочитано" },
-  { from: ["unread", "read"], next: "acknowledged", label: "Подтвердить" },
-  { from: ["read", "acknowledged"], next: "resolved", label: "Решено" }
+  { from: ["unread", "read"], next: "acknowledged", label: "Підтвердити" },
+  { from: ["read", "acknowledged"], next: "resolved", label: "Вирішено" }
 ];
 
 function NotificationsPanel({ snapshot }: { snapshot: SystemSectionSnapshot }) {
@@ -510,8 +510,8 @@ function NotificationsPanel({ snapshot }: { snapshot: SystemSectionSnapshot }) {
   const items = records(snapshot, "notifications");
   if (!items.length) {
     return (
-      <EmptyState title="Входящих уведомлений нет">
-        Approvals, блокировки, регрессии и события безопасности появятся здесь.
+      <EmptyState title="Вхідних сповіщень немає">
+        Approvals, блокування, регресії та події безпеки з'являться тут.
       </EmptyState>
     );
   }
@@ -528,8 +528,8 @@ function NotificationsPanel({ snapshot }: { snapshot: SystemSectionSnapshot }) {
             return (
               <article className="systems-record" key={recordKey(item, index)}>
                 <header>
-                  <strong title={firstString(item, ["title", "notification_type"]) ?? "Уведомление"}>
-                    {shortId(firstString(item, ["title", "notification_type"]) ?? "Уведомление", 24, 6)}
+                  <strong title={firstString(item, ["title", "notification_type"]) ?? "Сповіщення"}>
+                    {shortId(firstString(item, ["title", "notification_type"]) ?? "Сповіщення", 24, 6)}
                   </strong>
                   <StatusPill status={state} />
                 </header>
@@ -571,8 +571,8 @@ function NotificationsPanel({ snapshot }: { snapshot: SystemSectionSnapshot }) {
 
 function ProtocolPanel({ snapshot }: { snapshot: SystemSectionSnapshot }) {
   const protocols = [
-    { label: "ACP adapter", data: asRecord(snapshot.acp), boundary: "Общий runtime gate; native adapters остаются независимыми" },
-    { label: "A2A gateway", data: asRecord(snapshot.a2a), boundary: "Только loopback, без сетевой экспозиции и без канонической записи" }
+    { label: "ACP adapter", data: asRecord(snapshot.acp), boundary: "Спільний runtime gate; native adapters залишаються незалежними" },
+    { label: "A2A gateway", data: asRecord(snapshot.a2a), boundary: "Лише loopback, без мережевої експозиції і без канонічного запису" }
   ];
   return (
     <div className="protocol-grid">
@@ -581,8 +581,8 @@ function ProtocolPanel({ snapshot }: { snapshot: SystemSectionSnapshot }) {
           <header><Radio size={18} /><strong>{label}</strong><StatusPill status={firstString(data, ["state"]) ?? "unavailable"} /></header>
           <p>{boundary}</p>
           <dl>
-            <div><dt>Записей</dt><dd>{arraySize(data, "sessions") + arraySize(data, "requests")}</dd></div>
-            <div><dt>Сетевая экспозиция</dt><dd>{data?.network_exposure === true ? "включена" : "выключена"}</dd></div>
+            <div><dt>Записів</dt><dd>{arraySize(data, "sessions") + arraySize(data, "requests")}</dd></div>
+            <div><dt>Мережева експозиція</dt><dd>{data?.network_exposure === true ? "увімкнена" : "вимкнена"}</dd></div>
             <div><dt>Snapshot</dt><dd><code>{shortId(firstString(data, ["snapshot_id"]))}</code></dd></div>
           </dl>
         </article>
@@ -618,11 +618,11 @@ function arraySize(record: Record<string, unknown> | null, key: string): number 
 
 function safeValue(value: unknown): string {
   if (value === null || value === undefined) return "—";
-  if (typeof value === "boolean") return value ? "Да" : "Нет";
+  if (typeof value === "boolean") return value ? "Так" : "Ні";
   if (typeof value === "number") return String(value);
   if (typeof value === "string") return value.includes("T") && !Number.isNaN(Date.parse(value)) ? formatDate(value) : shortId(value, 24, 10);
-  if (Array.isArray(value)) return value.length ? value.map((item) => typeof item === "string" ? shortId(item) : "типизированная запись").join(", ") : "нет";
-  return "структурированные данные";
+  if (Array.isArray(value)) return value.length ? value.map((item) => typeof item === "string" ? shortId(item) : "типізований запис").join(", ") : "немає";
+  return "структуровані дані";
 }
 
 function recordKey(record: Record<string, unknown>, index: number): string {

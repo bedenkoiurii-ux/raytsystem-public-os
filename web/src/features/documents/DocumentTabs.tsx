@@ -45,7 +45,7 @@ export function DocumentTabs({
 
   return (
     <div className="doc-tabs-bar">
-      <div className="doc-tabs-scroll" role="tablist" aria-label="Открытые документы" aria-orientation="horizontal">
+      <div className="doc-tabs-scroll" role="tablist" aria-label="Відкриті документи" aria-orientation="horizontal">
         {tabs.map((tab, index) => {
           const selected = tab.documentId === activeDocumentId;
           return (
@@ -63,22 +63,22 @@ export function DocumentTabs({
                 onKeyDown={(event) => move(event, index)}
                 title={tab.title}
               >
-                {tab.pinned ? <Pin size={12} aria-label="Закреплена" /> : null}
+                {tab.pinned ? <Pin size={12} aria-label="Закріплено" /> : null}
                 <span>{tab.title}</span>
-                {tab.dirty ? <i aria-label="Есть несохранённые изменения" /> : null}
+                {tab.dirty ? <i aria-label="Є незбережені зміни" /> : null}
               </button>
-              <button className="doc-tab-pin" type="button" onClick={() => onPin(tab.documentId)} aria-label={tab.pinned ? `Открепить «${tab.title}»` : `Закрепить «${tab.title}»`}>
+              <button className="doc-tab-pin" type="button" onClick={() => onPin(tab.documentId)} aria-label={tab.pinned ? `Відкріпити «${tab.title}»` : `Закріпити «${tab.title}»`}>
                 {tab.pinned ? <PinOff size={12} /> : <Pin size={12} />}
               </button>
-              <button className="doc-tab-close" type="button" onClick={() => onClose(tab.documentId)} aria-label={`Закрыть «${tab.title}»`} disabled={tab.pinned}>
+              <button className="doc-tab-close" type="button" onClick={() => onClose(tab.documentId)} aria-label={`Закрити «${tab.title}»`} disabled={tab.pinned}>
                 <X size={13} />
               </button>
-              {selected && tabs.length > 1 ? <button className="doc-tab-close-others" type="button" onClick={() => onCloseOthers(tab.documentId)} aria-label="Закрыть другие вкладки">Остальные</button> : null}
+              {selected && tabs.length > 1 ? <button className="doc-tab-close-others" type="button" onClick={() => onCloseOthers(tab.documentId)} aria-label="Закрити інші вкладки">Інші</button> : null}
             </div>
           );
         })}
       </div>
-      <button className="doc-reopen-tab" type="button" onClick={onReopen} disabled={!canReopen} aria-label="Вернуть недавно закрытую вкладку" title="Вернуть вкладку">
+      <button className="doc-reopen-tab" type="button" onClick={onReopen} disabled={!canReopen} aria-label="Повернути нещодавно закриту вкладку" title="Повернути вкладку">
         <RotateCcw size={14} />
       </button>
     </div>

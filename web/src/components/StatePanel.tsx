@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { ApiError } from "../api";
 import { localizeError, statusLabel } from "../presentation";
 
-export function LoadingState({ label = "Читаем проверенное локальное состояние…" }: { label?: string }) {
+export function LoadingState({ label = "Читаємо перевірений локальний стан…" }: { label?: string }) {
   return (
     <div className="state-panel state-loading" role="status">
       <LoaderCircle size={20} className="spin" aria-hidden="true" />
@@ -15,18 +15,18 @@ export function LoadingState({ label = "Читаем проверенное ло
 export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
   const message =
     error instanceof ApiError
-      ? localizeError(error.code, "Локальное состояние недоступно. Обновите страницу и повторите попытку.")
-      : "Проверенное локальное состояние недоступно. Запустите проверку целостности и повторите попытку.";
+      ? localizeError(error.code, "Локальний стан недоступний. Оновіть сторінку та повторіть спробу.")
+      : "Перевірений локальний стан недоступний. Запустіть перевірку цілісності та повторіть спробу.";
   return (
     <div className="state-panel state-error" role="alert">
       <AlertTriangle size={21} aria-hidden="true" />
       <div>
-        <strong>Срез недоступен</strong>
+        <strong>Зріз недоступний</strong>
         <p>{message}</p>
       </div>
       {onRetry ? (
         <button className="text-button" type="button" onClick={onRetry}>
-          <RotateCcw size={15} aria-hidden="true" /> Повторить
+          <RotateCcw size={15} aria-hidden="true" /> Повторити
         </button>
       ) : null}
     </div>

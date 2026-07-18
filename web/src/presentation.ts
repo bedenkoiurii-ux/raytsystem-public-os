@@ -2,359 +2,359 @@ import type { GraphLens, TaskPriority, TaskStatus } from "./types";
 
 export const routeCopy = {
   "command-center": {
-    label: "Центр управления",
-    description: "Состояние пространства и активная работа",
-    group: "Пространство"
+    label: "Центр керування",
+    description: "Стан простору та активна робота",
+    group: "Простір"
   },
   handbook: {
-    label: "База знаний",
-    description: "Документация raytsystem: установка, интерфейс, граф, безопасность",
-    group: "Пространство"
+    label: "База знань",
+    description: "Документація raytsystem: встановлення, інтерфейс, граф, безпека",
+    group: "Простір"
   },
   documents: {
-    label: "Документы",
-    description: "Управляемые файлы и заметки текущего workspace",
-    group: "Пространство"
+    label: "Документи",
+    description: "Керовані файли та нотатки поточного робочого простору",
+    group: "Простір"
   },
   onboarding: {
-    label: "Подключить",
-    description: "Установить raytsystem в репозиторий или папку",
-    group: "Пространство"
+    label: "Підключити",
+    description: "Встановити raytsystem у репозиторій або папку",
+    group: "Простір"
   },
   tasks: {
-    label: "Задачи",
-    description: "Операционный журнал без перезаписи истории",
-    group: "Оркестрация"
+    label: "Задачі",
+    description: "Операційний журнал без перезапису історії",
+    group: "Оркестрація"
   },
   universe: {
-    label: "Вселенная",
-    description: "Граф знаний, работы и доказательств",
-    group: "Оркестрация"
+    label: "Всесвіт",
+    description: "Граф знань, роботи та доказів",
+    group: "Оркестрація"
   },
   runs: {
     label: "Запуски",
-    description: "История зафиксированных операций",
-    group: "Оркестрация"
+    description: "Історія зафіксованих операцій",
+    group: "Оркестрація"
   },
   agents: {
-    label: "Агенты",
-    description: "Независимые от провайдера профили",
-    group: "Реестр"
+    label: "Агенти",
+    description: "Незалежні від провайдера профілі",
+    group: "Реєстр"
   },
   skills: {
-    label: "Навыки",
-    description: "Процедуры с зафиксированным хешем",
-    group: "Реестр"
+    label: "Навички",
+    description: "Процедури із зафіксованим хешем",
+    group: "Реєстр"
   },
   context: {
     label: "Контекст",
-    description: "Разрешённые документы с инструкциями",
-    group: "Реестр"
+    description: "Дозволені документи з інструкціями",
+    group: "Реєстр"
   },
   safety: {
-    label: "Безопасность",
-    description: "Локальная граница и адаптеры",
-    group: "Доверие"
+    label: "Безпека",
+    description: "Локальна межа та адаптери",
+    group: "Довіра"
   },
   systems: {
-    label: "Системы",
-    description: "Качество, политика и восстановление",
-    group: "Доверие"
+    label: "Системи",
+    description: "Якість, політика та відновлення",
+    group: "Довіра"
   }
 } as const;
 
 export type RouteKey = keyof typeof routeCopy;
 
 const statusCopy: Record<string, string> = {
-  inbox: "Входящие",
-  planned: "Запланировано",
+  inbox: "Вхідні",
+  planned: "Заплановано",
   ready: "Готово",
-  idle: "Готов",
-  assigned: "Назначено",
-  running: "В работе",
-  paused: "Приостановлено",
-  terminated: "Остановлено",
-  queued: "В очереди",
-  preparing: "Подготовка",
-  cancelling: "Отмена",
+  idle: "Готовий",
+  assigned: "Призначено",
+  running: "У роботі",
+  paused: "Призупинено",
+  terminated: "Зупинено",
+  queued: "У черзі",
+  preparing: "Підготовка",
+  cancelling: "Скасування",
   completed: "Завершено",
-  incompatible: "Несовместимо",
-  review: "На проверке",
-  blocked: "Заблокировано",
+  incompatible: "Несумісно",
+  review: "На перевірці",
+  blocked: "Заблоковано",
   done: "Завершено",
-  cancelled: "Отменено",
-  succeeded: "Успешно",
-  terminal_failed: "Ошибка",
-  failed: "Ошибка",
+  cancelled: "Скасовано",
+  succeeded: "Успішно",
+  terminal_failed: "Помилка",
+  failed: "Помилка",
   quarantined: "Карантин",
-  pass: "Проверено",
-  verified: "Проверено",
-  enabled: "Включено",
+  pass: "Перевірено",
+  verified: "Перевірено",
+  enabled: "Увімкнено",
   active: "Активно",
-  supported: "Подтверждено",
-  confirmed: "Подтверждено",
-  configured: "Настроено",
+  supported: "Підтверджено",
+  confirmed: "Підтверджено",
+  configured: "Налаштовано",
   available: "Доступно",
-  degraded: "Ограниченно",
-  restricted: "Ограничено",
-  retracted: "Отозвано",
-  pending: "Ожидает",
-  optional: "Опционально",
-  awaiting_review: "Ждёт проверки",
-  awaiting_approval: "Ждёт подтверждения",
-  disabled: "Отключено",
-  declared: "Объявлено",
-  superseded: "Заменено",
-  disputed: "Оспорено",
-  internal: "Внутреннее",
-  public: "Публичное",
-  official: "Официальное",
-  user: "Пользовательское",
-  trusted: "Доверенное",
-  community: "Сообщество",
-  personal: "Личное",
-  local_only: "Только локально",
+  degraded: "Обмежено",
+  restricted: "Обмежено",
+  retracted: "Відкликано",
+  pending: "Очікує",
+  optional: "Опціонально",
+  awaiting_review: "Очікує перевірки",
+  awaiting_approval: "Очікує підтвердження",
+  disabled: "Вимкнено",
+  declared: "Оголошено",
+  superseded: "Замінено",
+  disputed: "Оскаржено",
+  internal: "Внутрішнє",
+  public: "Публічне",
+  official: "Офіційне",
+  user: "Користувацьке",
+  trusted: "Довірене",
+  community: "Спільнота",
+  personal: "Особисте",
+  local_only: "Лише локально",
   unavailable: "Недоступно",
-  draft: "Черновик",
+  draft: "Чернетка",
   current: "Актуально",
-  unchecked: "Нужна проверка",
-  stale: "Устарело",
-  missing: "Не построено",
-  building: "Обновляется",
-  error: "Ошибка",
-  extracted: "Извлечено",
-  inferred: "Предположено",
+  unchecked: "Потрібна перевірка",
+  stale: "Застаріло",
+  missing: "Не побудовано",
+  building: "Оновлюється",
+  error: "Помилка",
+  extracted: "Видобуто",
+  inferred: "Припущено",
   ambiguous: "Неоднозначно"
 };
 
 const kindCopy: Record<string, string> = {
-  workspace: "Рабочее пространство",
-  generation: "Срез знаний",
-  task_generation: "Срез задач",
-  instruction: "Инструкция",
+  workspace: "Робочий простір",
+  generation: "Зріз знань",
+  task_generation: "Зріз задач",
+  instruction: "Інструкція",
   pack: "Пакет",
   agent: "Агент",
-  skill: "Навык",
+  skill: "Навичка",
   adapter: "Адаптер",
   task: "Задача",
   run: "Запуск",
-  claim: "Утверждение",
-  entity: "Сущность",
-  evidence: "Доказательство",
-  source: "Источник",
-  manual_document: "Ручной документ",
-  documentation_document: "Документация",
-  generated_document: "Защищённый документ",
+  claim: "Твердження",
+  entity: "Сутність",
+  evidence: "Доказ",
+  source: "Джерело",
+  manual_document: "Ручний документ",
+  documentation_document: "Документація",
+  generated_document: "Захищений документ",
   document: "Документ",
-  repository: "Репозиторий",
+  repository: "Репозиторій",
   directory: "Каталог",
   file: "Файл",
   module: "Модуль",
-  package: "Пакет кода",
-  class: "Класс",
-  function: "Функция",
+  package: "Пакет коду",
+  class: "Клас",
+  function: "Функція",
   method: "Метод",
   api_endpoint: "API-метод",
-  database_table: "Таблица БД",
+  database_table: "Таблиця БД",
   database_schema: "Схема БД",
-  configuration: "Конфигурация",
+  configuration: "Конфігурація",
   test: "Тест",
   adr: "ADR",
-  rationale: "Обоснование",
-  dependency: "Зависимость"
+  rationale: "Обґрунтування",
+  dependency: "Залежність"
 };
 
 const fieldCopy: Record<string, string> = {
   status: "Статус",
-  state: "Состояние",
+  state: "Стан",
   role: "Роль",
   adapter: "Адаптер",
-  adapter_state: "Состояние адаптера",
-  skills: "Навыки",
-  filesystem_request: "Доступ к файлам",
-  requested_filesystem_mode: "Доступ к файлам",
-  egress: "Передача данных",
-  egress_destination: "Канал передачи",
-  trust: "Уровень доверия",
-  trust_class: "Уровень доверия",
-  sensitivity: "Чувствительность",
-  test_status: "Проверка",
-  permissions: "Разрешения",
+  adapter_state: "Стан адаптера",
+  skills: "Навички",
+  filesystem_request: "Доступ до файлів",
+  requested_filesystem_mode: "Доступ до файлів",
+  egress: "Передавання даних",
+  egress_destination: "Канал передавання",
+  trust: "Рівень довіри",
+  trust_class: "Рівень довіри",
+  sensitivity: "Чутливість",
+  test_status: "Перевірка",
+  permissions: "Дозволи",
   sha256: "SHA-256",
-  content_sha256: "SHA-256 содержимого",
+  content_sha256: "SHA-256 вмісту",
   excerpt_sha256: "SHA-256 фрагмента",
-  manifest_sha256: "SHA-256 манифеста",
-  size_bytes: "Размер, байт",
-  editable: "Можно редактировать",
-  priority: "Приоритет",
-  project: "Проект",
-  project_id: "Проект",
-  revision: "Ревизия",
-  dependencies: "Зависимости",
-  dependency_ids: "Зависимости",
-  run_id: "ID запуска",
-  generation_id: "ID поколения",
-  semantic_noop: "Без смысловых изменений",
-  claim_id: "ID утверждения",
-  entity_id: "ID сущности",
-  evidence_id: "ID доказательства",
-  source_id: "ID источника",
-  source_label: "Источник",
-  statement: "Утверждение",
-  language: "Язык",
-  evidence_ids: "Доказательства",
-  relation_ids: "Связи",
-  supersedes: "Заменяет",
-  contradicts: "Противоречит",
-  recorded_at: "Зафиксировано",
-  created_at: "Создано",
-  updated_at: "Обновлено",
-  source_type: "Тип источника",
-  entity_type: "Тип сущности",
-  locator_kind: "Тип указателя",
-  source_ref: "Ссылка на источник",
-  capabilities: "Возможности",
-  isolation_mode: "Режим изоляции",
-  qualified_name: "Полное имя",
-  path: "Путь",
-  start_line: "Начальная строка",
-  end_line: "Конечная строка",
-  community_id: "Сообщество",
-  is_god: "Узловой центр",
-  is_bridge: "Мост",
-  incoming_edges: "Входящие связи",
-  outgoing_edges: "Исходящие связи",
-  extractor: "Экстрактор",
-  extractor_version: "Версия экстрактора",
-  content_fingerprint: "Отпечаток содержимого"
+  manifest_sha256: "SHA-256 маніфеста",
+  size_bytes: "Розмір, байт",
+  editable: "Можна редагувати",
+  priority: "Пріоритет",
+  project: "Проєкт",
+  project_id: "Проєкт",
+  revision: "Ревізія",
+  dependencies: "Залежності",
+  dependency_ids: "Залежності",
+  run_id: "ID запуску",
+  generation_id: "ID покоління",
+  semantic_noop: "Без смислових змін",
+  claim_id: "ID твердження",
+  entity_id: "ID сутності",
+  evidence_id: "ID доказу",
+  source_id: "ID джерела",
+  source_label: "Джерело",
+  statement: "Твердження",
+  language: "Мова",
+  evidence_ids: "Докази",
+  relation_ids: "Зв'язки",
+  supersedes: "Замінює",
+  contradicts: "Суперечить",
+  recorded_at: "Зафіксовано",
+  created_at: "Створено",
+  updated_at: "Оновлено",
+  source_type: "Тип джерела",
+  entity_type: "Тип сутності",
+  locator_kind: "Тип покажчика",
+  source_ref: "Посилання на джерело",
+  capabilities: "Можливості",
+  isolation_mode: "Режим ізоляції",
+  qualified_name: "Повне ім'я",
+  path: "Шлях",
+  start_line: "Початковий рядок",
+  end_line: "Кінцевий рядок",
+  community_id: "Спільнота",
+  is_god: "Вузловий центр",
+  is_bridge: "Міст",
+  incoming_edges: "Вхідні зв'язки",
+  outgoing_edges: "Вихідні зв'язки",
+  extractor: "Екстрактор",
+  extractor_version: "Версія екстрактора",
+  content_fingerprint: "Відбиток вмісту"
 };
 
 const priorityCopy: Record<TaskPriority, string> = {
-  low: "Низкий",
-  normal: "Обычный",
-  high: "Высокий",
-  urgent: "Срочный"
+  low: "Низький",
+  normal: "Звичайний",
+  high: "Високий",
+  urgent: "Терміновий"
 };
 
 const lensCopy: Record<GraphLens, string> = {
-  universe: "Орбита",
-  knowledge: "Знания",
-  work: "Работа",
-  agent: "Агенты",
-  evidence: "Доказательства",
+  universe: "Орбіта",
+  knowledge: "Знання",
+  work: "Робота",
+  agent: "Агенти",
+  evidence: "Докази",
   code: "Код"
 };
 
 const relationCopy: Record<string, string> = {
-  contains: "содержит",
-  defines: "определяет",
-  imports: "импортирует",
-  calls: "вызывает",
-  inherits: "наследует",
-  implements: "реализует",
-  references: "ссылается",
-  links_to: "ссылается на",
-  embeds: "встраивает",
-  depends_on: "зависит от",
-  configured_by: "настроено через",
-  tests: "тестирует",
-  explained_by: "объясняется",
-  verifies: "проверяет"
+  contains: "містить",
+  defines: "визначає",
+  imports: "імпортує",
+  calls: "викликає",
+  inherits: "успадковує",
+  implements: "реалізує",
+  references: "посилається",
+  links_to: "посилається на",
+  embeds: "вбудовує",
+  depends_on: "залежить від",
+  configured_by: "налаштовано через",
+  tests: "тестує",
+  explained_by: "пояснюється",
+  verifies: "перевіряє"
 };
 
 const operationCopy: Record<string, string> = {
-  ingest: "Импорт",
-  query: "Запрос",
-  lint: "Проверка",
-  save: "Сохранение",
-  promote: "Публикация поколения",
-  rebuild: "Пересборка"
+  ingest: "Імпорт",
+  query: "Запит",
+  lint: "Перевірка",
+  save: "Збереження",
+  promote: "Публікація покоління",
+  rebuild: "Перезбирання"
 };
 
 const capabilityCopy: Record<string, string> = {
-  research: "исследование",
-  planning: "планирование",
-  implementation: "реализация",
-  review: "проверка",
-  knowledge_curation: "курация знаний",
-  task_decomposition: "декомпозиция задач",
-  evidence_collection: "сбор доказательств",
-  source_verification: "проверка источников",
-  draft_generation: "подготовка черновиков"
+  research: "дослідження",
+  planning: "планування",
+  implementation: "реалізація",
+  review: "перевірка",
+  knowledge_curation: "курація знань",
+  task_decomposition: "декомпозиція задач",
+  evidence_collection: "збір доказів",
+  source_verification: "перевірка джерел",
+  draft_generation: "підготовка чернеток"
 };
 
 const localizedCatalogLabelCopy: Record<string, string> = {
-  pack_core: "Основные процедуры raytsystem",
-  pack_starter: "Универсальные стартовые агенты",
-  pack_local: "Локальные skills",
-  adapter_disabled: "Только каталог",
-  adapter_codex_local: "Локальный коннектор Codex",
-  adapter_claude_code: "Коннектор Claude Code",
-  adapter_hermes: "Коннектор Hermes",
-  adapter_openhands: "Коннектор OpenHands",
-  instruction_agents: "Маршрутизация Codex",
-  instruction_work: "Запуск в ChatGPT Work",
+  pack_core: "Основні процедури raytsystem",
+  pack_starter: "Універсальні стартові агенти",
+  pack_local: "Локальні skills",
+  adapter_disabled: "Лише каталог",
+  adapter_codex_local: "Локальний конектор Codex",
+  adapter_claude_code: "Конектор Claude Code",
+  adapter_hermes: "Конектор Hermes",
+  adapter_openhands: "Конектор OpenHands",
+  instruction_agents: "Маршрутизація Codex",
+  instruction_work: "Запуск у ChatGPT Work",
   instruction_claude: "Контекст Claude Code"
 };
 
 const catalogDescriptionCopy: Record<string, string> = {
-  agent_builder: "Создаёт проектные реализации в явных границах staging, не выходя за пределы рабочего пространства.",
-  agent_librarian: "Курирует находящиеся поиском предложения знаний, сохраняя доказательства, противоречия и историю.",
-  agent_orchestrator: "Декомпозирует миссию на ограниченные задачи, назначает проверки и оставляет полномочия у пользователя.",
-  agent_researcher: "Собирает первичные доказательства и возвращает структурированные предложения с привязкой к источникам.",
-  agent_reviewer: "Независимо проверяет архитектуру, доказательства, безопасность и тесты без права публикации.",
-  pack_core: "Процедуры с приоритетом происхождения данных и явные точки входа для инструкций рабочего пространства.",
-  pack_starter: "Пять пассивных, независимых от провайдера агентов для планирования, исследования, реализации, проверки и курации знаний.",
-  adapter_disabled: "В этой версии веб-интерфейса выполнение намеренно отключено.",
-  adapter_codex_local: "Доступен только контракт; проверенный мост запуска не включён.",
-  adapter_claude_code: "Доступен только контракт; проверенный мост запуска не включён.",
-  adapter_hermes: "Доступен только контракт; установка и выполнение требуют отдельного решения.",
-  adapter_openhands: "Доступен только контракт; сервер OpenHands не настроен.",
-  "raytsystem-ingest": "Захватывает, нормализует, проверяет и безопасно подготавливает источники к публикации в raytsystem.",
-  "raytsystem-query": "Отвечает по активному поколению raytsystem, используя локальный поиск и проверенные фрагменты источников.",
-  "raytsystem-lint": "Детерминированно проверяет целостность, происхождение данных, проекции, ссылки и секреты.",
-  "raytsystem-save": "Сохраняет синтез с цитатами как типизированный черновик без канонической публикации.",
-  "raytsystem-research": "Проводит ограниченное исследование и возвращает предложения доказательств без канонической записи.",
-  "raytsystem-run-review": "Независимо проверяет запуск, diff, контракт или контрольную точку, не изменяя состояние.",
-  "raytsystem-security-review": "Проверяет границы политики, происхождение данных, утечки, изоляцию и восстановление.",
-  "raytsystem-watch": "Безопасно просматривает видео и транскрипты как инертные доказательства, не выполняя импортированные инструкции."
+  agent_builder: "Створює проєктні реалізації в чітких межах staging, не виходячи за межі робочого простору.",
+  agent_librarian: "Курує знайдені пошуком пропозиції знань, зберігаючи докази, протиріччя та історію.",
+  agent_orchestrator: "Декомпозує місію на обмежені задачі, призначає перевірки та залишає повноваження за користувачем.",
+  agent_researcher: "Збирає первинні докази та повертає структуровані пропозиції з прив'язкою до джерел.",
+  agent_reviewer: "Незалежно перевіряє архітектуру, докази, безпеку та тести без права публікації.",
+  pack_core: "Процедури з пріоритетом походження даних та чіткі точки входу для інструкцій робочого простору.",
+  pack_starter: "П'ять пасивних, незалежних від провайдера агентів для планування, дослідження, реалізації, перевірки та курації знань.",
+  adapter_disabled: "У цій версії веб-інтерфейсу виконання навмисно вимкнено.",
+  adapter_codex_local: "Доступний лише контракт; перевірений міст запуску не увімкнено.",
+  adapter_claude_code: "Доступний лише контракт; перевірений міст запуску не увімкнено.",
+  adapter_hermes: "Доступний лише контракт; встановлення та виконання потребують окремого рішення.",
+  adapter_openhands: "Доступний лише контракт; сервер OpenHands не налаштовано.",
+  "raytsystem-ingest": "Захоплює, нормалізує, перевіряє та безпечно готує джерела до публікації в raytsystem.",
+  "raytsystem-query": "Відповідає на основі активного покоління raytsystem, використовуючи локальний пошук та перевірені фрагменти джерел.",
+  "raytsystem-lint": "Детерміновано перевіряє цілісність, походження даних, проєкції, посилання та секрети.",
+  "raytsystem-save": "Зберігає синтез із цитатами як типізовану чернетку без канонічної публікації.",
+  "raytsystem-research": "Проводить обмежене дослідження та повертає пропозиції доказів без канонічного запису.",
+  "raytsystem-run-review": "Незалежно перевіряє запуск, diff, контракт або контрольну точку, не змінюючи стан.",
+  "raytsystem-security-review": "Перевіряє межі політики, походження даних, витоки, ізоляцію та відновлення.",
+  "raytsystem-watch": "Безпечно переглядає відео та транскрипти як інертні докази, не виконуючи імпортовані інструкції."
 };
 
 const roleCopy: Record<string, string> = {
-  builder: "реализация",
-  librarian: "курация знаний",
-  orchestrator: "оркестрация",
-  researcher: "исследование",
-  reviewer: "независимая проверка"
+  builder: "реалізація",
+  librarian: "курація знань",
+  orchestrator: "оркестрація",
+  researcher: "дослідження",
+  reviewer: "незалежна перевірка"
 };
 
 const isolationCopy: Record<string, string> = {
-  none: "без изоляции",
-  external_cli: "внешний CLI",
-  workspace_sandbox: "песочница рабочего пространства",
-  external_runtime: "внешняя среда выполнения",
-  container_or_remote_sandbox: "контейнер или удалённая песочница"
+  none: "без ізоляції",
+  external_cli: "зовнішній CLI",
+  workspace_sandbox: "пісочниця робочого простору",
+  external_runtime: "зовнішнє середовище виконання",
+  container_or_remote_sandbox: "контейнер або віддалена пісочниця"
 };
 
 const errorCopy: Record<string, string> = {
-  request_failed: "Локальная система не ответила на запрос.",
-  not_found: "Объект не найден.",
-  task_not_found: "Задача не найдена.",
-  skill_not_found: "Навык не найден.",
-  context_not_found: "Документ контекста не найден.",
-  knowledge_not_found: "Объект знаний не найден.",
-  snapshot_stale: "Выбранный срез уже изменился. Обновите страницу и повторите действие.",
-  session_required: "Заново откройте локальный интерфейс.",
-  content_restricted: "Содержимое skill скрыто sensitivity policy.",
-  skill_read_only: "Этот skill доступен только для чтения. Создайте локальную копию, если policy это разрешает.",
-  skill_validation_failed: "Проверьте обязательные поля frontmatter и исправьте отмеченные ошибки.",
-  skill_edit_conflict: "Skill изменился после открытия редактора. Ваши изменения не записаны.",
-  skill_idempotency_conflict: "Этот ключ операции уже связан с другим изменением.",
-  unsafe_skill_path: "Источник skill не входит в разрешённый локальный путь.",
-  skill_persistence_failed: "Не удалось атомарно записать skill; исходная версия сохранена.",
-  body_too_large: "Содержимое превышает безопасный размер запроса.",
-  csrf_rejected: "Локальная сессия изменилась. Обновите страницу перед записью.",
-  idempotency_required: "Для записи нужен корректный ключ идемпотентности."
+  request_failed: "Локальна система не відповіла на запит.",
+  not_found: "Об'єкт не знайдено.",
+  task_not_found: "Задачу не знайдено.",
+  skill_not_found: "Навичку не знайдено.",
+  context_not_found: "Документ контексту не знайдено.",
+  knowledge_not_found: "Об'єкт знань не знайдено.",
+  snapshot_stale: "Вибраний зріз уже змінився. Оновіть сторінку та повторіть дію.",
+  session_required: "Знову відкрийте локальний інтерфейс.",
+  content_restricted: "Вміст skill приховано sensitivity policy.",
+  skill_read_only: "Цей skill доступний лише для читання. Створіть локальну копію, якщо policy це дозволяє.",
+  skill_validation_failed: "Перевірте обов'язкові поля frontmatter та виправте позначені помилки.",
+  skill_edit_conflict: "Skill змінився після відкриття редактора. Ваші зміни не записано.",
+  skill_idempotency_conflict: "Цей ключ операції вже пов'язаний з іншою зміною.",
+  unsafe_skill_path: "Джерело skill не входить у дозволений локальний шлях.",
+  skill_persistence_failed: "Не вдалося атомарно записати skill; вихідну версію збережено.",
+  body_too_large: "Вміст перевищує безпечний розмір запиту.",
+  csrf_rejected: "Локальна сесія змінилася. Оновіть сторінку перед записом.",
+  idempotency_required: "Для запису потрібен коректний ключ ідемпотентності."
 };
 
 export function statusLabel(status: string): string {
@@ -426,11 +426,11 @@ export function displayValue(field: string, value: string): string {
   if (normalizedField === "priority") return priorityLabel(value);
   if (normalizedField === "role") return roleLabel(value);
   if (["kind", "source_type", "entity_type", "locator_kind"].includes(normalizedField)) return kindLabel(value);
-  if (normalizedValue === "true") return "Да";
-  if (normalizedValue === "false") return "Нет";
-  if (["none", "null", "not declared"].includes(normalizedValue)) return "Нет";
-  if (normalizedValue === "read_only") return "Только чтение";
-  if (normalizedValue === "workspace_write") return "Запись в рабочем пространстве";
+  if (normalizedValue === "true") return "Так";
+  if (normalizedValue === "false") return "Ні";
+  if (["none", "null", "not declared"].includes(normalizedValue)) return "Ні";
+  if (normalizedValue === "read_only") return "Лише читання";
+  if (normalizedValue === "workspace_write") return "Запис у робочому просторі";
   if (normalizedField === "isolation_mode") return isolationLabel(value);
   if (normalizedValue === "unavailable") return "Недоступно";
   return value;
@@ -441,7 +441,7 @@ export function localizeError(code: string, fallback: string): string {
 }
 
 export function pluralRu(count: number, one: string, few: string, many: string): string {
-  const category = new Intl.PluralRules("ru-RU").select(count);
+  const category = new Intl.PluralRules("uk-UA").select(count);
   return category === "one" ? one : category === "few" ? few : many;
 }
 

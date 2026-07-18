@@ -346,7 +346,7 @@ export function SafeMarkdown({ content }: SafeMarkdownProps) {
       {blocks}
       {budget.truncated ? (
         <p className="safe-markdown-truncated" role="status">
-          Предпросмотр сокращён: документ превышает безопасный лимит отображения.
+          Попередній перегляд скорочено: документ перевищує безпечний ліміт відображення.
         </p>
       ) : null}
     </article>

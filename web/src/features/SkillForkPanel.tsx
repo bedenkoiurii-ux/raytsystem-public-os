@@ -49,33 +49,33 @@ export function SkillForkPanel({ detail, onCancel, onCreated }: SkillForkPanelPr
   };
 
   return (
-    <section className="skill-fork-panel panel" aria-label={`Локальная копия ${detail.skill.skill_id}`}>
+    <section className="skill-fork-panel panel" aria-label={`Локальна копія ${detail.skill.skill_id}`}>
       <header>
-        <div><span className="eyebrow">Исходный skill доступен только для чтения и останется неизменным</span><h3>Создать локальную копию</h3></div>
-        <button className="icon-button" type="button" onClick={onCancel} aria-label="Закрыть создание копии"><X size={18} /></button>
+        <div><span className="eyebrow">Вихідний skill доступний лише для читання і залишиться незмінним</span><h3>Створити локальну копію</h3></div>
+        <button className="icon-button" type="button" onClick={onCancel} aria-label="Закрити створення копії"><X size={18} /></button>
       </header>
       <div className="fork-destination">
-        <label>Новый уникальный skill_id<input name="skill_id" autoFocus value={newSkillId} onChange={(event) => setNewSkillId(event.target.value)} pattern="[a-z][a-z0-9_-]{1,63}" /></label>
-        <button className="secondary-button" type="button" onClick={() => requestPreview(newSkillId)} disabled={!newSkillId.trim() || previewMutation.isPending}>Обновить предпросмотр</button>
+        <label>Новий унікальний skill_id<input name="skill_id" autoFocus value={newSkillId} onChange={(event) => setNewSkillId(event.target.value)} pattern="[a-z][a-z0-9_-]{1,63}" /></label>
+        <button className="secondary-button" type="button" onClick={() => requestPreview(newSkillId)} disabled={!newSkillId.trim() || previewMutation.isPending}>Оновити попередній перегляд</button>
       </div>
-      {previewMutation.isPending ? <p className="muted-copy">Проверяем место назначения и строим diff…</p> : null}
+      {previewMutation.isPending ? <p className="muted-copy">Перевіряємо місце призначення і будуємо diff…</p> : null}
       {previewMutation.isError ? <ErrorState error={previewMutation.error} /> : null}
       {preview ? (
         <div className="fork-preview">
           <dl className="surface-detail-list">
-            <div><dt>Источник</dt><dd>{detail.policy.source_path}</dd></div>
-            <div><dt>Место копии</dt><dd><code>{preview.destination}</code></dd></div>
-            <div><dt>Владение</dt><dd>{statusLabel(preview.ownership_after_create.trust_class)} · {localizedCatalogLabel(preview.ownership_after_create.pack_id, preview.ownership_after_create.pack_id)}</dd></div>
-            <div><dt>Статус проверки</dt><dd><StatusPill status={preview.validation.effective_test_status} /></dd></div>
+            <div><dt>Джерело</dt><dd>{detail.policy.source_path}</dd></div>
+            <div><dt>Місце копії</dt><dd><code>{preview.destination}</code></dd></div>
+            <div><dt>Власність</dt><dd>{statusLabel(preview.ownership_after_create.trust_class)} · {localizedCatalogLabel(preview.ownership_after_create.pack_id, preview.ownership_after_create.pack_id)}</dd></div>
+            <div><dt>Статус перевірки</dt><dd><StatusPill status={preview.validation.effective_test_status} /></dd></div>
           </dl>
-          <p><AlertTriangle size={15} /> Исходный skill не изменится. Новая копия появится только после подтверждения.</p>
+          <p><AlertTriangle size={15} /> Вихідний skill не зміниться. Нова копія з'явиться лише після підтвердження.</p>
           <pre><code>{preview.diff}</code></pre>
         </div>
       ) : null}
       {forkMutation.isError ? <ErrorState error={forkMutation.error} /> : null}
       <footer>
-        <button className="secondary-button" type="button" onClick={onCancel}>Отмена</button>
-        <button className="primary-button" type="button" onClick={create} disabled={!previewMatches || forkMutation.isPending}><Copy size={15} />{forkMutation.isPending ? "Создаём…" : "Подтвердить и создать"}</button>
+        <button className="secondary-button" type="button" onClick={onCancel}>Скасувати</button>
+        <button className="primary-button" type="button" onClick={create} disabled={!previewMatches || forkMutation.isPending}><Copy size={15} />{forkMutation.isPending ? "Створюємо…" : "Підтвердити і створити"}</button>
       </footer>
     </section>
   );

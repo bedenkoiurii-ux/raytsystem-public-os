@@ -118,7 +118,7 @@ export default function VisualEditor({
   };
 
   const requestLink = () => {
-    const href = window.prompt("URL ссылки");
+    const href = window.prompt("URL посилання");
     if (!href || !safeLink(href)) return;
     editorInstance?.action((ctx) => ctx.get(commandsCtx).call(toggleLinkCommand.key, { href }));
   };
@@ -131,14 +131,14 @@ export default function VisualEditor({
     const editor = Editor.make()
       .config((ctx) => {
         ctx.set(rootCtx, rootRef.current);
-        ctx.set(rootAttrsCtx, { class: "doc-milkdown-root", "aria-label": "Визуальный Markdown-редактор" });
+        ctx.set(rootAttrsCtx, { class: "doc-milkdown-root", "aria-label": "Візуальний Markdown-редактор" });
         ctx.set(defaultValueCtx, envelope.editorMarkdown);
         ctx.update(remarkStringifyOptionsCtx, (previous) => ({ ...previous, ...envelope.serialization.stringify }));
         ctx.set(remarkGFMPlugin.options.key, envelope.serialization.gfm);
         ctx.update(editorViewOptionsCtx, (previous) => ({
           ...previous,
           editable: () => !blockedRef.current,
-          attributes: { ...previous.attributes, "aria-label": "Визуальный Markdown-редактор", role: "textbox", "aria-multiline": "true" }
+          attributes: { ...previous.attributes, "aria-label": "Візуальний Markdown-редактор", role: "textbox", "aria-multiline": "true" }
         }));
         ctx.get(listenerCtx).markdownUpdated((_listenerCtx, markdown) => {
           if (disposed) return;
@@ -164,7 +164,7 @@ export default function VisualEditor({
       if (restored.content !== envelope.original) {
         const issue: MarkdownIssue = {
           code: "client_round_trip_changed",
-          message: "Milkdown изменяет этот документ даже без правок. Визуальное сохранение заблокировано; используйте Source mode.",
+          message: "Milkdown змінює цей документ навіть без правок. Візуальне збереження заблоковано; використовуйте Source mode.",
           severity: "error",
           from: 0,
           to: 0
@@ -178,7 +178,7 @@ export default function VisualEditor({
       if (disposed) return;
       const issue: MarkdownIssue = {
         code: "visual_editor_failed",
-        message: "Визуальный редактор не смог открыть документ. Исходный Markdown не изменён.",
+        message: "Візуальний редактор не зміг відкрити документ. Вихідний Markdown не змінено.",
         severity: "error",
         from: 0,
         to: 0
@@ -222,32 +222,32 @@ export default function VisualEditor({
 
   return (
     <div className="doc-visual-editor" data-editor-scope="visual" onKeyDownCapture={onKeyDownCapture}>
-      <div className="doc-editor-toolbar" role="toolbar" aria-label="Форматирование Markdown">
-        <ToolbarButton label="Отменить" disabled={commandDisabled} onClick={command((editor) => editor.action((ctx) => ctx.get(commandsCtx).call(undoCommand.key)))}><Undo2 size={15} /></ToolbarButton>
-        <ToolbarButton label="Повторить" disabled={commandDisabled} onClick={command((editor) => editor.action((ctx) => ctx.get(commandsCtx).call(redoCommand.key)))}><Redo2 size={15} /></ToolbarButton>
+      <div className="doc-editor-toolbar" role="toolbar" aria-label="Форматування Markdown">
+        <ToolbarButton label="Скасувати" disabled={commandDisabled} onClick={command((editor) => editor.action((ctx) => ctx.get(commandsCtx).call(undoCommand.key)))}><Undo2 size={15} /></ToolbarButton>
+        <ToolbarButton label="Повторити" disabled={commandDisabled} onClick={command((editor) => editor.action((ctx) => ctx.get(commandsCtx).call(redoCommand.key)))}><Redo2 size={15} /></ToolbarButton>
         <span aria-hidden="true" />
-        <ToolbarButton label="Заголовок второго уровня" disabled={commandDisabled} onClick={command((editor) => editor.action((ctx) => ctx.get(commandsCtx).call(wrapInHeadingCommand.key, 2)))}><Heading2 size={15} /></ToolbarButton>
-        <ToolbarButton label="Жирный" disabled={commandDisabled} onClick={command((editor) => editor.action((ctx) => ctx.get(commandsCtx).call(toggleStrongCommand.key)))}><Bold size={15} /></ToolbarButton>
+        <ToolbarButton label="Заголовок другого рівня" disabled={commandDisabled} onClick={command((editor) => editor.action((ctx) => ctx.get(commandsCtx).call(wrapInHeadingCommand.key, 2)))}><Heading2 size={15} /></ToolbarButton>
+        <ToolbarButton label="Жирний" disabled={commandDisabled} onClick={command((editor) => editor.action((ctx) => ctx.get(commandsCtx).call(toggleStrongCommand.key)))}><Bold size={15} /></ToolbarButton>
         <ToolbarButton label="Курсив" disabled={commandDisabled} onClick={command((editor) => editor.action((ctx) => ctx.get(commandsCtx).call(toggleEmphasisCommand.key)))}><Italic size={15} /></ToolbarButton>
-        <ToolbarButton label="Зачёркнутый" disabled={commandDisabled} onClick={command((editor) => editor.action((ctx) => ctx.get(commandsCtx).call(toggleStrikethroughCommand.key)))}><Strikethrough size={15} /></ToolbarButton>
-        <ToolbarButton label="Ссылка" disabled={commandDisabled} onClick={requestLink}><Link2 size={15} /></ToolbarButton>
+        <ToolbarButton label="Закреслений" disabled={commandDisabled} onClick={command((editor) => editor.action((ctx) => ctx.get(commandsCtx).call(toggleStrikethroughCommand.key)))}><Strikethrough size={15} /></ToolbarButton>
+        <ToolbarButton label="Посилання" disabled={commandDisabled} onClick={requestLink}><Link2 size={15} /></ToolbarButton>
         <ToolbarButton label="Wikilink" disabled={commandDisabled} onClick={() => insertAgentExtension("[[Документ]]")}><Brackets size={15} /></ToolbarButton>
-        <ToolbarButton label="Маркированный список" disabled={commandDisabled} onClick={command((editor) => editor.action((ctx) => ctx.get(commandsCtx).call(wrapInBulletListCommand.key)))}><List size={15} /></ToolbarButton>
-        <ToolbarButton label="Нумерованный список" disabled={commandDisabled} onClick={command((editor) => editor.action((ctx) => ctx.get(commandsCtx).call(wrapInOrderedListCommand.key)))}><ListOrdered size={15} /></ToolbarButton>
-        <ToolbarButton label="Список задач" disabled={commandDisabled} onClick={() => insertAgentExtension("\n- [ ] Задача\n")}><ListChecks size={15} /></ToolbarButton>
+        <ToolbarButton label="Маркований список" disabled={commandDisabled} onClick={command((editor) => editor.action((ctx) => ctx.get(commandsCtx).call(wrapInBulletListCommand.key)))}><List size={15} /></ToolbarButton>
+        <ToolbarButton label="Нумерований список" disabled={commandDisabled} onClick={command((editor) => editor.action((ctx) => ctx.get(commandsCtx).call(wrapInOrderedListCommand.key)))}><ListOrdered size={15} /></ToolbarButton>
+        <ToolbarButton label="Список завдань" disabled={commandDisabled} onClick={() => insertAgentExtension("\n- [ ] Завдання\n")}><ListChecks size={15} /></ToolbarButton>
         <ToolbarButton label="Цитата" disabled={commandDisabled} onClick={command((editor) => editor.action((ctx) => ctx.get(commandsCtx).call(wrapInBlockquoteCommand.key)))}><Quote size={15} /></ToolbarButton>
-        <ToolbarButton label="Callout" disabled={commandDisabled} onClick={() => insertAgentExtension("\n> [!NOTE] Примечание\n> \n")}><MessageSquareText size={15} /></ToolbarButton>
-        <ToolbarButton label="Встроенный код" disabled={commandDisabled} onClick={command((editor) => editor.action((ctx) => ctx.get(commandsCtx).call(toggleInlineCodeCommand.key)))}><Code2 size={15} /></ToolbarButton>
-        <ToolbarButton label="Блок кода" disabled={commandDisabled} onClick={command((editor) => editor.action((ctx) => ctx.get(commandsCtx).call(createCodeBlockCommand.key, "")))}><FileCode2 size={15} /></ToolbarButton>
-        <ToolbarButton label="Таблица" disabled={commandDisabled} onClick={command((editor) => editor.action((ctx) => ctx.get(commandsCtx).call(insertTableCommand.key, { row: 3, col: 3 } as never)))}><Table2 size={15} /></ToolbarButton>
-        <ToolbarButton label="Изображение — picker вложений ещё недоступен" disabled onClick={() => undefined}><Image size={15} /></ToolbarButton>
-        <ToolbarButton label="Горизонтальная линия" disabled={commandDisabled} onClick={command((editor) => editor.action((ctx) => ctx.get(commandsCtx).call(insertHrCommand.key)))}><Minus size={15} /></ToolbarButton>
+        <ToolbarButton label="Callout" disabled={commandDisabled} onClick={() => insertAgentExtension("\n> [!NOTE] Примітка\n> \n")}><MessageSquareText size={15} /></ToolbarButton>
+        <ToolbarButton label="Вбудований код" disabled={commandDisabled} onClick={command((editor) => editor.action((ctx) => ctx.get(commandsCtx).call(toggleInlineCodeCommand.key)))}><Code2 size={15} /></ToolbarButton>
+        <ToolbarButton label="Блок коду" disabled={commandDisabled} onClick={command((editor) => editor.action((ctx) => ctx.get(commandsCtx).call(createCodeBlockCommand.key, "")))}><FileCode2 size={15} /></ToolbarButton>
+        <ToolbarButton label="Таблиця" disabled={commandDisabled} onClick={command((editor) => editor.action((ctx) => ctx.get(commandsCtx).call(insertTableCommand.key, { row: 3, col: 3 } as never)))}><Table2 size={15} /></ToolbarButton>
+        <ToolbarButton label="Зображення — picker вкладень ще недоступний" disabled onClick={() => undefined}><Image size={15} /></ToolbarButton>
+        <ToolbarButton label="Горизонтальна лінія" disabled={commandDisabled} onClick={command((editor) => editor.action((ctx) => ctx.get(commandsCtx).call(insertHrCommand.key)))}><Minus size={15} /></ToolbarButton>
       </div>
       {runtimeIssues.length ? (
         <div className="doc-visual-warning" role="alert">
-          <strong>Визуальное сохранение ограничено</strong>
+          <strong>Візуальне збереження обмежено</strong>
           <ul>{runtimeIssues.map((issue, index) => <li key={issueKey(issue, index)}>{issue.message}</li>)}</ul>
-          <button type="button" onClick={onToggleSource}>Открыть Source mode</button>
+          <button type="button" onClick={onToggleSource}>Відкрити Source mode</button>
         </div>
       ) : null}
       <div ref={rootRef} className="doc-visual-root" />
