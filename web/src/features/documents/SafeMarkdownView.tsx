@@ -21,8 +21,10 @@ interface FootnoteDefinition {
   content: string;
 }
 
-const MAX_RENDER_CHARACTERS = 200_000;
-const MAX_RENDER_LINES = 2_500;
+// Writer-Lab: підвищено з 200k/2.5k — авторські есеї та розділи книги легітимно великі
+// (напр. «Камінь на роздоріжжі» ~36 тис. слів), читання в тулі має бути нормою, не винятком.
+const MAX_RENDER_CHARACTERS = 1_500_000;
+const MAX_RENDER_LINES = 20_000;
 const MAX_INLINE_TOKENS = 2_000;
 const MAX_TABLE_CELLS = 64;
 const MAX_NESTING_DEPTH = 24;
