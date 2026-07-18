@@ -1157,26 +1157,27 @@ button.table-row:hover { background: var(--surface-2); color: var(--bone); }
 .onboarding-fingerprint code { overflow-wrap: anywhere; word-break: break-all; color: var(--muted); font: 500 12px/1.4 var(--mono); }
 .onboarding-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
 
-/* === Writer-Lab: гібридна тема — світлий «аркуш» тіла документа (перемикач у панелі режимів) === */
+/* === Writer-Lab: гібридна тема — світлий «аркуш» тіла документа === */
 .sheet-light-toggle[aria-pressed="true"] { background: var(--carbon-soft); color: var(--gold); }
-.document-content.sheet-light { background: #efede6; }
-.document-content.sheet-light .safe-markdown {
-  background: #fbfaf5; color: #2c2a25; max-width: 860px; margin: 18px auto 40px;
-  padding: 52px 60px; border-radius: 6px; font-size: 15px;
-  box-shadow: 0 10px 44px rgba(0,0,0,.38); border: 1px solid rgba(0,0,0,.06);
+.sheet-tone-select { font-size: 11.5px; background: transparent; color: var(--muted); border: 1px solid var(--line, rgba(255,255,255,.14)); border-radius: 7px; padding: 3px 6px; margin-left: 4px; }
+/* Перемапування дизайн-токенів усередині аркуша: успадковується всім вмістом */
+.document-content.sheet-light {
+  --sheet-paper: #fbfaf5; --sheet-desk: #efede6;           /* типово: теплий папір */
+  --bone: #17140e; --muted: #33312b; --carbon-soft: #e9e6dc;
+  --cyan: #1a56a0; --gold: #6d5a10;
+  background: var(--sheet-desk);
 }
-.document-content.sheet-light .safe-markdown h1, .document-content.sheet-light .safe-markdown h2,
-.document-content.sheet-light .safe-markdown h3, .document-content.sheet-light .safe-markdown h4,
-.document-content.sheet-light .safe-markdown h5, .document-content.sheet-light .safe-markdown h6 { color: #16140f; }
-.document-content.sheet-light .safe-markdown a { color: #1a56a0; }
-.document-content.sheet-light .safe-markdown code { background: #ecebe1; color: #7a5d00; }
-.document-content.sheet-light .safe-markdown blockquote { background: rgba(26,86,160,.06); border-left-color: #1a56a0; }
-.document-content.sheet-light .doc-wikilink { color: #1a56a0; border-bottom: 1px dotted #1a56a0; background: none; }
-.document-content.sheet-light .doc-frontmatter { background: #f0eee7; color: #55524a; border: 1px solid rgba(0,0,0,.08); }
-.document-content.sheet-light .doc-frontmatter summary { color: #55524a; }
-.document-content.sheet-light .doc-code-block { background: #f0eee7; color: #333; border: 1px solid rgba(0,0,0,.08); }
-.document-content.sheet-light .doc-code-block code { background: transparent; color: #333; }
-.document-content.sheet-light .doc-footnote-reference a { color: #1a56a0; }
-/* Візуальний редактор (milkdown) у світлому аркуші */
-.document-content.sheet-light .milkdown { background: #fbfaf5; color: #2c2a25; max-width: 860px; margin: 18px auto 40px; border-radius: 6px; box-shadow: 0 10px 44px rgba(0,0,0,.38); }
+.document-content.sheet-light[data-sheet-tone="white"] { --sheet-paper: #ffffff; --sheet-desk: #ececec; }
+.document-content.sheet-light[data-sheet-tone="sepia"] { --sheet-paper: #f7efdc; --sheet-desk: #e9dfc7; --bone: #241c0d; --muted: #3d3420; }
+.document-content.sheet-light .safe-markdown,
+.document-content.sheet-light .milkdown {
+  background: var(--sheet-paper); color: var(--muted);
+  max-width: 860px; margin: 18px auto 40px; border-radius: 6px;
+  box-shadow: 0 10px 44px rgba(0,0,0,.35); border: 1px solid rgba(0,0,0,.07);
+}
+.document-content.sheet-light .safe-markdown { padding: 52px 60px; font-size: 15px; }
 .document-content.sheet-light .milkdown .editor { padding: 52px 60px; }
+.document-content.sheet-light .doc-wikilink { color: var(--cyan); border-bottom: 1px dotted var(--cyan); background: none; }
+.document-content.sheet-light .doc-frontmatter,
+.document-content.sheet-light .doc-code-block { background: var(--carbon-soft); color: var(--muted); border: 1px solid rgba(0,0,0,.08); }
+.document-content.sheet-light .safe-markdown blockquote { background: rgba(26,86,160,.07); border-left-color: var(--cyan); }
