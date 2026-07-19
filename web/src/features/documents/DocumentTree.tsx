@@ -37,7 +37,7 @@ interface DocumentTreeProps {
   onExpandFolder?: (rootId: string, parentPath: string) => void;
 }
 
-const ROW_HEIGHT = 36;
+const ROW_HEIGHT = 50;   // вище — щоб повна назва містилась у 2 рядки (без обрізання)
 const OVERSCAN = 8;
 
 function relativeToRoot(path: string, rootPath: string): string {
