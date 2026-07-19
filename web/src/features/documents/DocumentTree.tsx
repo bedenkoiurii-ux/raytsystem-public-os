@@ -112,12 +112,15 @@ function indexVersions(documents: DocumentSummary[]): VersionIndex {
     const canonical = resolveLink(doc.properties?.superseded_by, byTitle);
     if (canonical && canonical.document_id !== doc.document_id) { attach(canonical, doc); versionChildIds.add(doc.document_id); }
   }
-  // порядок під якорем: спершу частини (за номером блоку), тоді версії (зворотно)
+  // порядок під якорем: 1) частини (за номером блоку) → 2) листкова лінія версій (v4→оригінал)
+  // → 3) гілки-чернетки, що мають власні під-гілки (повна версія 1, план)
   for (const list of versionsFor.values()) {
     list.sort((a, b) => {
       const av = versionChildIds.has(a.document_id), bv = versionChildIds.has(b.document_id);
-      if (av !== bv) return av ? 1 : -1;
-      if (!av) return partOrder(a.filename) - partOrder(b.filename);
+      if (av !== bv) return av ? 1 : -1;                       // частини перед версіями
+      if (!av) return partOrder(a.filename) - partOrder(b.filename);   // частини — за номером блоку
+      const aBranch = versionsFor.has(a.document_id), bBranch = versionsFor.has(b.document_id);
+      if (aBranch !== bBranch) return aBranch ? 1 : -1;        // листкові версії перед гілками-чернетками
       return versionRank(b.filename) - versionRank(a.filename) || b.filename.localeCompare(a.filename, "uk-UA");
     });
   }
