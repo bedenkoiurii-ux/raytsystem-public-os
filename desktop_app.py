@@ -21,12 +21,17 @@ from pathlib import Path
 HOST = "127.0.0.1"
 # Корінь простору: env RAYTSYSTEM_ROOT або типовий vault Writer-Lab.
 ROOT = Path(os.environ.get("RAYTSYSTEM_ROOT", "/Users/Nemo/Writer-Lab/Library")).resolve()
-PREFERRED_PORT = 8766
+# Стабільний виділений порт: origin (host:port) не змінюється між запусками,
+# тож localStorage (тема, тон паперу, формат, шрифт, відкриті вкладки) зберігається.
+PREFERRED_PORT = 8791
 
 
 def pick_port(preferred: int) -> int:
-    """Взяти бажаний порт; якщо зайнятий (напр., dev-сервер) — будь-який вільний."""
+    """Взяти бажаний (стабільний) порт; якщо реально зайнятий іншим процесом — будь-який вільний.
+    SO_REUSEADDR дозволяє переприв'язатись одразу після рестарту (порт у TIME_WAIT), не збиваючись
+    на випадковий — інакше origin змінюється і localStorage «забувається»."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             s.bind((HOST, preferred))
             return preferred
