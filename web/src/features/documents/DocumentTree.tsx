@@ -27,7 +27,7 @@ interface VisibleEntry {
   count?: number;
   expandable?: boolean;   // канонічна з попередніми версіями — працює як вимикач
   isVersion?: boolean;    // рядок попередньої версії (вкладений)
-  groupKind?: "parts" | "versions";   // вузол-гілка: Частини / Версії
+  groupKind?: "parts" | "versions" | "materials";   // вузол-гілка: Частини / Версії / Матеріали
 }
 
 interface DocumentTreeProps {
@@ -52,9 +52,10 @@ function relativeToRoot(path: string, rootPath: string): string {
 }
 
 interface VersionIndex {
-  versionsFor: Map<string, DocumentSummary[]>;   // фінальний файл → діти (частини, тоді старі версії)
+  versionsFor: Map<string, DocumentSummary[]>;   // фінальний файл → діти (частини, матеріали, версії)
   versionIds: Set<string>;                       // id дітей (виносимо з плаского списку — вони під якорем)
-  versionChildIds: Set<string>;                  // підмножина дітей, що є ВЕРСІЯМИ (приглушуємо); решта — частини
+  versionChildIds: Set<string>;                  // діти-ВЕРСІЇ (superseded_by, приглушуємо)
+  materialChildIds: Set<string>;                 // діти-МАТЕРІАЛИ (related_to — джерела, рефлексії, суміжні файли)
 }
 
 // Ранг версії з імені файлу: (v4)→4, «версія 001»→1, «оригінал/пролог/рання»→0
@@ -96,6 +97,7 @@ function indexVersions(documents: DocumentSummary[]): VersionIndex {
   const versionsFor = new Map<string, DocumentSummary[]>();
   const versionIds = new Set<string>();
   const versionChildIds = new Set<string>();
+  const materialChildIds = new Set<string>();
   const attach = (canonical: DocumentSummary, doc: DocumentSummary) => {
     const list = versionsFor.get(canonical.document_id) ?? [];
     list.push(doc);
@@ -107,7 +109,13 @@ function indexVersions(documents: DocumentSummary[]): VersionIndex {
     const canonical = resolveLink(doc.properties?.part_of, byTitle);
     if (canonical && canonical.document_id !== doc.document_id) attach(canonical, doc);
   }
-  // 2) старі версії (superseded_by) — теж під фінальний файл, приглушені
+  // 2) матеріали (related_to) — джерела, рефлексії, суміжні файли
+  for (const doc of documents) {
+    if (versionIds.has(doc.document_id)) continue;
+    const canonical = resolveLink(doc.properties?.related_to, byTitle);
+    if (canonical && canonical.document_id !== doc.document_id) { attach(canonical, doc); materialChildIds.add(doc.document_id); }
+  }
+  // 3) старі версії (superseded_by) — теж під фінальний файл, приглушені
   for (const doc of documents) {
     if (versionIds.has(doc.document_id)) continue;
     const canonical = resolveLink(doc.properties?.superseded_by, byTitle);
@@ -125,7 +133,7 @@ function indexVersions(documents: DocumentSummary[]): VersionIndex {
       return versionRank(b.filename) - versionRank(a.filename) || b.filename.localeCompare(a.filename, "uk-UA");
     });
   }
-  return { versionsFor, versionIds, versionChildIds };
+  return { versionsFor, versionIds, versionChildIds, materialChildIds };
 }
 
 function buildTree(documents: DocumentSummary[], projections: DocumentFolderSummary[], roots: DocumentRootSummary[], versionIds: ReadonlySet<string>): TreeFolder {
@@ -201,27 +209,30 @@ function emitChildren(
   depth: number,
   versionsFor: Map<string, DocumentSummary[]>,
   versionChildIds: ReadonlySet<string>,
+  materialChildIds: ReadonlySet<string>,
   expanded: ReadonlySet<string>,
   out: VisibleEntry[],
 ): void {
   const children = versionsFor.get(anchorId) ?? [];
-  const parts = children.filter((c) => !versionChildIds.has(c.document_id));
+  const parts = children.filter((c) => !versionChildIds.has(c.document_id) && !materialChildIds.has(c.document_id));
+  const materials = children.filter((c) => materialChildIds.has(c.document_id));
   const versions = children.filter((c) => versionChildIds.has(c.document_id));
   const leafVersions = versions.filter((c) => !versionsFor.has(c.document_id));   // версії без власних під-гілок
   const branchDrafts = versions.filter((c) => versionsFor.has(c.document_id));    // чернетки-гілки (повна версія 1, план)
 
-  const emitGroup = (kind: "parts" | "versions", label: string, members: DocumentSummary[]) => {
+  const emitGroup = (kind: "parts" | "versions" | "materials", label: string, members: DocumentSummary[], collapseSingle: boolean) => {
     if (!members.length) return;
-    if (members.length === 1) { emitDocument(members[0], depth, anchorId, versionsFor, versionChildIds, expanded, out); return; }
+    if (collapseSingle && members.length === 1) { emitDocument(members[0], depth, anchorId, versionsFor, versionChildIds, materialChildIds, expanded, out); return; }
     const gid = `group:${anchorId}:${kind}`;
     const isExpanded = expanded.has(gid);
     out.push({ id: gid, type: "group", name: label, depth, parentId: anchorId, expanded: isExpanded, expandable: true, count: members.length, groupKind: kind });
-    if (isExpanded) for (const m of members) emitDocument(m, depth + 1, gid, versionsFor, versionChildIds, expanded, out);
+    if (isExpanded) for (const m of members) emitDocument(m, depth + 1, gid, versionsFor, versionChildIds, materialChildIds, expanded, out);
   };
 
-  emitGroup("parts", "Частини", parts);
-  emitGroup("versions", "Версії", leafVersions);
-  for (const draft of branchDrafts) emitDocument(draft, depth, anchorId, versionsFor, versionChildIds, expanded, out);
+  emitGroup("parts", "Частини", parts, true);
+  emitGroup("materials", "Матеріали", materials, false);   // окрема категорія-гілка — групуємо навіть з одним
+  emitGroup("versions", "Версії", leafVersions, true);
+  for (const draft of branchDrafts) emitDocument(draft, depth, anchorId, versionsFor, versionChildIds, materialChildIds, expanded, out);
 }
 
 // Рекурсивний рендер вузла-піраміди: документ + (якщо розгорнутий) його гілки вглиб на будь-який рівень.
@@ -231,6 +242,7 @@ function emitDocument(
   parentId: string | null,
   versionsFor: Map<string, DocumentSummary[]>,
   versionChildIds: ReadonlySet<string>,
+  materialChildIds: ReadonlySet<string>,
   expanded: ReadonlySet<string>,
   out: VisibleEntry[],
 ): void {
@@ -249,20 +261,20 @@ function emitDocument(
     count: hasChildren ? children!.length : undefined,
     isVersion: versionChildIds.has(document.document_id),
   });
-  if (isExpanded) emitChildren(document.document_id, depth + 1, versionsFor, versionChildIds, expanded, out);
+  if (isExpanded) emitChildren(document.document_id, depth + 1, versionsFor, versionChildIds, materialChildIds, expanded, out);
 }
 
-function flattenTree(folder: TreeFolder, expanded: ReadonlySet<string>, versionsFor: Map<string, DocumentSummary[]>, versionChildIds: ReadonlySet<string>, depth = 1, parentId: string | null = null): VisibleEntry[] {
+function flattenTree(folder: TreeFolder, expanded: ReadonlySet<string>, versionsFor: Map<string, DocumentSummary[]>, versionChildIds: ReadonlySet<string>, materialChildIds: ReadonlySet<string>, depth = 1, parentId: string | null = null): VisibleEntry[] {
   const entries: VisibleEntry[] = [];
   const folders = [...folder.folders.values()].sort((a, b) => a.name.localeCompare(b.name, "uk-UA"));
   for (const child of folders) {
     if (child.documents.length === 0 && child.folders.size === 0) continue;   // ховаємо порожні теки
     const isExpanded = expanded.has(child.id);
     entries.push({ id: child.id, type: "folder", name: child.name, depth, parentId, expanded: isExpanded, folder: child, count: countDocuments(child) });
-    if (isExpanded) entries.push(...flattenTree(child, expanded, versionsFor, versionChildIds, depth + 1, child.id));
+    if (isExpanded) entries.push(...flattenTree(child, expanded, versionsFor, versionChildIds, materialChildIds, depth + 1, child.id));
   }
   for (const document of [...folder.documents].sort((a, b) => a.filename.localeCompare(b.filename, "uk-UA"))) {
-    emitDocument(document, depth, parentId, versionsFor, versionChildIds, expanded, entries);
+    emitDocument(document, depth, parentId, versionsFor, versionChildIds, materialChildIds, expanded, entries);
   }
   return entries;
 }
@@ -301,7 +313,7 @@ export function DocumentTree({ documents, folders = [], roots = [], selectedDocu
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(520);
   const viewportRef = useRef<HTMLDivElement>(null);
-  const visible = useMemo(() => flattenTree(tree, expanded, versionIndex.versionsFor, versionIndex.versionChildIds), [expanded, tree, versionIndex]);
+  const visible = useMemo(() => flattenTree(tree, expanded, versionIndex.versionsFor, versionIndex.versionChildIds, versionIndex.materialChildIds), [expanded, tree, versionIndex]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
