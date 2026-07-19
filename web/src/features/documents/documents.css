@@ -98,7 +98,7 @@
 .doc-tree-virtual-space { display: block; pointer-events: none; }
 .doc-tree-row { display: flex; align-items: center; width: 100%; min-height: 50px; gap: 6px; padding: 4px 7px; border: 0; border-radius: 5px; color: var(--muted); cursor: pointer; user-select: none; text-align: left; }
 /* Повна назва документа — у 2 рядки (без «...» і без повільного тултипа). */
-.doc-tree-row > span[title] { flex: 1 1 auto; min-width: 0; white-space: normal; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.22; word-break: break-word; }
+.documents-navigation .doc-tree-row > span[title] { flex: 1 1 auto; min-width: 0; white-space: normal !important; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.22; word-break: break-word; }
 .doc-tree-row:hover { background: var(--surface-2); color: var(--bone); }
 .doc-tree-row:focus-visible { outline-offset: -2px; }
 .doc-tree-row.selected { background: linear-gradient(90deg, color-mix(in srgb, var(--tangerine) 13%, transparent), transparent); color: var(--bone); box-shadow: inset 2px 0 var(--tangerine); }
