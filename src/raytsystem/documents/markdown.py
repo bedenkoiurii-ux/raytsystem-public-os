@@ -15,6 +15,8 @@ from raytsystem.documents.contracts import ExtractedLink, MarkdownMetadata
 _ATX_HEADING = re.compile(r"^(#{1,6})[ \t]+(.+?)[ \t]*#*[ \t]*$")
 _WIKILINK = re.compile(r"(!)?\[\[([^\]\r\n]+)\]\]")
 _MARKDOWN_IMAGE = re.compile(r"!\[([^\]]*)\]\(([^)\r\n]+)\)")
+# HTML <img src="…"> як embed — щоб фото у HTML-таблицях (з docx-конвертації) реєструвались як ассети.
+_HTML_IMAGE = re.compile(r"""<img\s[^>]*?\bsrc=["']([^"'\r\n]+)["']""", re.IGNORECASE)
 _MARKDOWN_LINK = re.compile(r"(?<!!)\[([^\]]*)\]\(([^)\r\n]+)\)")
 _INLINE_TAG = re.compile(r"(?<![\w/#])#([\w][\w/-]{0,127})", flags=re.UNICODE)
 _FENCE = re.compile(r"^[ \t]{0,3}(`{3,}|~{3,})")
@@ -276,6 +278,25 @@ def extract_markdown_metadata(text: str, *, path: str) -> MarkdownMetadata:
                     heading=heading_fragment.strip() or None,
                     alias=match.group(1).strip() or None,
                     link_type="markdown_image",
+                    embed=True,
+                    context=_context(line),
+                )
+            )
+        for match in _HTML_IMAGE.finditer(line):
+            if len(links) >= _MAX_LINKS:
+                break
+            raw_target = match.group(1).strip()
+            target, _, heading_fragment = raw_target.partition("#")
+            target = target.strip()
+            if not target or "://" in target or target.startswith(("data:", "javascript:")):
+                continue
+            links.append(
+                ExtractedLink(
+                    raw_target=raw_target,
+                    target=target,
+                    heading=heading_fragment.strip() or None,
+                    alias=None,
+                    link_type="html_image",
                     embed=True,
                     context=_context(line),
                 )
