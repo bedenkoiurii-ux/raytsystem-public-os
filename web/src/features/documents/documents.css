@@ -117,6 +117,10 @@
 .doc-tree-row.is-version { color: var(--muted-2); }
 .doc-tree-row.is-version > span[title] { font-size: 10.5px; -webkit-line-clamp: 2; opacity: 0.9; }
 .doc-tree-row.is-version > svg { color: color-mix(in srgb, var(--muted-2) 80%, transparent); }
+/* Вузол-гілка (Частини / Версії) — заголовок категорії, не файл */
+.doc-tree-row.is-group > span:not(.doc-tree-indent, .doc-tree-chevron) { font-size: 10px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted-2); font-weight: 600; white-space: nowrap; }
+.doc-tree-row.is-group > svg { color: var(--muted-2); }
+.doc-tree-row.is-group .doc-tree-versions-count { color: var(--muted-2); }
 .doc-tree-empty { margin: 16px 10px; padding: 16px; border: 1px dashed var(--line); border-radius: 9px; color: var(--muted-2); font-size: 11px; text-align: center; }
 
 .documents-workspace { display: grid; grid-template-rows: auto minmax(0, 1fr); background: color-mix(in srgb, var(--carbon) 96%, transparent); }

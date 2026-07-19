@@ -17,7 +17,7 @@ interface TreeFolder {
 
 interface VisibleEntry {
   id: string;
-  type: "folder" | "document";
+  type: "folder" | "document" | "group";
   name: string;
   depth: number;
   parentId: string | null;
@@ -27,6 +27,7 @@ interface VisibleEntry {
   count?: number;
   expandable?: boolean;   // канонічна з попередніми версіями — працює як вимикач
   isVersion?: boolean;    // рядок попередньої версії (вкладений)
+  groupKind?: "parts" | "versions";   // вузол-гілка: Частини / Версії
 }
 
 interface DocumentTreeProps {
@@ -193,7 +194,37 @@ function countDocuments(folder: TreeFolder): number {
   return count;
 }
 
-// Рекурсивний рендер вузла-піраміди: документ + (якщо розгорнутий) уся його гілка вглиб на будь-який рівень.
+// Гілки під фіналом: частини й версії групуються у вузли-гілки; чернетки з власними
+// під-гілками (напр. повна версія 1 → PDF) лишаються окремими файлами-гілками.
+function emitChildren(
+  anchorId: string,
+  depth: number,
+  versionsFor: Map<string, DocumentSummary[]>,
+  versionChildIds: ReadonlySet<string>,
+  expanded: ReadonlySet<string>,
+  out: VisibleEntry[],
+): void {
+  const children = versionsFor.get(anchorId) ?? [];
+  const parts = children.filter((c) => !versionChildIds.has(c.document_id));
+  const versions = children.filter((c) => versionChildIds.has(c.document_id));
+  const leafVersions = versions.filter((c) => !versionsFor.has(c.document_id));   // версії без власних під-гілок
+  const branchDrafts = versions.filter((c) => versionsFor.has(c.document_id));    // чернетки-гілки (повна версія 1, план)
+
+  const emitGroup = (kind: "parts" | "versions", label: string, members: DocumentSummary[]) => {
+    if (!members.length) return;
+    if (members.length === 1) { emitDocument(members[0], depth, anchorId, versionsFor, versionChildIds, expanded, out); return; }
+    const gid = `group:${anchorId}:${kind}`;
+    const isExpanded = expanded.has(gid);
+    out.push({ id: gid, type: "group", name: label, depth, parentId: anchorId, expanded: isExpanded, expandable: true, count: members.length, groupKind: kind });
+    if (isExpanded) for (const m of members) emitDocument(m, depth + 1, gid, versionsFor, versionChildIds, expanded, out);
+  };
+
+  emitGroup("parts", "Частини", parts);
+  emitGroup("versions", "Версії", leafVersions);
+  for (const draft of branchDrafts) emitDocument(draft, depth, anchorId, versionsFor, versionChildIds, expanded, out);
+}
+
+// Рекурсивний рендер вузла-піраміди: документ + (якщо розгорнутий) його гілки вглиб на будь-який рівень.
 function emitDocument(
   document: DocumentSummary,
   depth: number,
@@ -218,7 +249,7 @@ function emitDocument(
     count: hasChildren ? children!.length : undefined,
     isVersion: versionChildIds.has(document.document_id),
   });
-  if (isExpanded) for (const child of children!) emitDocument(child, depth + 1, document.document_id, versionsFor, versionChildIds, expanded, out);
+  if (isExpanded) emitChildren(document.document_id, depth + 1, versionsFor, versionChildIds, expanded, out);
 }
 
 function flattenTree(folder: TreeFolder, expanded: ReadonlySet<string>, versionsFor: Map<string, DocumentSummary[]>, versionChildIds: ReadonlySet<string>, depth = 1, parentId: string | null = null): VisibleEntry[] {
@@ -335,37 +366,37 @@ export function DocumentTree({ documents, folders = [], roots = [], selectedDocu
           return (
             <div
               key={entry.id}
-              className={`doc-tree-row ${selected ? "selected" : ""} ${entry.isVersion ? "is-version" : ""} ${entry.expandable ? "has-versions" : ""}`}
+              className={`doc-tree-row ${selected ? "selected" : ""} ${entry.isVersion ? "is-version" : ""} ${entry.expandable && entry.type === "document" ? "has-versions" : ""} ${entry.type === "group" ? "is-group" : ""}`}
               data-tree-id={entry.id}
               data-clickable="true"
               role="treeitem"
-              aria-label={entry.type === "folder" ? `${entry.name}, ${entry.count ?? 0} документів` : entry.expandable ? `${entry.name}, ${entry.count ?? 0} частин і версій` : undefined}
+              aria-label={entry.type === "folder" ? `${entry.name}, ${entry.count ?? 0} документів` : entry.type === "group" ? `${entry.name}, ${entry.count ?? 0}` : entry.expandable ? `${entry.name}, ${entry.count ?? 0} частин і версій` : undefined}
               aria-level={entry.depth}
-              aria-expanded={entry.type === "folder" || entry.expandable ? entry.expanded : undefined}
+              aria-expanded={entry.type === "folder" || entry.type === "group" || entry.expandable ? entry.expanded : undefined}
               aria-selected={entry.type === "document" ? selected : undefined}
               tabIndex={focusedId === entry.id || (!focusedId && index === 0) ? 0 : -1}
               onFocus={() => setFocusedId(entry.id)}
               onKeyDown={(event) => onKeyDown(event, entry)}
-              onClick={() => entry.type === "folder" ? toggleFolder(entry) : entry.document && onOpen(entry.document, "current")}
+              onClick={() => entry.type === "folder" || entry.type === "group" ? toggleFolder(entry) : entry.document && onOpen(entry.document, "current")}
               onDoubleClick={() => entry.document && onOpen(entry.document, "new")}
             >
               {Array.from({ length: Math.max(0, entry.depth - 1) }, (_, depth) => <span className="doc-tree-indent" key={depth} aria-hidden="true" />)}
-              {entry.type === "folder" ? (
+              {entry.type === "folder" || entry.type === "group" ? (
                 <ChevronRight className={entry.expanded ? "expanded" : ""} size={14} aria-hidden="true" />
               ) : entry.expandable ? (
                 <ChevronRight
                   className={`doc-tree-version-toggle ${entry.expanded ? "expanded" : ""}`}
                   size={14}
                   role="button"
-                  aria-label={entry.expanded ? "Згорнути" : "Показати частини й версії"}
+                  aria-label={entry.expanded ? "Згорнути" : "Показати гілку"}
                   onClick={(event) => { event.stopPropagation(); toggleFolder(entry); }}
                 />
               ) : (
                 <span className="doc-tree-chevron" />
               )}
-              {entry.type === "folder" ? (entry.expanded ? <FolderOpen size={15} aria-hidden="true" /> : <Folder size={15} aria-hidden="true" />) : entry.expandable ? <Layers size={15} aria-hidden="true" /> : <FileText size={15} aria-hidden="true" />}
+              {entry.type === "folder" ? (entry.expanded ? <FolderOpen size={15} aria-hidden="true" /> : <Folder size={15} aria-hidden="true" />) : entry.type === "group" ? <Layers size={14} aria-hidden="true" /> : entry.expandable ? <Layers size={15} aria-hidden="true" /> : <FileText size={15} aria-hidden="true" />}
               <span title={entry.document?.path ?? entry.folder?.workspacePath}>{entry.name}</span>
-              {entry.type === "folder" ? <small className="doc-tree-count" aria-label={`${entry.count ?? 0} документів`}>{entry.count ?? 0}</small> : entry.expandable ? <small className="doc-tree-count doc-tree-versions-count" aria-label={`${entry.count ?? 0} частин і версій`} title="частини й версії">{entry.count ?? 0}</small> : null}
+              {entry.type === "folder" ? <small className="doc-tree-count" aria-label={`${entry.count ?? 0} документів`}>{entry.count ?? 0}</small> : entry.type === "group" ? <small className="doc-tree-count doc-tree-versions-count" aria-label={`${entry.count ?? 0}`}>{entry.count ?? 0}</small> : entry.expandable ? <small className="doc-tree-count doc-tree-versions-count" aria-label={`${entry.count ?? 0} частин і версій`} title="частини й версії">{entry.count ?? 0}</small> : null}
               {entry.folder?.mode === "protected_read_only" ? <Shield size={13} aria-label="Захищено" /> : entry.folder?.mode === "read_only" ? <LockKeyhole size={13} aria-label="Лише читання" /> : null}
               {entry.document?.mode === "protected_read_only" ? <Shield size={13} aria-label="Захищено" /> : entry.document && !entry.document.can_edit ? <LockKeyhole size={13} aria-label="Лише читання" /> : null}
               {entry.document?.is_modified ? <i className="doc-tree-modified" aria-label="Змінено" /> : null}
