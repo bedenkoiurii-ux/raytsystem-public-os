@@ -205,6 +205,65 @@ function collectFootnotes(lines: string[], start: number): { definitions: Footno
   return { definitions, consumed };
 }
 
+type InlineProps = Pick<SafeMarkdownViewProps, "onOpenWikilink" | "onOpenRelativeLink" | "resolveImage">;
+
+// Безпечний рендер HTML-вмісту клітинок: парсимо DOM і ПЕРЕВИПУСКАЄМО через React
+// (жодного dangerouslySetInnerHTML), лише за білим списком тегів; посилання/картинки — через safeLink/safeImageUrl.
+function htmlToReact(node: Node, props: InlineProps, key: string): ReactNode {
+  if (node.nodeType === 3) return node.textContent;            // текст
+  if (node.nodeType !== 1) return null;
+  const el = node as Element;
+  const kids = Array.from(el.childNodes).map((child, i) => htmlToReact(child, props, `${key}-${i}`));
+  switch (el.tagName.toLowerCase()) {
+    case "p": return <p key={key}>{kids}</p>;
+    case "strong": case "b": return <strong key={key}>{kids}</strong>;
+    case "em": case "i": return <em key={key}>{kids}</em>;
+    case "br": return <br key={key} />;
+    case "ul": return <ul key={key}>{kids}</ul>;
+    case "ol": return <ol key={key}>{kids}</ol>;
+    case "li": return <li key={key}>{kids}</li>;
+    case "sub": return <sub key={key}>{kids}</sub>;
+    case "sup": return <sup key={key}>{kids}</sup>;
+    case "a": {
+      const safe = safeLink(el.getAttribute("href") ?? "");
+      return safe
+        ? <a key={key} href={safe.href} target={safe.external ? "_blank" : undefined} rel={safe.external ? "noreferrer noopener" : undefined}>{kids}</a>
+        : <Fragment key={key}>{kids}</Fragment>;
+    }
+    case "img": {
+      const resolved = safeImageUrl(props.resolveImage?.(el.getAttribute("src") ?? "") ?? "");
+      return resolved
+        ? <img key={key} src={resolved} alt={el.getAttribute("alt") ?? ""} loading="lazy" decoding="async" />
+        : <span key={key} className="doc-blocked-image" role="note">Зображення заблоковано</span>;
+    }
+    default: return <Fragment key={key}>{kids}</Fragment>;      // невідомі теги — розгортаємо, лишаємо вміст
+  }
+}
+
+function htmlTableToReact(html: string, props: InlineProps, key: string): ReactNode {
+  const table = new DOMParser().parseFromString(html, "text/html").querySelector("table");
+  if (!table) return null;
+  const cols = Array.from(table.querySelectorAll("colgroup col")).map((c) => (c as HTMLElement).style.width || "");
+  const rows = Array.from(table.querySelectorAll("tr"));
+  return (
+    <div key={key} className="doc-html-table">
+      <table>
+        {cols.length ? <colgroup>{cols.map((w, i) => <col key={i} style={w ? { width: w } : undefined} />)}</colgroup> : null}
+        <tbody>
+          {rows.map((tr, ri) => (
+            <tr key={ri}>
+              {Array.from(tr.children).map((cell, ci) => {
+                const inner = Array.from(cell.childNodes).map((n, i) => htmlToReact(n, props, `${key}-${ri}-${ci}-${i}`));
+                return cell.tagName.toLowerCase() === "th" ? <th key={ci}>{inner}</th> : <td key={ci}>{inner}</td>;
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function SafeMarkdownView({ content, onOpenWikilink, onOpenRelativeLink, resolveImage, onOpenSource, depth = 0 }: SafeMarkdownViewProps) {
   if (depth >= MAX_NESTING_DEPTH) return <pre className="doc-inert-html doc-nesting-limit" role="note"><code>{content.slice(0, MAX_RENDER_CHARACTERS)}</code></pre>;
   const bounded = boundedMarkdown(content);
@@ -288,6 +347,19 @@ export function SafeMarkdownView({ content, onOpenWikilink, onOpenRelativeLink, 
         <div key={blockKey} className="doc-table-scroll"><table><thead><tr>{header.map((cell, index) => <th key={index}>{inlineNodes(cell, inlineProps, `${blockKey}-h-${index}`)}</th>)}</tr></thead>
           <tbody>{body.map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, cellIndex) => <td key={cellIndex}>{inlineNodes(cell, inlineProps, `${blockKey}-${rowIndex}-${cellIndex}`)}</td>)}</tr>)}</tbody></table></div>
       );
+      continue;
+    }
+
+    if (/^\s*<table[\s>]/i.test(line)) {
+      const html: string[] = [];
+      while (cursor < lines.length) {
+        html.push(lines[cursor]);
+        const closed = /<\/table\s*>/i.test(lines[cursor]);
+        cursor += 1;
+        if (closed) break;
+      }
+      const rendered = htmlTableToReact(html.join("\n"), inlineProps, blockKey);
+      if (rendered) { blocks.push(rendered); continue; }
       continue;
     }
 

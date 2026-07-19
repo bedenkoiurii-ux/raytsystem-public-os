@@ -63,6 +63,12 @@
 .documents-navigation,
 .documents-inspector-shell,
 .documents-workspace { min-width: 0; min-height: 0; }
+/* За замовчуванням (А4) — звична центрована картка 1540. На всю ширину — ЛИШЕ за форматом
+   (А4-альбом / Вільний). Вища специфічність .route.documents-route б'є глобальне .route{max-width:1540},
+   яке у бандлі йде пізніше (та сама специфічність інакше перемагала). */
+.route.documents-route { max-width: 1540px; margin: 0 auto; }
+.route.documents-route[data-doc-format="a4-land"] { max-width: 1800px; margin: 0 auto; }  /* вміщає A4-land контент (1160) + панелі, центровано */
+.route.documents-route[data-doc-format="free"] { max-width: none; margin: 0; }             /* лише free — на всю ширину */
 
 .documents-navigation {
   display: grid;
@@ -154,8 +160,28 @@
 .doc-task-list li { display: flex; align-items: baseline; gap: 8px; }
 .doc-task-list input { accent-color: var(--mint); }
 .doc-table-scroll { margin: 1.2em 0; overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
-.doc-table-scroll table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.doc-table-scroll th, .doc-table-scroll td { padding: 8px 11px; border-bottom: 1px solid var(--line-soft); text-align: left; vertical-align: top; }
+.doc-table-scroll table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+.doc-table-scroll th, .doc-table-scroll td { padding: 8px 11px; border-bottom: 1px solid var(--line-soft); text-align: left; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
+/* Розподіл колонок сценарних таблиць: перша (головна) — велика; 2–3 — менші на третину; 4–5 — вдвічі менші. */
+.doc-table-scroll th:first-child, .doc-table-scroll td:first-child { width: 40%; }
+.doc-table-scroll th:nth-child(2), .doc-table-scroll td:nth-child(2),
+.doc-table-scroll th:nth-child(3), .doc-table-scroll td:nth-child(3) { width: 20%; }
+.doc-table-scroll th:nth-child(4), .doc-table-scroll td:nth-child(4),
+.doc-table-scroll th:nth-child(5), .doc-table-scroll td:nth-child(5) { width: 10%; }
+/* HTML-таблиці з docx (складні клітинки): шануємо власні colgroup-ширини, без nth-child-хаків. */
+.doc-html-table { margin: 1.2em 0; overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+.doc-html-table table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+.doc-html-table th, .doc-html-table td { padding: 8px 11px; border-bottom: 1px solid var(--line-soft); text-align: left; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
+.doc-html-table p { margin: 0 0 0.6em; }
+.doc-html-table p:last-child { margin-bottom: 0; }
+.doc-html-table img { max-width: 100%; height: auto; border-radius: 6px; margin: 0.4em 0; }
+/* Масштаб шрифта читалки (−/+): множник --doc-font-scale на .document-content успадковується вмістом. */
+.doc-markdown, .doc-milkdown-root { font-size: calc(14px * var(--doc-font-scale, 1)); }
+.doc-table-scroll table, .doc-html-table table { font-size: calc(12px * var(--doc-font-scale, 1)); }
+.sheet-font-control { display: inline-flex; gap: 2px; margin-left: 4px; }
+.sheet-font-control button { font-size: 11px; font-weight: 600; color: var(--muted); background: transparent; border: 1px solid var(--line, rgba(255,255,255,.14)); border-radius: 6px; padding: 3px 7px; cursor: pointer; }
+.sheet-font-control button:hover:not(:disabled) { color: var(--bone); }
+.sheet-font-control button:disabled { opacity: .4; cursor: default; }
 .doc-table-scroll th { background: var(--carbon-soft); color: var(--muted); }
 .doc-markdown img { display: block; max-width: 100%; max-height: 70dvh; margin: 1.2em auto; border-radius: 10px; object-fit: contain; }
 .doc-blocked-image { display: block; margin: .8em 0; padding: 8px 11px; border: 1px dashed var(--line); border-radius: 7px; color: var(--muted-2); font-size: 11px; }
