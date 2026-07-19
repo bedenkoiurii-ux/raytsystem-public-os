@@ -267,6 +267,32 @@ function flattenTree(folder: TreeFolder, expanded: ReadonlySet<string>, versions
   return entries;
 }
 
+// Індикатор аудиту доказової бази: три лінії ✅ підтверджено / 🟡 інтерпретація / 🔴 потребує опори.
+// Довжина лінії = кількість; нульова — ледь помітний обрубок.
+function AuditBar({ triple }: { triple: readonly number[] }) {
+  const g = triple[0] || 0, y = triple[1] || 0, r = triple[2] || 0;
+  if (g + y + r === 0) return null;
+  const seg = (n: number, cls: string) => (
+    <i className={`${cls}${n === 0 ? " zero" : ""}`} style={{ width: n === 0 ? 4 : Math.min(4 + n * 3, 40) }} aria-hidden="true" />
+  );
+  return (
+    <span
+      className="doc-audit"
+      title={`Доказова база — ✅ ${g} підтверджено · 🟡 ${y} інтерпретація · 🔴 ${r} потребує опори`}
+      aria-label={`Аудит: підтверджено ${g}, інтерпретація ${y}, потребує опори ${r}`}
+    >
+      {seg(g, "g")}
+      {seg(y, "y")}
+      {seg(r, "r")}
+    </span>
+  );
+}
+
+function auditTriple(document?: DocumentSummary): readonly number[] | null {
+  const raw = document?.properties?.source_audit;
+  return Array.isArray(raw) && raw.length === 3 && raw.every((n) => typeof n === "number") ? (raw as number[]) : null;
+}
+
 export function DocumentTree({ documents, folders = [], roots = [], selectedDocumentId, loading, onOpen, onExpandFolder }: DocumentTreeProps) {
   const versionIndex = useMemo(() => indexVersions(documents), [documents]);
   const tree = useMemo(() => buildTree(documents, folders, roots, versionIndex.versionIds), [documents, folders, roots, versionIndex]);
@@ -397,6 +423,7 @@ export function DocumentTree({ documents, folders = [], roots = [], selectedDocu
               {entry.type === "folder" ? (entry.expanded ? <FolderOpen size={15} aria-hidden="true" /> : <Folder size={15} aria-hidden="true" />) : entry.type === "group" ? <Layers size={14} aria-hidden="true" /> : entry.expandable ? <Layers size={15} aria-hidden="true" /> : <FileText size={15} aria-hidden="true" />}
               <span title={entry.document?.path ?? entry.folder?.workspacePath}>{entry.name}</span>
               {entry.type === "folder" ? <small className="doc-tree-count" aria-label={`${entry.count ?? 0} документів`}>{entry.count ?? 0}</small> : entry.type === "group" ? <small className="doc-tree-count doc-tree-versions-count" aria-label={`${entry.count ?? 0}`}>{entry.count ?? 0}</small> : entry.expandable ? <small className="doc-tree-count doc-tree-versions-count" aria-label={`${entry.count ?? 0} частин і версій`} title="частини й версії">{entry.count ?? 0}</small> : null}
+              {(() => { const triple = auditTriple(entry.document); return triple ? <AuditBar triple={triple} /> : null; })()}
               {entry.folder?.mode === "protected_read_only" ? <Shield size={13} aria-label="Захищено" /> : entry.folder?.mode === "read_only" ? <LockKeyhole size={13} aria-label="Лише читання" /> : null}
               {entry.document?.mode === "protected_read_only" ? <Shield size={13} aria-label="Захищено" /> : entry.document && !entry.document.can_edit ? <LockKeyhole size={13} aria-label="Лише читання" /> : null}
               {entry.document?.is_modified ? <i className="doc-tree-modified" aria-label="Змінено" /> : null}

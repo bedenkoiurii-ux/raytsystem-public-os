@@ -121,6 +121,13 @@
 .doc-tree-row.is-group > span:not(.doc-tree-indent, .doc-tree-chevron) { font-size: 10px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted-2); font-weight: 600; white-space: nowrap; }
 .doc-tree-row.is-group > svg { color: var(--muted-2); }
 .doc-tree-row.is-group .doc-tree-versions-count { color: var(--muted-2); }
+/* Індикатор аудиту доказової бази — 3 лінії (✅ / 🟡 / 🔴), довжина = кількість */
+.doc-audit { display: inline-flex; flex-direction: column; justify-content: center; gap: 2px; flex: 0 0 auto; margin-left: 2px; }
+.doc-audit i { display: block; height: 3px; min-width: 4px; border-radius: 2px; }
+.doc-audit i.g { background: #46b46a; }
+.doc-audit i.y { background: #d9a227; }
+.doc-audit i.r { background: #c85248; }
+.doc-audit i.zero { opacity: 0.22; }
 .doc-tree-empty { margin: 16px 10px; padding: 16px; border: 1px dashed var(--line); border-radius: 9px; color: var(--muted-2); font-size: 11px; text-align: center; }
 
 .documents-workspace { display: grid; grid-template-rows: auto minmax(0, 1fr); background: color-mix(in srgb, var(--carbon) 96%, transparent); }
