@@ -1334,7 +1334,13 @@ class DocumentIndex:
         except (OSError, PathPolicyError):
             return None
         digest = sha256_hex(result.data)
-        restricted = contains_restricted_content(self.scanner, result.data, path=relative)
+        # Бінарні зображення НЕ сканувати на текстові секрети — випадкові байти PNG/JPG дають
+        # хибні спрацювання (token/@/sk-/eyj у стиснених даних) → фото помилково «restricted» і ховались.
+        restricted = (
+            False
+            if Path(relative).suffix.casefold() in _IMAGE_SUFFIXES
+            else contains_restricted_content(self.scanner, result.data, path=relative)
+        )
         text: str | None = None
         warnings: tuple[str, ...] = ()
         metadata = MarkdownMetadata(
