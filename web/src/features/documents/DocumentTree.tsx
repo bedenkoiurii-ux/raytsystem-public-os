@@ -127,7 +127,11 @@ function indexVersions(documents: DocumentSummary[]): VersionIndex {
     list.sort((a, b) => {
       const av = versionChildIds.has(a.document_id), bv = versionChildIds.has(b.document_id);
       if (av !== bv) return av ? 1 : -1;                       // частини перед версіями
-      if (!av) return partOrder(a.filename) - partOrder(b.filename);   // частини — за номером блоку
+      if (!av) {                                                // частини: за layout-порядком (order), інакше за номером блоку
+        const ao = typeof a.properties?.order === "number" ? (a.properties.order as number) : partOrder(a.filename);
+        const bo = typeof b.properties?.order === "number" ? (b.properties.order as number) : partOrder(b.filename);
+        return ao - bo;
+      }
       const aBranch = versionsFor.has(a.document_id), bBranch = versionsFor.has(b.document_id);
       if (aBranch !== bBranch) return aBranch ? 1 : -1;        // листкові версії перед гілками-чернетками
       return versionRank(b.filename) - versionRank(a.filename) || b.filename.localeCompare(a.filename, "uk-UA");
