@@ -51,8 +51,9 @@ function relativeToRoot(path: string, rootPath: string): string {
 }
 
 interface VersionIndex {
-  versionsFor: Map<string, DocumentSummary[]>;   // canonicalId → попередні версії (спадно)
-  versionIds: Set<string>;                       // id документів-версій (виносимо з теки «версії»)
+  versionsFor: Map<string, DocumentSummary[]>;   // фінальний файл → діти (частини, тоді старі версії)
+  versionIds: Set<string>;                       // id дітей (виносимо з плаского списку — вони під якорем)
+  versionChildIds: Set<string>;                  // підмножина дітей, що є ВЕРСІЯМИ (приглушуємо); решта — частини
 }
 
 // Ранг версії з імені файлу: (v4)→4, «версія 001»→1, «оригінал/пролог/рання»→0
@@ -64,27 +65,63 @@ function versionRank(name: string): number {
   return 0;
 }
 
+// Порядок частини з «Блок <римська>»: III→3, IV→4, VIII→8, X→10 …
+function romanToInt(s: string): number {
+  const map: Record<string, number> = { I: 1, V: 5, X: 10, L: 50, C: 100, D: 500, M: 1000 };
+  let total = 0;
+  const up = s.toUpperCase();
+  for (let i = 0; i < up.length; i++) {
+    const cur = map[up[i]] ?? 0;
+    const next = map[up[i + 1]] ?? 0;
+    total += cur < next ? -cur : cur;
+  }
+  return total || 999;
+}
+function partOrder(name: string): number {
+  const m = name.match(/Блок\s+([IVXLCDM]+)/i);
+  return m ? romanToInt(m[1]) : 999;
+}
+
+// Резолвимо [[Заголовок]] у документ за назвою
+function resolveLink(raw: unknown, byTitle: Map<string, DocumentSummary>): DocumentSummary | null {
+  if (typeof raw !== "string" || !raw.trim()) return null;
+  const m = raw.match(/\[\[([^\]|#]+)/);
+  return byTitle.get((m ? m[1] : raw).trim()) ?? null;
+}
+
 function indexVersions(documents: DocumentSummary[]): VersionIndex {
   const byTitle = new Map<string, DocumentSummary>();
   for (const doc of documents) if (doc.title) byTitle.set(doc.title, doc);
   const versionsFor = new Map<string, DocumentSummary[]>();
   const versionIds = new Set<string>();
-  for (const doc of documents) {
-    const raw = doc.properties?.superseded_by;
-    if (typeof raw !== "string" || !raw.trim()) continue;
-    const match = raw.match(/\[\[([^\]|#]+)/);           // [[Канонічна]] → «Канонічна»
-    const targetTitle = (match ? match[1] : raw).trim();
-    const canonical = byTitle.get(targetTitle);
-    if (!canonical || canonical.document_id === doc.document_id) continue;
+  const versionChildIds = new Set<string>();
+  const attach = (canonical: DocumentSummary, doc: DocumentSummary) => {
     const list = versionsFor.get(canonical.document_id) ?? [];
     list.push(doc);
     versionsFor.set(canonical.document_id, list);
     versionIds.add(doc.document_id);
+  };
+  // 1) частини (part_of) — вкладаються під фінальний файл
+  for (const doc of documents) {
+    const canonical = resolveLink(doc.properties?.part_of, byTitle);
+    if (canonical && canonical.document_id !== doc.document_id) attach(canonical, doc);
   }
+  // 2) старі версії (superseded_by) — теж під фінальний файл, приглушені
+  for (const doc of documents) {
+    if (versionIds.has(doc.document_id)) continue;
+    const canonical = resolveLink(doc.properties?.superseded_by, byTitle);
+    if (canonical && canonical.document_id !== doc.document_id) { attach(canonical, doc); versionChildIds.add(doc.document_id); }
+  }
+  // порядок під якорем: спершу частини (за номером блоку), тоді версії (зворотно)
   for (const list of versionsFor.values()) {
-    list.sort((a, b) => versionRank(b.filename) - versionRank(a.filename) || b.filename.localeCompare(a.filename, "uk-UA"));
+    list.sort((a, b) => {
+      const av = versionChildIds.has(a.document_id), bv = versionChildIds.has(b.document_id);
+      if (av !== bv) return av ? 1 : -1;
+      if (!av) return partOrder(a.filename) - partOrder(b.filename);
+      return versionRank(b.filename) - versionRank(a.filename) || b.filename.localeCompare(a.filename, "uk-UA");
+    });
   }
-  return { versionsFor, versionIds };
+  return { versionsFor, versionIds, versionChildIds };
 }
 
 function buildTree(documents: DocumentSummary[], projections: DocumentFolderSummary[], roots: DocumentRootSummary[], versionIds: ReadonlySet<string>): TreeFolder {
@@ -153,23 +190,23 @@ function countDocuments(folder: TreeFolder): number {
   return count;
 }
 
-function flattenTree(folder: TreeFolder, expanded: ReadonlySet<string>, versionsFor: Map<string, DocumentSummary[]>, depth = 1, parentId: string | null = null): VisibleEntry[] {
+function flattenTree(folder: TreeFolder, expanded: ReadonlySet<string>, versionsFor: Map<string, DocumentSummary[]>, versionChildIds: ReadonlySet<string>, depth = 1, parentId: string | null = null): VisibleEntry[] {
   const entries: VisibleEntry[] = [];
   const folders = [...folder.folders.values()].sort((a, b) => a.name.localeCompare(b.name, "uk-UA"));
   for (const child of folders) {
-    if (child.documents.length === 0 && child.folders.size === 0) continue;   // ховаємо порожні теки (напр. «версії» після переносу)
+    if (child.documents.length === 0 && child.folders.size === 0) continue;   // ховаємо порожні теки
     const isExpanded = expanded.has(child.id);
     entries.push({ id: child.id, type: "folder", name: child.name, depth, parentId, expanded: isExpanded, folder: child, count: countDocuments(child) });
-    if (isExpanded) entries.push(...flattenTree(child, expanded, versionsFor, depth + 1, child.id));
+    if (isExpanded) entries.push(...flattenTree(child, expanded, versionsFor, versionChildIds, depth + 1, child.id));
   }
   for (const document of [...folder.documents].sort((a, b) => a.filename.localeCompare(b.filename, "uk-UA"))) {
-    const versions = versionsFor.get(document.document_id);
-    const hasVersions = !!versions?.length;
-    const isExpanded = hasVersions && expanded.has(document.document_id);
-    entries.push({ id: document.document_id, type: "document", name: document.title || document.filename, depth, parentId, document, expandable: hasVersions, expanded: isExpanded, count: hasVersions ? versions!.length : undefined });
+    const children = versionsFor.get(document.document_id);
+    const hasChildren = !!children?.length;
+    const isExpanded = hasChildren && expanded.has(document.document_id);
+    entries.push({ id: document.document_id, type: "document", name: document.title || document.filename, depth, parentId, document, expandable: hasChildren, expanded: isExpanded, count: hasChildren ? children!.length : undefined });
     if (isExpanded) {
-      for (const version of versions!) {
-        entries.push({ id: version.document_id, type: "document", name: version.title || version.filename, depth: depth + 1, parentId: document.document_id, document: version, isVersion: true });
+      for (const child of children!) {
+        entries.push({ id: child.document_id, type: "document", name: child.title || child.filename, depth: depth + 1, parentId: document.document_id, document: child, isVersion: versionChildIds.has(child.document_id) });
       }
     }
   }
@@ -184,7 +221,7 @@ export function DocumentTree({ documents, folders = [], roots = [], selectedDocu
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(520);
   const viewportRef = useRef<HTMLDivElement>(null);
-  const visible = useMemo(() => flattenTree(tree, expanded, versionIndex.versionsFor), [expanded, tree, versionIndex]);
+  const visible = useMemo(() => flattenTree(tree, expanded, versionIndex.versionsFor, versionIndex.versionChildIds), [expanded, tree, versionIndex]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -279,7 +316,7 @@ export function DocumentTree({ documents, folders = [], roots = [], selectedDocu
               data-tree-id={entry.id}
               data-clickable="true"
               role="treeitem"
-              aria-label={entry.type === "folder" ? `${entry.name}, ${entry.count ?? 0} документів` : entry.expandable ? `${entry.name}, ${entry.count ?? 0} попередніх версій` : undefined}
+              aria-label={entry.type === "folder" ? `${entry.name}, ${entry.count ?? 0} документів` : entry.expandable ? `${entry.name}, ${entry.count ?? 0} частин і версій` : undefined}
               aria-level={entry.depth}
               aria-expanded={entry.type === "folder" || entry.expandable ? entry.expanded : undefined}
               aria-selected={entry.type === "document" ? selected : undefined}
@@ -297,7 +334,7 @@ export function DocumentTree({ documents, folders = [], roots = [], selectedDocu
                   className={`doc-tree-version-toggle ${entry.expanded ? "expanded" : ""}`}
                   size={14}
                   role="button"
-                  aria-label={entry.expanded ? "Сховати попередні версії" : "Показати попередні версії"}
+                  aria-label={entry.expanded ? "Згорнути" : "Показати частини й версії"}
                   onClick={(event) => { event.stopPropagation(); toggleFolder(entry); }}
                 />
               ) : (
@@ -305,7 +342,7 @@ export function DocumentTree({ documents, folders = [], roots = [], selectedDocu
               )}
               {entry.type === "folder" ? (entry.expanded ? <FolderOpen size={15} aria-hidden="true" /> : <Folder size={15} aria-hidden="true" />) : entry.expandable ? <Layers size={15} aria-hidden="true" /> : <FileText size={15} aria-hidden="true" />}
               <span title={entry.document?.path ?? entry.folder?.workspacePath}>{entry.name}</span>
-              {entry.type === "folder" ? <small className="doc-tree-count" aria-label={`${entry.count ?? 0} документів`}>{entry.count ?? 0}</small> : entry.expandable ? <small className="doc-tree-count doc-tree-versions-count" aria-label={`${entry.count ?? 0} попередніх версій`} title="попередні версії">{entry.count ?? 0}</small> : null}
+              {entry.type === "folder" ? <small className="doc-tree-count" aria-label={`${entry.count ?? 0} документів`}>{entry.count ?? 0}</small> : entry.expandable ? <small className="doc-tree-count doc-tree-versions-count" aria-label={`${entry.count ?? 0} частин і версій`} title="частини й версії">{entry.count ?? 0}</small> : null}
               {entry.folder?.mode === "protected_read_only" ? <Shield size={13} aria-label="Захищено" /> : entry.folder?.mode === "read_only" ? <LockKeyhole size={13} aria-label="Лише читання" /> : null}
               {entry.document?.mode === "protected_read_only" ? <Shield size={13} aria-label="Захищено" /> : entry.document && !entry.document.can_edit ? <LockKeyhole size={13} aria-label="Лише читання" /> : null}
               {entry.document?.is_modified ? <i className="doc-tree-modified" aria-label="Змінено" /> : null}
