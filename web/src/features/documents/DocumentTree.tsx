@@ -1,4 +1,4 @@
-import { ChevronRight, FileText, Folder, FolderOpen, LockKeyhole, Shield } from "lucide-react";
+import { ChevronRight, FileText, Folder, FolderOpen, Layers, LockKeyhole, Shield } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { DocumentFolderSummary, DocumentRootMode, DocumentRootSummary, DocumentSummary } from "./documentTypes";
 
@@ -25,6 +25,8 @@ interface VisibleEntry {
   folder?: TreeFolder;
   document?: DocumentSummary;
   count?: number;
+  expandable?: boolean;   // канонічна з попередніми версіями — працює як вимикач
+  isVersion?: boolean;    // рядок попередньої версії (вкладений)
 }
 
 interface DocumentTreeProps {
@@ -48,7 +50,44 @@ function relativeToRoot(path: string, rootPath: string): string {
     : normalizedPath;
 }
 
-function buildTree(documents: DocumentSummary[], projections: DocumentFolderSummary[], roots: DocumentRootSummary[]): TreeFolder {
+interface VersionIndex {
+  versionsFor: Map<string, DocumentSummary[]>;   // canonicalId → попередні версії (спадно)
+  versionIds: Set<string>;                       // id документів-версій (виносимо з теки «версії»)
+}
+
+// Ранг версії з імені файлу: (v4)→4, «версія 001»→1, «оригінал/пролог/рання»→0
+function versionRank(name: string): number {
+  const v = name.match(/\(v(\d+)\)/i);
+  if (v) return Number.parseInt(v[1], 10);
+  const num = name.match(/(?:версі[яї]|version)\s*0*(\d+)/i);
+  if (num) return Number.parseInt(num[1], 10);
+  return 0;
+}
+
+function indexVersions(documents: DocumentSummary[]): VersionIndex {
+  const byTitle = new Map<string, DocumentSummary>();
+  for (const doc of documents) if (doc.title) byTitle.set(doc.title, doc);
+  const versionsFor = new Map<string, DocumentSummary[]>();
+  const versionIds = new Set<string>();
+  for (const doc of documents) {
+    const raw = doc.properties?.superseded_by;
+    if (typeof raw !== "string" || !raw.trim()) continue;
+    const match = raw.match(/\[\[([^\]|#]+)/);           // [[Канонічна]] → «Канонічна»
+    const targetTitle = (match ? match[1] : raw).trim();
+    const canonical = byTitle.get(targetTitle);
+    if (!canonical || canonical.document_id === doc.document_id) continue;
+    const list = versionsFor.get(canonical.document_id) ?? [];
+    list.push(doc);
+    versionsFor.set(canonical.document_id, list);
+    versionIds.add(doc.document_id);
+  }
+  for (const list of versionsFor.values()) {
+    list.sort((a, b) => versionRank(b.filename) - versionRank(a.filename) || b.filename.localeCompare(a.filename, "uk-UA"));
+  }
+  return { versionsFor, versionIds };
+}
+
+function buildTree(documents: DocumentSummary[], projections: DocumentFolderSummary[], roots: DocumentRootSummary[], versionIds: ReadonlySet<string>): TreeFolder {
   const root: TreeFolder = { id: "folder:/", name: "workspace", path: "", rootId: "", workspacePath: "", folders: new Map(), documents: [] };
   const rootMeta = new Map(roots.map((item) => [item.root_id, item]));
   const rootFolders = new Map<string, TreeFolder>();
@@ -89,6 +128,7 @@ function buildTree(documents: DocumentSummary[], projections: DocumentFolderSumm
   };
   for (const projection of projections) ensureFolder(projection.root_id, projection.path, projection);
   for (const document of documents) {
+    if (versionIds.has(document.document_id)) continue;   // версії показуємо під канонічною, не в теці
     const parts = document.path.split("/").filter(Boolean);
     parts.pop();
     const folder = ensureFolder(document.root_id, parts.join("/"));
@@ -113,28 +153,38 @@ function countDocuments(folder: TreeFolder): number {
   return count;
 }
 
-function flattenTree(folder: TreeFolder, expanded: ReadonlySet<string>, depth = 1, parentId: string | null = null): VisibleEntry[] {
+function flattenTree(folder: TreeFolder, expanded: ReadonlySet<string>, versionsFor: Map<string, DocumentSummary[]>, depth = 1, parentId: string | null = null): VisibleEntry[] {
   const entries: VisibleEntry[] = [];
   const folders = [...folder.folders.values()].sort((a, b) => a.name.localeCompare(b.name, "uk-UA"));
   for (const child of folders) {
+    if (child.documents.length === 0 && child.folders.size === 0) continue;   // ховаємо порожні теки (напр. «версії» після переносу)
     const isExpanded = expanded.has(child.id);
     entries.push({ id: child.id, type: "folder", name: child.name, depth, parentId, expanded: isExpanded, folder: child, count: countDocuments(child) });
-    if (isExpanded) entries.push(...flattenTree(child, expanded, depth + 1, child.id));
+    if (isExpanded) entries.push(...flattenTree(child, expanded, versionsFor, depth + 1, child.id));
   }
   for (const document of [...folder.documents].sort((a, b) => a.filename.localeCompare(b.filename, "uk-UA"))) {
-    entries.push({ id: document.document_id, type: "document", name: document.title || document.filename, depth, parentId, document });
+    const versions = versionsFor.get(document.document_id);
+    const hasVersions = !!versions?.length;
+    const isExpanded = hasVersions && expanded.has(document.document_id);
+    entries.push({ id: document.document_id, type: "document", name: document.title || document.filename, depth, parentId, document, expandable: hasVersions, expanded: isExpanded, count: hasVersions ? versions!.length : undefined });
+    if (isExpanded) {
+      for (const version of versions!) {
+        entries.push({ id: version.document_id, type: "document", name: version.title || version.filename, depth: depth + 1, parentId: document.document_id, document: version, isVersion: true });
+      }
+    }
   }
   return entries;
 }
 
 export function DocumentTree({ documents, folders = [], roots = [], selectedDocumentId, loading, onOpen, onExpandFolder }: DocumentTreeProps) {
-  const tree = useMemo(() => buildTree(documents, folders, roots), [documents, folders, roots]);
+  const versionIndex = useMemo(() => indexVersions(documents), [documents]);
+  const tree = useMemo(() => buildTree(documents, folders, roots, versionIndex.versionIds), [documents, folders, roots, versionIndex]);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set([...tree.folders.values()].map((folder) => folder.id)));
   const [focusedId, setFocusedId] = useState<string | null>(selectedDocumentId);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(520);
   const viewportRef = useRef<HTMLDivElement>(null);
-  const visible = useMemo(() => flattenTree(tree, expanded), [expanded, tree]);
+  const visible = useMemo(() => flattenTree(tree, expanded, versionIndex.versionsFor), [expanded, tree, versionIndex]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -175,7 +225,7 @@ export function DocumentTree({ documents, folders = [], roots = [], selectedDocu
   };
 
   const toggleFolder = (entry: VisibleEntry, force?: boolean) => {
-    if (entry.type !== "folder") return;
+    if (entry.type !== "folder" && !entry.expandable) return;
     const opening = force ?? !expanded.has(entry.id);
     if (opening && entry.folder && !entry.id.startsWith("folder-root:")) onExpandFolder?.(entry.folder.rootId, entry.folder.workspacePath);
     setExpanded((current) => {
@@ -192,14 +242,14 @@ export function DocumentTree({ documents, folders = [], roots = [], selectedDocu
     else if (event.key === "ArrowUp") { event.preventDefault(); focusEntry(index - 1); }
     else if (event.key === "Home") { event.preventDefault(); focusEntry(0); }
     else if (event.key === "End") { event.preventDefault(); focusEntry(visible.length - 1); }
-    else if (event.key === "ArrowRight" && entry.type === "folder") {
+    else if (event.key === "ArrowRight" && (entry.type === "folder" || entry.expandable)) {
       event.preventDefault();
       if (entry.expanded) focusEntry(index + 1);
       else toggleFolder(entry, true);
     }
     else if (event.key === "ArrowLeft") {
       event.preventDefault();
-      if (entry.type === "folder" && entry.expanded) toggleFolder(entry, false);
+      if ((entry.type === "folder" || entry.expandable) && entry.expanded) toggleFolder(entry, false);
       else if (entry.parentId) focusEntry(visible.findIndex((item) => item.id === entry.parentId));
     } else if ((event.key === "Enter" || event.key === " ") && entry.document) {
       event.preventDefault();
@@ -225,13 +275,13 @@ export function DocumentTree({ documents, folders = [], roots = [], selectedDocu
           return (
             <div
               key={entry.id}
-              className={`doc-tree-row ${selected ? "selected" : ""}`}
+              className={`doc-tree-row ${selected ? "selected" : ""} ${entry.isVersion ? "is-version" : ""} ${entry.expandable ? "has-versions" : ""}`}
               data-tree-id={entry.id}
               data-clickable="true"
               role="treeitem"
-              aria-label={entry.type === "folder" ? `${entry.name}, ${entry.count ?? 0} документів` : undefined}
+              aria-label={entry.type === "folder" ? `${entry.name}, ${entry.count ?? 0} документів` : entry.expandable ? `${entry.name}, ${entry.count ?? 0} попередніх версій` : undefined}
               aria-level={entry.depth}
-              aria-expanded={entry.type === "folder" ? entry.expanded : undefined}
+              aria-expanded={entry.type === "folder" || entry.expandable ? entry.expanded : undefined}
               aria-selected={entry.type === "document" ? selected : undefined}
               tabIndex={focusedId === entry.id || (!focusedId && index === 0) ? 0 : -1}
               onFocus={() => setFocusedId(entry.id)}
@@ -240,10 +290,22 @@ export function DocumentTree({ documents, folders = [], roots = [], selectedDocu
               onDoubleClick={() => entry.document && onOpen(entry.document, "new")}
             >
               {Array.from({ length: Math.max(0, entry.depth - 1) }, (_, depth) => <span className="doc-tree-indent" key={depth} aria-hidden="true" />)}
-              {entry.type === "folder" ? <ChevronRight className={entry.expanded ? "expanded" : ""} size={14} aria-hidden="true" /> : <span className="doc-tree-chevron" />}
-              {entry.type === "folder" ? (entry.expanded ? <FolderOpen size={15} aria-hidden="true" /> : <Folder size={15} aria-hidden="true" />) : <FileText size={15} aria-hidden="true" />}
+              {entry.type === "folder" ? (
+                <ChevronRight className={entry.expanded ? "expanded" : ""} size={14} aria-hidden="true" />
+              ) : entry.expandable ? (
+                <ChevronRight
+                  className={`doc-tree-version-toggle ${entry.expanded ? "expanded" : ""}`}
+                  size={14}
+                  role="button"
+                  aria-label={entry.expanded ? "Сховати попередні версії" : "Показати попередні версії"}
+                  onClick={(event) => { event.stopPropagation(); toggleFolder(entry); }}
+                />
+              ) : (
+                <span className="doc-tree-chevron" />
+              )}
+              {entry.type === "folder" ? (entry.expanded ? <FolderOpen size={15} aria-hidden="true" /> : <Folder size={15} aria-hidden="true" />) : entry.expandable ? <Layers size={15} aria-hidden="true" /> : <FileText size={15} aria-hidden="true" />}
               <span title={entry.document?.path ?? entry.folder?.workspacePath}>{entry.name}</span>
-              {entry.type === "folder" ? <small className="doc-tree-count" aria-label={`${entry.count ?? 0} документів`}>{entry.count ?? 0}</small> : null}
+              {entry.type === "folder" ? <small className="doc-tree-count" aria-label={`${entry.count ?? 0} документів`}>{entry.count ?? 0}</small> : entry.expandable ? <small className="doc-tree-count doc-tree-versions-count" aria-label={`${entry.count ?? 0} попередніх версій`} title="попередні версії">{entry.count ?? 0}</small> : null}
               {entry.folder?.mode === "protected_read_only" ? <Shield size={13} aria-label="Захищено" /> : entry.folder?.mode === "read_only" ? <LockKeyhole size={13} aria-label="Лише читання" /> : null}
               {entry.document?.mode === "protected_read_only" ? <Shield size={13} aria-label="Захищено" /> : entry.document && !entry.document.can_edit ? <LockKeyhole size={13} aria-label="Лише читання" /> : null}
               {entry.document?.is_modified ? <i className="doc-tree-modified" aria-label="Змінено" /> : null}

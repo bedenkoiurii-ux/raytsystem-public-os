@@ -60,6 +60,7 @@ export interface DocumentSummary {
   outgoing_link_count: number;
   backlink_count: number;
   can_edit: boolean;
+  properties?: Record<string, unknown>;
 }
 
 export interface DocumentListEnvelope {
