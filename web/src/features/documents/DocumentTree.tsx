@@ -190,6 +190,34 @@ function countDocuments(folder: TreeFolder): number {
   return count;
 }
 
+// Рекурсивний рендер вузла-піраміди: документ + (якщо розгорнутий) уся його гілка вглиб на будь-який рівень.
+function emitDocument(
+  document: DocumentSummary,
+  depth: number,
+  parentId: string | null,
+  versionsFor: Map<string, DocumentSummary[]>,
+  versionChildIds: ReadonlySet<string>,
+  expanded: ReadonlySet<string>,
+  out: VisibleEntry[],
+): void {
+  const children = versionsFor.get(document.document_id);
+  const hasChildren = !!children?.length;
+  const isExpanded = hasChildren && expanded.has(document.document_id);
+  out.push({
+    id: document.document_id,
+    type: "document",
+    name: document.title || document.filename,
+    depth,
+    parentId,
+    document,
+    expandable: hasChildren,
+    expanded: isExpanded,
+    count: hasChildren ? children!.length : undefined,
+    isVersion: versionChildIds.has(document.document_id),
+  });
+  if (isExpanded) for (const child of children!) emitDocument(child, depth + 1, document.document_id, versionsFor, versionChildIds, expanded, out);
+}
+
 function flattenTree(folder: TreeFolder, expanded: ReadonlySet<string>, versionsFor: Map<string, DocumentSummary[]>, versionChildIds: ReadonlySet<string>, depth = 1, parentId: string | null = null): VisibleEntry[] {
   const entries: VisibleEntry[] = [];
   const folders = [...folder.folders.values()].sort((a, b) => a.name.localeCompare(b.name, "uk-UA"));
@@ -200,15 +228,7 @@ function flattenTree(folder: TreeFolder, expanded: ReadonlySet<string>, versions
     if (isExpanded) entries.push(...flattenTree(child, expanded, versionsFor, versionChildIds, depth + 1, child.id));
   }
   for (const document of [...folder.documents].sort((a, b) => a.filename.localeCompare(b.filename, "uk-UA"))) {
-    const children = versionsFor.get(document.document_id);
-    const hasChildren = !!children?.length;
-    const isExpanded = hasChildren && expanded.has(document.document_id);
-    entries.push({ id: document.document_id, type: "document", name: document.title || document.filename, depth, parentId, document, expandable: hasChildren, expanded: isExpanded, count: hasChildren ? children!.length : undefined });
-    if (isExpanded) {
-      for (const child of children!) {
-        entries.push({ id: child.document_id, type: "document", name: child.title || child.filename, depth: depth + 1, parentId: document.document_id, document: child, isVersion: versionChildIds.has(child.document_id) });
-      }
-    }
+    emitDocument(document, depth, parentId, versionsFor, versionChildIds, expanded, entries);
   }
   return entries;
 }
