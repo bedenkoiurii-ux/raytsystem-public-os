@@ -637,6 +637,12 @@ def create_app(
                 "code_ambiguous_edges": snapshot.graph.code_ambiguous_edges,
             },
             "attention": attention,
+            "connection": {
+                "name": resolved_root.name,
+                "status": "active",
+                "kind": "local_workspace",
+                "pinned": "at_start",
+            },
             "safety": {
                 "binding": "loopback_only",
                 "workspace": "pinned_at_start",

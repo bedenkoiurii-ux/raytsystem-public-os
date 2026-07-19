@@ -1,7 +1,30 @@
-import { FolderPlus, PlugZap, RotateCcw, Sparkles } from "lucide-react";
-import { useState } from "react";
+import { CheckCircle2, FolderPlus, PlugZap, RotateCcw, Sparkles } from "lucide-react";
+import { useEffect, useState } from "react";
 import { getJson, postJson } from "../api";
 import { ErrorState, StatusPill } from "../components/StatePanel";
+
+interface SystemState {
+  connection?: { name: string; status: string; kind: string; pinned: string };
+  safety?: { binding: string };
+}
+
+interface DocRoot {
+  root_id: string;
+  label: string;
+  path: string;
+  mode: string;
+  kind: string;
+  editable: boolean;
+}
+
+interface DocumentsIndex {
+  index?: {
+    file_count: number;
+    error_count: number;
+    last_refresh_at: string;
+    roots: DocRoot[];
+  };
+}
 
 interface SourceRoot {
   relative_path: string;
@@ -39,8 +62,25 @@ export function Onboarding() {
   const [result, setResult] = useState<ApplyResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
+  const [system, setSystem] = useState<SystemState | null>(null);
+  const [docs, setDocs] = useState<DocumentsIndex | null>(null);
 
   const canInstall = plan !== null && plan.preflight.blockers.length === 0;
+
+  useEffect(() => {
+    let alive = true;
+    void Promise.allSettled([
+      getJson<SystemState>("/api/v1/system"),
+      getJson<DocumentsIndex>("/api/v1/documents")
+    ]).then(([sys, dc]) => {
+      if (!alive) return;
+      if (sys.status === "fulfilled") setSystem(sys.value);
+      if (dc.status === "fulfilled") setDocs(dc.value);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   async function preview() {
     setBusy(true);
@@ -98,16 +138,67 @@ export function Onboarding() {
           <PlugZap size={30} aria-hidden="true" />
         </div>
         <div>
-          <span className="eyebrow">Підключити простір</span>
-          <h2>Встановіть raytsystem у репозиторій за один попередній перегляд.</h2>
+          <span className="eyebrow">Підключення</span>
+          <h2>Поточне підключення та встановлення в нову теку.</h2>
           <p>
-            Попередній перегляд нічого не записує. Встановлення лише створює нові файли й оборотне — файли
-            користувача не перезаписуються, вихідні дані індексуються на місці.
+            raytsystem обслуговує <strong>один простір за запуск</strong> (закріплений на старті). Нижче —
+            стан активного підключення і, окремо, інсталятор для нової теки.
           </p>
         </div>
       </section>
 
+      {system?.connection ? (
+        <section className="panel onboarding-current">
+          <header className="panel-header">
+            <div>
+              <span className="eyebrow">Активне підключення</span>
+              <h3>
+                <CheckCircle2 size={18} aria-hidden="true" style={{ verticalAlign: "-3px", marginRight: 6 }} />
+                {system.connection.name}
+              </h3>
+            </div>
+            <StatusPill status="verified" label="активне" />
+          </header>
+          <div className="onboarding-facts">
+            <div>
+              <span className="onboarding-metric">{docs?.index?.file_count ?? "—"}</span>
+              <span>документів</span>
+            </div>
+            <div>
+              <span className="onboarding-metric">{docs?.index?.roots.length ?? "—"}</span>
+              <span>джерел-тек</span>
+            </div>
+            <div>
+              <span className="onboarding-metric">{docs?.index?.error_count ?? "—"}</span>
+              <span>з помилками</span>
+            </div>
+          </div>
+
+          {docs?.index?.roots.length ? (
+            <div className="onboarding-roots">
+              <span className="eyebrow">Джерела простору</span>
+              <ul>
+                {docs.index.roots.map((root) => (
+                  <li key={root.root_id}>
+                    <code>{root.label}</code> · {root.kind} ·{" "}
+                    {root.editable ? "читання-запис" : "тільки читання"}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          <p className="onboarding-hint">
+            Адреса: <code>{window.location.host}</code> · зв'язування:{" "}
+            <code>{system.safety?.binding ?? "loopback_only"}</code> · простір закріплено на старті
+            (<code>--root</code>). Один запуск = один простір; щоб працювати з іншою текою — встанови її
+            нижче й запусти окремим процесом на іншому порту.
+          </p>
+        </section>
+      ) : null}
+
       <section className="panel onboarding-form">
+        <span className="eyebrow">Встановити в нову теку</span>
         <label className="onboarding-label" htmlFor="onboarding-target">
           Шлях до репозиторію або теки
         </label>

@@ -17,8 +17,8 @@ export const routeCopy = {
     group: "Простір"
   },
   onboarding: {
-    label: "Підключити",
-    description: "Встановити raytsystem у репозиторій або папку",
+    label: "Підключення",
+    description: "Поточне підключення та встановлення raytsystem у нову теку",
     group: "Простір"
   },
   tasks: {

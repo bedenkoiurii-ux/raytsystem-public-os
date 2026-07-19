@@ -382,8 +382,10 @@ def _serve_ui(root: Path, *, host: str, port: int, open_browser: bool) -> None:
     uvicorn.run(
         create_app(
             root,
-            allowed_hosts=frozenset({host, f"{host}:{port}"}),
-            allowed_origins=frozenset({url}),
+            # Дозволяємо і 127.0.0.1, і localhost (обидва — loopback, той самий інтерфейс).
+            # Прибирає пастку 421 host_rejected, коли браузер відкрито через localhost. (форк uk-locale)
+            allowed_hosts=frozenset({host, f"{host}:{port}", "localhost", f"localhost:{port}"}),
+            allowed_origins=frozenset({url, f"http://localhost:{port}"}),
             static_dir=static_dir,
         ),
         host=host,

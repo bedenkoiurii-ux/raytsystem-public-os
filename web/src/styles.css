@@ -1181,3 +1181,10 @@ button.table-row:hover { background: var(--surface-2); color: var(--bone); }
 .document-content.sheet-light .doc-frontmatter,
 .document-content.sheet-light .doc-code-block { background: var(--carbon-soft); color: var(--muted); border: 1px solid rgba(0,0,0,.08); }
 .document-content.sheet-light .safe-markdown blockquote { background: rgba(26,86,160,.07); border-left-color: var(--cyan); }
+/* Формат сторінки читалки: А4 вертикальний (типово) / А4 горизонтальний / вільний (на всю ширину).
+   Для сценаріїв і широких таблиць вертикальний А4 тісний — тут розширюємо аркуш. */
+.sheet-format-select { font-size: 11.5px; background: transparent; color: var(--muted); border: 1px solid var(--line, rgba(255,255,255,.14)); border-radius: 7px; padding: 3px 6px; margin-left: 4px; }
+.document-content[data-sheet-format="a4-land"] .safe-markdown,
+.document-content[data-sheet-format="a4-land"] .milkdown { max-width: 1200px; }
+.document-content[data-sheet-format="free"] .safe-markdown,
+.document-content[data-sheet-format="free"] .milkdown { max-width: none; }
