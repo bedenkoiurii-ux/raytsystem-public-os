@@ -177,7 +177,8 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
   const [workspace, dispatch] = useReducer(documentWorkspaceReducer, undefined, restoreDocumentWorkspace);
   // Гібридна тема: світлий «аркуш» тіла документа (опція Writer-Lab; зберігається локально)
   const [sheetLight, setSheetLight] = useState<boolean>(() => {
-    try { return window.localStorage.getItem("wl_sheet_light") === "1"; } catch { return false; }
+    // Дефолт: аркуш УВІМКНЕНО (читання — головний сценарій). Явне "0" вимикає.
+    try { const s = window.localStorage.getItem("wl_sheet_light"); return s === null ? true : s === "1"; } catch { return true; }
   });
   const toggleSheetLight = () => setSheetLight((prev) => {
     const next = !prev;
@@ -185,7 +186,8 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
     return next;
   });
   const [sheetTone, setSheetTone] = useState<string>(() => {
-    try { return window.localStorage.getItem("wl_sheet_tone") ?? "warm"; } catch { return "warm"; }
+    // Дефолт: сепія (тепла, легша очам). Змінюється й запам'ятовується.
+    try { return window.localStorage.getItem("wl_sheet_tone") ?? "sepia"; } catch { return "sepia"; }
   });
   const changeSheetTone = (tone: string) => {
     setSheetTone(tone);
