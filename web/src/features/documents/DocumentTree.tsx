@@ -91,9 +91,17 @@ function resolveLink(raw: unknown, byTitle: Map<string, DocumentSummary>): Docum
   return byTitle.get((m ? m[1] : raw).trim()) ?? null;
 }
 
+const _isArchiveDoc = (doc: DocumentSummary) => /(?:^|\/)(?:6\d-|[^/]*-Archive)/.test(doc.path || "") || /Archive|Архів/.test(doc.path || "");
+
 function indexVersions(documents: DocumentSummary[]): VersionIndex {
+  // Назва → документ. За колізії назв (напр. сирі архівні витяги з тим самим титулом,
+  // що й книга) перевагу має НЕархівний документ — щоб part_of/layout резолвились у реальну вершину.
   const byTitle = new Map<string, DocumentSummary>();
-  for (const doc of documents) if (doc.title) byTitle.set(doc.title, doc);
+  for (const doc of documents) {
+    if (!doc.title) continue;
+    const current = byTitle.get(doc.title);
+    if (!current || (_isArchiveDoc(current) && !_isArchiveDoc(doc))) byTitle.set(doc.title, doc);
+  }
   const versionsFor = new Map<string, DocumentSummary[]>();
   const versionIds = new Set<string>();
   const versionChildIds = new Set<string>();
