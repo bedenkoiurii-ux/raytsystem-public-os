@@ -262,6 +262,29 @@ code { font: 10px/1.35 var(--mono); color: var(--muted); overflow-wrap: anywhere
 .trust-strip .local-indicator { color: var(--mint); margin-right: auto; text-transform: uppercase; letter-spacing: .08em; }
 .local-indicator i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; }
 .command-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, .7fr); gap: 16px; }
+/* Дашборд «Стан бібліотеки» (заміна маркетингового hero) */
+.library-status { position: relative; padding: 30px 34px; background: var(--surface); display: flex; flex-direction: column; gap: 22px; min-height: 360px; }
+.ls-headline { display: flex; flex-direction: column; gap: 12px; }
+.ls-total { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ls-total > svg { color: var(--tangerine); }
+.ls-total strong { font: 540 clamp(38px, 4.4vw, 60px)/1 var(--display); letter-spacing: -.05em; color: var(--bone); }
+.ls-total span { color: var(--muted); font-size: 13px; }
+.ls-freshness { display: inline-flex; align-items: center; gap: 7px; font: 11px var(--mono); color: var(--muted-2); }
+.ls-freshness i { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; }
+.ls-freshness.ok i { background: #46b46a; box-shadow: 0 0 7px color-mix(in srgb, #46b46a 60%, transparent); }
+.ls-freshness.stale i { background: var(--gold); }
+.ls-sections, .ls-recent { display: flex; flex-direction: column; gap: 5px; }
+.ls-sections > .eyebrow, .ls-recent > .eyebrow { margin-bottom: 5px; }
+.ls-bar { display: grid; grid-template-columns: 118px 1fr 36px; align-items: center; gap: 10px; border: 0; background: transparent; cursor: pointer; padding: 3px 5px; border-radius: 6px; text-align: left; }
+.ls-bar:hover { background: var(--surface-2); }
+.ls-bar > span { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ls-bar > i { height: 5px; border-radius: 3px; background: var(--line-soft); overflow: hidden; }
+.ls-bar > i b { display: block; height: 100%; border-radius: inherit; background: var(--tangerine); opacity: .8; }
+.ls-bar > strong { color: var(--bone); font: 600 12px var(--mono); text-align: right; }
+.ls-recent-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 0; background: transparent; cursor: pointer; padding: 5px; border-radius: 6px; text-align: left; }
+.ls-recent-row:hover { background: var(--surface-2); }
+.ls-recent-title { color: var(--bone); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.ls-recent-row time { color: var(--muted-2); font: 10px var(--mono); flex: 0 0 auto; }
 .mission-hero { position: relative; min-height: 360px; padding: 38px 42px; overflow: hidden; background: var(--surface); }
 .mission-hero::before { content: ""; position: absolute; inset: 0; opacity: .35; pointer-events: none; background-image: radial-gradient(circle, var(--line) 1px, transparent 1px); background-size: 22px 22px; mask-image: linear-gradient(90deg, black, transparent 65%); }
 .hero-copy { position: relative; z-index: 2; max-width: 59%; }

@@ -14,6 +14,7 @@ import type {
   SystemSnapshot,
   TaskBoard
 } from "./types";
+import type { DocumentListEnvelope } from "./features/documents/documentTypes";
 
 const queryDefaults = { staleTime: 1_000, retry: 1 } as const;
 
@@ -28,6 +29,15 @@ export const useCatalog = () =>
 
 export const useRuns = () =>
   useQuery({ queryKey: ["runs"], queryFn: () => getJson<RunList>("/api/v1/runs"), ...queryDefaults });
+
+// Живий зріз документної бібліотеки для Центру керування: індекс (усього/свіжість),
+// розділи-теки з лічильниками, нещодавно змінені.
+export const useLibrary = () =>
+  useQuery({
+    queryKey: ["library-overview"],
+    queryFn: () => getJson<DocumentListEnvelope>("/api/v1/documents?limit=8&sort=modified_desc"),
+    ...queryDefaults,
+  });
 
 export const useUniverse = () =>
   useQuery({

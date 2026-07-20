@@ -5,6 +5,8 @@ import {
   CircleAlert,
   Database,
   FileCheck2,
+  FileText,
+  FolderOpen,
   ListTodo,
   LockKeyhole,
   Orbit,
@@ -12,7 +14,7 @@ import {
   ShieldCheck
 } from "lucide-react";
 import { formatDate, shortId } from "../api";
-import { useRuns, useSystem, useTasks } from "../hooks";
+import { useLibrary, useRuns, useSystem, useTasks } from "../hooks";
 import type { Selection, TaskStatus } from "../types";
 import { operationLabel, pluralRu, taskStatusLabel } from "../presentation";
 import { ErrorState, LoadingState, StatusPill } from "../components/StatePanel";
@@ -29,13 +31,33 @@ export function CommandCenter({ onCreateTask, onNavigate, onSelect }: CommandCen
   const system = useSystem();
   const tasks = useTasks();
   const runs = useRuns();
+  const library = useLibrary();
 
   if (system.isLoading) return <LoadingState label="Читаємо перевірену панель керування…" />;
   if (system.isError || !system.data) return <ErrorState error={system.error} onRetry={() => void system.refetch()} />;
   const data = system.data;
   const attentionTotal =
     data.attention.blocked_tasks + data.attention.failed_runs + data.attention.restricted_skills;
-  const totalKnowledge = data.counts.claims + data.counts.entities + data.counts.sources + data.counts.evidence;
+  // Живий зріз документної бібліотеки (реальний контент, не порожній граф знань)
+  const lib = library.data;
+  const libTotal = lib?.index.file_count ?? 0;
+  const libFresh = lib?.index.state === "current";
+  const libRefresh = lib?.index.last_refresh_at ?? null;
+  // Осмислені теки з точними лічильниками (folders — діти коренів, кожна з descendant_count)
+  const folderCount = new Map((lib?.folders ?? []).map((folder) => [folder.path, folder.descendant_count]));
+  const fc = (path: string) => folderCount.get(path) ?? 0;
+  const sections = [
+    { label: "Архів (розмови)", count: fc("65-GPT-Archive/extracts") + fc("60-Claude-Archive/extracts") + fc("60-Claude-Archive/projects") },
+    { label: "Фільми", count: fc("10-Projects/3-Films") },
+    { label: "Люди", count: fc("30-Research/People") },
+    { label: "Події", count: fc("30-Research/Events") },
+    { label: "Книги (розділи)", count: fc("10-Projects/4-Books") },
+    { label: "Поняття", count: fc("30-Research/Concepts") },
+    { label: "Місця", count: fc("30-Research/Places") },
+    { label: "Ідеї", count: fc("10-Projects/1-Ideas") },
+  ].filter((section) => section.count > 0).sort((first, second) => second.count - first.count);
+  const sectionMax = Math.max(1, ...sections.map((section) => section.count));
+  const recent = lib?.items ?? [];
 
   return (
     <div className="route route-command-center">
@@ -47,31 +69,48 @@ export function CommandCenter({ onCreateTask, onNavigate, onSelect }: CommandCen
       </section>
 
       <div className="command-grid">
-        <section className="mission-hero panel panel-glow">
-          <div className="hero-copy">
-            <span className="eyebrow">Центр керування · перевірений зріз</span>
-            <h2>Усі ваші системи —<br /><em>в одному полі зору.</em></h2>
-            <p>
-              Знання, робота, агенти та точні докази залишаються пов'язаними, а браузер не отримує
-              прав виконувати команди.
-            </p>
+        <section className="library-status panel panel-glow">
+          <div className="ls-headline">
+            <span className="eyebrow">Стан бібліотеки · тут і зараз</span>
+            <div className="ls-total">
+              <FileText size={24} aria-hidden="true" />
+              <strong>{libTotal.toLocaleString("uk-UA")}</strong>
+              <span>{pluralRu(libTotal, "документ", "документи", "документів")} у бібліотеці</span>
+            </div>
+            <div className={`ls-freshness ${libFresh ? "ok" : "stale"}`}>
+              <i /> {libFresh ? "індекс актуальний" : "індекс застарілий"}
+              {libRefresh ? <> · оновлено {formatDate(libRefresh)}</> : null}
+            </div>
             <div className="hero-actions">
-              <button className="primary-button" type="button" onClick={() => onNavigate("universe")}>
-                <Orbit size={17} /> Відкрити Всесвіт
+              <button className="primary-button" type="button" onClick={() => onNavigate("documents")}>
+                <FolderOpen size={17} /> Документи
               </button>
               <button className="secondary-button" type="button" onClick={onCreateTask}>
                 <Plus size={17} /> Створити задачу
               </button>
+              <button className="text-button" type="button" onClick={() => onNavigate("universe")}>
+                <Orbit size={15} /> Всесвіт
+              </button>
             </div>
           </div>
-          <div className="mini-universe" aria-hidden="true">
-            <span className="mini-ring ring-a" />
-            <span className="mini-ring ring-b" />
-            <span className="mini-ring ring-c" />
-            <i className="mini-core"><span>OS</span></i>
-            <i className="mini-node n1" /><i className="mini-node n2" /><i className="mini-node n3" />
-            <i className="mini-node n4" /><i className="mini-node n5" /><i className="mini-node n6" />
-            <div className="orbit-caption"><strong>{totalKnowledge}</strong><span>{pluralRu(totalKnowledge, "перевірений об'єкт", "перевірених об'єкти", "перевірених об'єктів")}</span></div>
+          <div className="ls-sections">
+            <span className="eyebrow">Розділи</span>
+            {sections.length ? sections.map((section) => (
+              <button className="ls-bar" type="button" key={section.label} onClick={() => onNavigate("documents")}>
+                <span>{section.label}</span>
+                <i><b style={{ width: `${Math.max(8, (section.count / sectionMax) * 100)}%` }} /></i>
+                <strong>{section.count}</strong>
+              </button>
+            )) : <p className="muted-copy">Читаємо індекс…</p>}
+          </div>
+          <div className="ls-recent">
+            <span className="eyebrow">Нещодавно змінені</span>
+            {recent.length ? recent.slice(0, 6).map((doc) => (
+              <button className="ls-recent-row" type="button" key={doc.document_id} onClick={() => onNavigate("documents")} title={doc.path}>
+                <span className="ls-recent-title">{doc.title || doc.filename}</span>
+                <time>{formatDate(doc.modified_at)}</time>
+              </button>
+            )) : <p className="muted-copy">—</p>}
           </div>
         </section>
 
