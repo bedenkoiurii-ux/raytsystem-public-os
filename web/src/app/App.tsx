@@ -1,7 +1,10 @@
 import {
   Activity,
+  ArrowLeft,
+  ArrowRight,
   BookOpen,
   Bot,
+  CalendarClock,
   ChevronLeft,
   Database,
   Files,
@@ -45,6 +48,7 @@ import { SkillsSurface } from "../features/SkillsSurface";
 import { SystemSections } from "../features/SystemSections";
 import { Tasks } from "../features/Tasks";
 import { Universe } from "../features/Universe";
+import { Timeline } from "../features/Timeline";
 import { routeCopy, type RouteKey } from "../presentation";
 
 type Theme = "dark" | "light" | "contrast";
@@ -56,6 +60,7 @@ const routeMeta: Record<RouteKey, { label: string; description: string; icon: ty
   onboarding: { ...routeCopy.onboarding, icon: PlugZap },
   tasks: { ...routeCopy.tasks, icon: ListTodo },
   universe: { ...routeCopy.universe, icon: Orbit },
+  timeline: { ...routeCopy.timeline, icon: CalendarClock },
   runs: { ...routeCopy.runs, icon: GitBranch },
   agents: { ...routeCopy.agents, icon: Bot },
   skills: { ...routeCopy.skills, icon: Wrench },
@@ -66,9 +71,17 @@ const routeMeta: Record<RouteKey, { label: string; description: string; icon: ty
 
 const routeKeys = Object.keys(routeMeta) as RouteKey[];
 
+const LAST_ROUTE_KEY = "wl_last_route";
+
 function routeFromPath(): RouteKey {
   const candidate = window.location.pathname.replace(/^\//, "") as RouteKey;
-  return routeKeys.includes(candidate) ? candidate : "command-center";
+  if (routeKeys.includes(candidate)) return candidate;
+  // Свіжий старт застосунку (шлях "/"): відновлюємо останній маршрут, де користувач був.
+  try {
+    const saved = window.localStorage.getItem(LAST_ROUTE_KEY) as RouteKey | null;
+    if (saved && routeKeys.includes(saved)) return saved;
+  } catch { /* noop */ }
+  return "command-center";
 }
 
 const dirtyEditorSelector = '[data-editor-scope][data-unsaved-changes="true"]';
@@ -84,6 +97,7 @@ export function App() {
   const [createTaskOpen, setCreateTaskOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMore, setMobileMore] = useState(false);
+  const [histNav, setHistNav] = useState({ back: false, forward: false });
   const [navigationConfirmOpen, setNavigationConfirmOpen] = useState(false);
   const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem("raytsystem-theme") as Theme | null) ?? "dark");
   const [universeDocumentId, setUniverseDocumentId] = useState<string | null>(() =>
@@ -106,17 +120,44 @@ export function App() {
     return false;
   }, []);
 
+  // Історія кроків усередині застосунку (pywebview не має браузерних стрілок).
+  // Позицію тримаємо в history.state.ni; histMax — найдальша досягнута точка (forward-стек).
+  const histPosRef = useRef(0);
+  const histMaxRef = useRef(0);
+  const syncHistNav = useCallback(() => {
+    setHistNav({ back: histPosRef.current > 0, forward: histPosRef.current < histMaxRef.current });
+  }, []);
+  const pushLocation = useCallback((url: string) => {
+    const ni = histPosRef.current + 1;
+    window.history.pushState({ ni }, "", url);
+    histPosRef.current = ni;
+    histMaxRef.current = ni; // нова навігація обрізає forward-стек
+    syncHistNav();
+  }, [syncHistNav]);
+
   const navigate = useCallback((target: string) => {
     if (!routeKeys.includes(target as RouteKey)) return false;
     return guardNavigation(() => {
       const next = target as RouteKey;
-      window.history.pushState({}, "", `/${next}`);
+      pushLocation(`/${next}`);
       setRoute(next);
       setSelection(null);
       setUniverseDocumentId(null);
       setMobileMore(false);
     });
-  }, [guardNavigation]);
+  }, [guardNavigation, pushLocation]);
+
+  // Відкрити конкретний документ у розділі «Документи» (Documents читає ?document=<id> при монтуванні).
+  const navigateToDocument = useCallback((documentId: string) => guardNavigation(() => {
+    pushLocation(`/documents?document=${encodeURIComponent(documentId)}`);
+    setRoute("documents");
+    setSelection(null);
+    setUniverseDocumentId(null);
+    setMobileMore(false);
+  }), [guardNavigation, pushLocation]);
+
+  const goBack = useCallback(() => { if (histPosRef.current > 0) window.history.back(); }, []);
+  const goForward = useCallback(() => { if (histPosRef.current < histMaxRef.current) window.history.forward(); }, []);
 
   useLayoutEffect(() => {
     const main = mainContentRef.current;
@@ -129,8 +170,25 @@ export function App() {
 
   useEffect(() => {
     if (window.location.pathname === "/") {
-      window.history.replaceState({}, "", "/command-center");
+      // Відновлюємо останній маршрут (де користувач закрив застосунок), а не завжди центр керування.
+      window.history.replaceState({ ni: 0 }, "", `/${routeFromPath()}`);
     }
+    // Позначити поточний запис індексом, якщо його ще немає (перше завантаження / глибоке посилання).
+    const current = window.history.state as { ni?: number } | null;
+    const initialNi = current && typeof current.ni === "number" ? current.ni : 0;
+    if (!current || typeof current.ni !== "number") {
+      window.history.replaceState({ ni: initialNi }, "", `${window.location.pathname}${window.location.search}`);
+    }
+    histPosRef.current = initialNi;
+    histMaxRef.current = Math.max(histMaxRef.current, initialNi);
+    syncHistNav();
+    const syncPos = () => {
+      const state = window.history.state as { ni?: number } | null;
+      const ni = state && typeof state.ni === "number" ? state.ni : histPosRef.current;
+      histPosRef.current = ni;
+      histMaxRef.current = Math.max(histMaxRef.current, ni);
+      syncHistNav();
+    };
     const onPop = () => {
       const editor = dirtyEditor();
       if (editor) {
@@ -143,6 +201,7 @@ export function App() {
           setRoute(next);
           setSelection(null);
           setUniverseDocumentId(next === "universe" ? new URLSearchParams(window.location.search).get("document") : null);
+          syncPos();
         });
         return;
       }
@@ -150,15 +209,31 @@ export function App() {
       setRoute(next);
       setSelection(null);
       setUniverseDocumentId(next === "universe" ? new URLSearchParams(window.location.search).get("document") : null);
+      syncPos();
     };
     window.addEventListener("popstate", onPop, { capture: true });
     return () => window.removeEventListener("popstate", onPop, { capture: true });
-  }, [guardNavigation]);
+  }, [guardNavigation, syncHistNav]);
+
+  // Клавіатурні кроки історії: ⌘+Б / ⌘+Ю (укр. розкладка) = ⌘ + фізичні Comma / Period (символи < / >).
+  // По event.code — не залежить від розкладки. З модифікатором ⌘ набір тексту не зачіпається, тож працює всюди.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || !event.metaKey || event.ctrlKey || event.altKey || event.repeat) return;
+      if (event.code === "Comma") { event.preventDefault(); goBack(); }
+      else if (event.code === "Period") { event.preventDefault(); goForward(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [goBack, goForward]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("raytsystem-theme", theme);
   }, [theme]);
+
+  // Запам'ятовуємо останній маршрут, щоб застосунок відкривався там, де його закрили.
+  useEffect(() => { try { localStorage.setItem(LAST_ROUTE_KEY, route); } catch { /* noop */ } }, [route]);
 
   useEffect(() => {
     document.title = `${routeMeta[route].label} · raytsystem`;
@@ -241,12 +316,13 @@ export function App() {
 
   const page = (() => {
     switch (route) {
-      case "command-center": return <CommandCenter onCreateTask={openCreateTask} onNavigate={navigate} onSelect={setSelection} />;
+      case "command-center": return <CommandCenter onCreateTask={openCreateTask} onNavigate={navigate} onSelect={setSelection} onOpenDocument={navigateToDocument} />;
       case "handbook": return <Handbook />;
       case "onboarding": return <Onboarding />;
       case "documents": return <Documents onShowInGraph={showDocumentInGraph} />;
       case "tasks": return <Tasks createOpen={createTaskOpen} onCreateOpenChange={setCreateTaskOpenWithFocus} onSelect={setSelection} />;
       case "universe": return <Universe theme={theme} selectedId={selection?.id ?? null} focusedDocumentId={universeDocumentId} onSelect={setSelection} onClear={() => setSelection(null)} />;
+      case "timeline": return <Timeline onOpenDocument={navigateToDocument} />;
       case "runs": return <Runs onSelect={setSelection} />;
       case "agents": return <AgentsSurface onOpenSkill={openSkill} />;
       case "skills": return <SkillsSurface />;
@@ -304,6 +380,10 @@ export function App() {
 
       <section className="workspace-shell" data-testid="workspace-shell">
         <header className="topbar" data-testid="topbar">
+          <div className="topbar-history" role="group" aria-label="Навігація історією">
+            <button className="icon-button" type="button" onClick={goBack} disabled={!histNav.back} aria-label="Крок назад" title="Крок назад · ⌘Б"><ArrowLeft size={18} /></button>
+            <button className="icon-button" type="button" onClick={goForward} disabled={!histNav.forward} aria-label="Крок вперед" title="Крок вперед · ⌘Ю"><ArrowRight size={18} /></button>
+          </div>
           <div className="topbar-title"><span className="eyebrow">{current.group}</span><h1>{current.label}</h1><p>{current.description}</p></div>
           <div className="topbar-actions">
             <button className="command-trigger" type="button" onClick={() => setPaletteOpen(true)}><Search size={16} /><span>Палітра команд</span><kbd>⌘ K</kbd></button>
@@ -355,7 +435,7 @@ export function App() {
       {mobileMore ? (
         <Dialog className="mobile-more-sheet" backdropClassName="mobile-more modal-backdrop" label="Додаткова навігація" onClose={() => setMobileMore(false)}>
             <header><strong>Ще</strong><button className="icon-button" type="button" onClick={() => setMobileMore(false)} aria-label="Закрити"><X size={18} /></button></header>
-            {(["handbook", "onboarding", "runs", "agents", "skills", "context", "safety", "systems"] as RouteKey[]).map((key) => {
+            {(["timeline", "handbook", "onboarding", "runs", "agents", "skills", "context", "safety", "systems"] as RouteKey[]).map((key) => {
               const Icon = routeMeta[key].icon;
               return <button type="button" key={key} onClick={() => navigate(key)}><Icon size={19} /><span><strong>{routeMeta[key].label}</strong><small>{routeMeta[key].description}</small></span></button>;
             })}

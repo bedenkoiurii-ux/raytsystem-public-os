@@ -12,13 +12,34 @@
 from __future__ import annotations
 
 import os
+import ipaddress
+import json
 import socket
+import subprocess
 import threading
 import time
 import urllib.request
 from pathlib import Path
 
 HOST = "127.0.0.1"
+# Приватна мережа Tailscale (CGNAT-діапазон). Доступ ззовні дозволено ЛИШЕ звідси.
+TAILNET = ipaddress.ip_network("100.64.0.0/10")
+TAILSCALE_BIN = Path("/Applications/Tailscale.app/Contents/MacOS/Tailscale")
+
+
+def tailnet_identity() -> tuple[str | None, str | None]:
+    """(IPv4, MagicDNS-ім'я) цього Mac у мережі Tailscale. Обидва треба внести в дозволені
+    хости: з телефона заходять і за адресою, і за іменем — інакше host_rejected."""
+    command = [str(TAILSCALE_BIN)] if TAILSCALE_BIN.is_file() else ["tailscale"]
+    try:
+        result = subprocess.run([*command, "status", "--json"], capture_output=True, text=True, timeout=5)
+        node = json.loads(result.stdout).get("Self") or {}
+        addresses = node.get("TailscaleIPs") or []
+        address = next((a for a in addresses if ipaddress.ip_address(a) in TAILNET), None)
+        name = (node.get("DNSName") or "").rstrip(".") or None
+        return address, name
+    except Exception:
+        return None, None
 # Корінь простору: env RAYTSYSTEM_ROOT або типовий vault Writer-Lab.
 ROOT = Path(os.environ.get("RAYTSYSTEM_ROOT", "/Users/Nemo/Writer-Lab/Library")).resolve()
 # Стабільний виділений порт: origin (host:port) не змінюється між запусками,
@@ -50,18 +71,50 @@ def main() -> None:
 
     port = pick_port(PREFERRED_PORT)
     url = f"http://{HOST}:{port}"
+
+    # Якщо Tailscale піднятий — слухаємо всі інтерфейси, щоб застосунок було видно з телефона.
+    # Безпеку тримає не прив'язка, а фільтр нижче: чужа мережа (кав'ярня, готель) не пройде.
+    remote_ip, remote_name = tailnet_identity()
+    bind_host = "0.0.0.0" if remote_ip else HOST
+    hosts = {HOST, f"{HOST}:{port}", "localhost", f"localhost:{port}"}
+    origins = {url, f"http://localhost:{port}"}
+    for peer in (remote_ip, remote_name):
+        if peer:
+            hosts |= {peer, f"{peer}:{port}"}
+            origins |= {f"http://{peer}:{port}"}
+
     app = create_app(
         ROOT,
-        allowed_hosts=frozenset({HOST, f"{HOST}:{port}", "localhost", f"localhost:{port}"}),
-        allowed_origins=frozenset({url, f"http://localhost:{port}"}),
+        allowed_hosts=frozenset(hosts),
+        allowed_origins=frozenset(origins),
         static_dir=static_dir,
     )
+
+    from starlette.responses import JSONResponse
+
+    @app.middleware("http")
+    async def only_local_or_tailnet(request, call_next):
+        """Впускаємо лише loopback і приватну мережу Tailscale — більше нікого."""
+        client = request.client.host if request.client else ""
+        try:
+            address = ipaddress.ip_address(client)
+            allowed = address.is_loopback or address in TAILNET
+        except ValueError:
+            allowed = False
+        if not allowed:
+            return JSONResponse(
+                status_code=403,
+                content={"error": {"code": "forbidden_network", "message": "Доступ лише з локальної машини або приватної мережі."}},
+            )
+        return await call_next(request)
 
     import uvicorn
 
     server = uvicorn.Server(
-        uvicorn.Config(app, host=HOST, port=port, access_log=False, log_level="warning")
+        uvicorn.Config(app, host=bind_host, port=port, access_log=False, log_level="warning")
     )
+    if remote_ip:
+        print(f"З телефона (у мережі Tailscale): http://{remote_ip}:{port}", flush=True)
     threading.Thread(target=server.run, daemon=True).start()
 
     # чекаємо, поки сервер відповість (мінтить сесію при першому GET /)

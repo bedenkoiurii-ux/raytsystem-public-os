@@ -121,6 +121,7 @@ _SPA_ROUTES = frozenset(
         "onboarding",
         "tasks",
         "universe",
+        "timeline",
         "runs",
         "agents",
         "skills",

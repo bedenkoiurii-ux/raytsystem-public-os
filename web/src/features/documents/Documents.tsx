@@ -74,6 +74,7 @@ import { DocumentRestoreDialog } from "./DocumentRestoreDialog";
 import { DocumentTabs } from "./DocumentTabs";
 import { DocumentTree } from "./DocumentTree";
 import { headingId, SafeMarkdownView, safeImageUrl, type WikilinkTarget } from "./SafeMarkdownView";
+import { DocumentPeek } from "./DocumentPeek";
 import "./documents.css";
 
 const SourceEditor = lazy(() => import("./SourceEditor"));
@@ -156,7 +157,7 @@ function mutationMessage(error: unknown): string {
 
 function restoreFavorites(): Set<string> {
   try {
-    const values = JSON.parse(window.sessionStorage.getItem("raytsystem.documents.favorites.v1") ?? "[]") as unknown;
+    const values = JSON.parse(window.localStorage.getItem("raytsystem.documents.favorites.v1") ?? "[]") as unknown;
     return new Set(Array.isArray(values) ? values.filter((value): value is string => typeof value === "string").slice(0, 100) : []);
   } catch {
     return new Set();
@@ -259,7 +260,7 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
   useEffect(() => () => persistDocumentWorkspace(workspaceRef.current), []);
 
   useEffect(() => {
-    try { window.sessionStorage.setItem("raytsystem.documents.favorites.v1", JSON.stringify([...favoriteIds])); } catch { /* best effort */ }
+    try { window.localStorage.setItem("raytsystem.documents.favorites.v1", JSON.stringify([...favoriteIds])); } catch { /* best effort */ }
   }, [favoriteIds]);
 
   useEffect(() => {
@@ -357,6 +358,12 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
   const snapshotId = listing.data?.pages[0]?.snapshot_id ?? index?.snapshot_id ?? "";
   const activeId = workspace.activeDocumentId;
   const activeTab = workspace.tabs.find((tab) => tab.documentId === activeId) ?? null;
+  // Максимум 3 вікна: документ → картка 1 → картка 2. Картка 1 статична (лише породжує картку 2).
+  // Картка 2 — термінальна: навігація в самій собі (заміна на місці) з історією c2Hist/c2Pos та стрілками ←/→.
+  const [card1, setCard1] = useState<{ id: string; heading?: string } | null>(null);
+  const [c2Hist, setC2Hist] = useState<Array<{ id: string; heading?: string }>>([]);
+  const [c2Pos, setC2Pos] = useState(-1);
+  const card2 = c2Pos >= 0 && c2Pos < c2Hist.length ? c2Hist[c2Pos] : null;
   const detail = useDocumentDetail(activeId, snapshotId || null);
   const links = useDocumentLinks(activeId, snapshotId || null);
   const backlinks = useDocumentBacklinks(activeId, snapshotId || null);
@@ -378,6 +385,46 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
   useEffect(() => {
     if (detail.data) dispatch({ type: "load", detail: detail.data });
   }, [detail.data]);
+
+  // Ширина картки в ПІКСЕЛЯХ: (доступна ширина − рейл − А4 − інспектор) / 2. Рахуємо в JS, бо з
+  // відсотками контейнер не може стати fit-content (циклічна залежність ширини).
+  const routeRef = useRef<HTMLDivElement>(null);
+  const [cardPx, setCardPx] = useState(0);
+  useEffect(() => {
+    const route = routeRef.current;
+    const host = route?.parentElement;
+    if (!route || !host) return;
+    const compute = () => {
+      const styles = getComputedStyle(route);
+      const hostStyles = getComputedStyle(host);
+      const rail = parseFloat(styles.getPropertyValue("--documents-rail")) || 292;
+      const inspector = parseFloat(styles.getPropertyValue("--documents-inspector")) || 340;
+      // Доступна ширина = вміст host мінус його padding і мінус рамка/padding самого контейнера.
+      const chrome =
+        parseFloat(hostStyles.paddingLeft) + parseFloat(hostStyles.paddingRight) +
+        parseFloat(styles.borderLeftWidth) + parseFloat(styles.borderRightWidth) +
+        parseFloat(styles.paddingLeft) + parseFloat(styles.paddingRight);
+      const avail = host.clientWidth - chrome;
+      setCardPx(Math.max(0, Math.floor((avail - rail - 840 - inspector) / 2)));
+    };
+    compute();
+    const observer = new ResizeObserver(compute);
+    observer.observe(host);
+    return () => observer.disconnect();
+  }, []);
+
+  const closeCard1 = useCallback(() => { setCard1(null); setC2Hist([]); setC2Pos(-1); }, []);
+  const closeCard2 = useCallback(() => { setC2Hist([]); setC2Pos(-1); }, []);
+  const card2Back = useCallback(() => setC2Pos((p) => Math.max(0, p - 1)), []);
+  const card2Forward = useCallback(() => setC2Pos((p) => (p < c2Hist.length - 1 ? p + 1 : p)), [c2Hist.length]);
+  useEffect(() => { closeCard1(); }, [activeId, closeCard1]);
+  useEffect(() => {
+    if (!card1) return;
+    // Esc: спершу закрити картку 2 (термінальну), потім картку 1.
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") { event.stopPropagation(); if (c2Pos >= 0) closeCard2(); else closeCard1(); } };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [card1, c2Pos, closeCard1, closeCard2]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -515,11 +562,19 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
     });
   };
 
+  // Клік у документі → картка 1 (скидає картку 2).
   const resolveWikilink = (target: WikilinkTarget) => {
     const match = matchingDocumentLink(target, links.data?.items ?? []);
-    if (match?.target_document_id) openById(match.target_document_id, target.heading ?? match.heading);
-    else if (match?.candidates?.length === 1) openById(match.candidates[0].document_id, target.heading ?? match.heading);
+    const id = match?.target_document_id ?? (match?.candidates?.length === 1 ? match.candidates[0].document_id : null);
+    if (id) { setCard1({ id, heading: target.heading ?? match?.heading ?? undefined }); setC2Hist([]); setC2Pos(-1); }
     else setNotice(match?.ambiguous ? "Wikilink неоднозначний — виберіть ціль на панелі «Посилання»." : "Ціль wikilink не знайдена в дозволених roots.");
+  };
+  // Клік у картці 1 → відкриває/замінює картку 2 (свіжа історія).
+  const openFromCard1 = (id: string, heading?: string) => { setC2Hist([{ id, heading }]); setC2Pos(0); };
+  // Клік у картці 2 → навігація в самій собі (обрізає forward-історію, додає нову сторінку).
+  const openFromCard2 = (id: string, heading?: string) => {
+    setC2Hist((h) => [...h.slice(0, c2Pos + 1), { id, heading }]);
+    setC2Pos((p) => p + 1);
   };
 
   const submitAction = (value: DocumentActionValue) => {
@@ -633,18 +688,18 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
   };
 
   return (
-    <div className="route documents-route" data-doc-format={sheetFormat} data-editor-scope="documents" data-unsaved-changes={workspace.tabs.some((tab) => tab.dirty) ? "true" : "false"} data-editor-location={`${window.location.pathname}${window.location.search}`} onKeyDown={(event) => {
+    <div ref={routeRef} className="route documents-route" data-doc-format={sheetFormat} data-cards={card1 ? "open" : undefined} style={{ ["--doc-cards" as string]: String((card1 ? 1 : 0) + (card2 ? 1 : 0)), ["--doc-card" as string]: `${cardPx}px` }} data-editor-scope="documents" data-unsaved-changes={workspace.tabs.some((tab) => tab.dirty) ? "true" : "false"} data-editor-location={`${window.location.pathname}${window.location.search}`} onKeyDown={(event) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") { event.preventDefault(); if (activeTab?.dirty) saveContent(); }
     }}>
       <div className="documents-commandbar" inert={workspace.mobileDrawer ? true : undefined}>
-        <label className="documents-search"><Search size={16} aria-hidden="true" /><input ref={searchInputRef} value={query} onChange={(event) => setQuery(event.target.value)} aria-label="Знайти документ" placeholder={'Назва, шлях, текст, tag: або is:modified'} /><kbd>⌘ F</kbd></label>
+        <label className="documents-search"><Search size={16} aria-hidden="true" /><input ref={searchInputRef} value={query} onChange={(event) => setQuery(event.target.value)} aria-label="Знайти документ" placeholder={'Назва, текст, tag:, property:relevance=high, is:modified'} /><kbd>⌘ F</kbd></label>
         <div className="documents-quick-views" aria-label="Представлення документів">{views.slice(1, 4).map((view) => <button type="button" aria-pressed={workspace.view === view.id} key={view.id} onClick={() => dispatch({ type: "view", view: view.id })}>{view.label}</button>)}</div>
         <button type="button" className="documents-index-button" onClick={() => refreshIndex.mutate({ expectedSnapshotId: snapshotId || null })} disabled={refreshIndex.isPending}><RefreshCw className={refreshIndex.isPending ? "spin" : ""} size={15} /><span>{index?.state === "current" ? `${index.file_count} · актуальний` : index?.state ?? "індекс"}</span></button>
         <button type="button" className="documents-mobile-panel" onClick={(event) => openMobileDrawer("navigation", event.currentTarget)} aria-controls="documents-navigation-drawer" aria-expanded={workspace.mobileDrawer === "navigation"} aria-label="Відкрити файли"><Menu size={18} /></button>
         <button type="button" className="documents-mobile-panel" onClick={(event) => openMobileDrawer("inspector", event.currentTarget)} aria-controls="documents-inspector-drawer" aria-expanded={workspace.mobileDrawer === "inspector"} aria-label="Відкрити властивості" disabled={!detail.data || !activeDraft}><PanelRight size={18} /></button>
       </div>
 
-      <div className="documents-layout">
+      <div className="documents-layout" data-cards={card1 ? "open" : undefined}>
         <aside ref={navigationDrawerRef} id="documents-navigation-drawer" className={`documents-navigation ${workspace.mobileDrawer === "navigation" ? "drawer-open" : ""}`} aria-label="Навігація документами" role={workspace.mobileDrawer === "navigation" ? "dialog" : undefined} aria-modal={workspace.mobileDrawer === "navigation" ? true : undefined} onKeyDown={workspace.mobileDrawer === "navigation" ? trapDrawerFocus : undefined}>
           <header><strong>Документи</strong><button type="button" className="documents-drawer-close" onClick={closeMobileDrawer} aria-label="Закрити файли"><X size={17} /></button><div><button type="button" onClick={() => setAction("create")} disabled={!roots.some((root) => root.writable)}><FilePlus2 size={15} />Новий</button><button type="button" aria-label="Створити папку" onClick={() => setAction("folder")} disabled={!roots.some((root) => root.writable)}><FolderPlus size={15} /></button></div></header>
           <nav aria-label="Зрізи документів">{views.map(({ id, label, icon: Icon }) => <button type="button" className={workspace.view === id ? "active" : ""} key={id} onClick={() => dispatch({ type: "view", view: id })}><Icon size={15} aria-hidden="true" /><span>{label}</span></button>)}</nav>
@@ -654,6 +709,7 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
           <footer aria-live="polite"><span>{documents.length} показано</span><span>{index?.last_refresh_at ? `оновлено ${new Date(index.last_refresh_at).toLocaleTimeString("uk-UA", { hour: "2-digit", minute: "2-digit" })}` : "ще не оновлювався"}</span></footer>
         </aside>
 
+        <div className="doc-canvas" style={{ ["--doc-font-scale" as string]: String(fontScale) }}>
         <section className="documents-workspace" id="document-workbench" role="tabpanel" aria-label="Відкритий документ" inert={workspace.mobileDrawer ? true : undefined}>
           <DocumentTabs tabs={workspace.tabs} activeDocumentId={activeId} canReopen={workspace.recentlyClosed.length > 0} onActivate={(documentId) => dispatch({ type: "activate", documentId })} onClose={closeTab} onCloseOthers={closeOthers} onPin={(documentId) => dispatch({ type: "pin", documentId })} onReopen={() => dispatch({ type: "reopen" })} />
           {!activeId ? <EmptyState title="Відкрийте документ" action={<button type="button" className="primary-button" onClick={() => setAction("create")} disabled={!roots.some((root) => root.writable)}>Новий документ</button>}>Виберіть файл ліворуч або знайдіть його за назвою, вмістом, тегами й властивостями.</EmptyState> : detail.isError && !activeDraft ? <ErrorState error={detail.error} onRetry={() => void detail.refetch()} /> : !activeDraft ? <LoadingState label="Відкриваємо активний документ…" /> : activeTab && activeDraft ? (
@@ -661,7 +717,7 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
               <header className="document-stage-header"><div><span>{detail.data?.document.path ?? activeTab.title}</span><h2>{activeTab.title}</h2><small>{activeTab.readOnly ? <><Shield size={13} /> лише читання</> : activeTab.dirty ? "Є незбережені зміни" : "Збережено"}</small></div><div><button type="button" onClick={() => setFavoriteIds((current) => { const next = new Set(current); if (next.has(activeId)) next.delete(activeId); else if (next.size < 100) next.add(activeId); else setNotice("Можна зберігати не більше 100 обраних документів у session preferences."); return next; })} aria-label={favoriteIds.has(activeId) ? "Прибрати з обраного" : "Додати в обране"}><Star size={14} fill={favoriteIds.has(activeId) ? "currentColor" : "none"} /></button><button type="button" onClick={() => setAction("rename")} disabled={activeTab.readOnly}><Pencil size={14} />Перейменувати</button><button type="button" onClick={() => setAction("move")} disabled={activeTab.readOnly}><Move size={14} />Перемістити</button><button type="button" className="document-save" onClick={() => saveContent()} disabled={activeTab.readOnly || !activeTab.dirty || updateDocument.isPending}><Save size={15} />{updateDocument.isPending ? "Зберігаємо…" : "Зберегти"}</button></div></header>
               <div className="document-modebar" role="toolbar" aria-label="Режим документа">{modes.map(({ id, label, icon: Icon }) => <button type="button" aria-pressed={activeTab.mode === id} key={id} disabled={((activeIsImage || activeUnsupported) && id !== "read") || (id === "visual" && Boolean(visualBlockReason))} title={(activeIsImage || activeUnsupported) && id !== "read" ? "Вкладення доступні лише для читання" : id === "visual" ? visualBlockReason ?? undefined : undefined} onClick={() => { dispatch({ type: "mode", documentId: activeId, mode: id }); if (id !== "diff") setRevisionTarget(null); }}><Icon size={14} aria-hidden="true" />{label}</button>)}<button type="button" className="sheet-light-toggle" aria-pressed={sheetLight} title="Світлий аркуш: тіло документа на світлому тлі (легше очам)" onClick={toggleSheetLight}><Sun size={14} aria-hidden="true" />Аркуш</button>{sheetLight ? <select className="sheet-tone-select" aria-label="Тон паперу" value={sheetTone} onChange={(event) => changeSheetTone(event.target.value)}><option value="warm">Теплий</option><option value="white">Білий</option><option value="sepia">Сепія</option></select> : null}{(activeTab.mode === "read" || activeTab.mode === "visual") ? <select className="sheet-format-select" aria-label="Формат сторінки" value={sheetFormat} onChange={(event) => changeSheetFormat(event.target.value)} title="Формат читання: А4 вертикальний / А4 горизонтальний / вільний простір на всю ширину (для сценаріїв і широких таблиць)"><option value="a4">А4 ▯</option><option value="a4-land">А4 ▭</option><option value="free">Вільний ⟷</option></select> : null}{(activeTab.mode === "read" || activeTab.mode === "visual") ? <span className="sheet-font-control" role="group" aria-label="Розмір шрифта"><button type="button" onClick={() => bumpFontScale(-0.1)} disabled={fontScale <= 0.7} aria-label="Менший шрифт" title="Менший шрифт">A−</button><button type="button" onClick={() => bumpFontScale(0.1)} disabled={fontScale >= 1.8} aria-label="Більший шрифт" title="Більший шрифт">A+</button></span> : null}</div>
               {notice ? <div className="documents-notice" role="status">{notice}<button type="button" onClick={() => setNotice(null)} aria-label="Приховати повідомлення"><X size={14} /></button></div> : null}
-              <div className={`document-content${sheetLight && (activeTab.mode === "read" || activeTab.mode === "visual") ? " sheet-light" : ""}`} data-sheet-tone={sheetLight ? sheetTone : undefined} data-sheet-format={sheetFormat} style={{ ["--doc-font-scale" as string]: String(fontScale) }}>
+              <div className={`document-content${sheetLight && (activeTab.mode === "read" || activeTab.mode === "visual") ? " sheet-light" : ""}`} data-sheet-tone={sheetLight ? sheetTone : undefined} data-sheet-format={sheetFormat}>
                 {activeIsImage && detail.data ? <DocumentImageView detail={detail.data} /> : null}
                 {activeUnsupported ? <div className="doc-visual-unavailable" role="status"><strong>Для цього формату немає безпечного viewer</strong><p>Файл видно в керованому workspace, але його вміст не передано браузеру.</p></div> : null}
                 {!activeIsImage && !activeUnsupported && activeTab.mode === "read" ? <SafeMarkdownView content={activeDraft.content} onOpenSource={() => dispatch({ type: "mode", documentId: activeId, mode: "source" })} onOpenWikilink={resolveWikilink} onOpenRelativeLink={(target) => { const match = links.data?.items.find((link) => link.target === target); if (match?.target_document_id) openById(match.target_document_id, match.heading); else setNotice("Відносне посилання не дозволене або не знайдене."); }} resolveImage={(target) => { const asset = detail.data?.assets?.[target]; return typeof asset === "string" ? asset : asset?.url ?? (target.startsWith("/api/v1/documents/") ? target : null); }} /> : null}
@@ -672,6 +728,10 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
             </section>
           ) : null}
         </section>
+
+          {card1 ? <DocumentPeek key="card1" documentId={card1.id} heading={card1.heading} index={0} showNav={false} snapshotId={snapshotId || null} onClose={closeCard1} onOpenFull={(id, heading) => { closeCard1(); openById(id, heading); }} onOpenLink={(_i, id, heading) => openFromCard1(id, heading)} /> : null}
+          {card2 ? <DocumentPeek key="card2" documentId={card2.id} heading={card2.heading} index={1} showNav snapshotId={snapshotId || null} canBack={c2Pos > 0} canForward={c2Pos < c2Hist.length - 1} onBack={card2Back} onForward={card2Forward} onClose={closeCard2} onOpenFull={(id, heading) => { closeCard1(); openById(id, heading); }} onOpenLink={(_i, id, heading) => openFromCard2(id, heading)} /> : null}
+        </div>
 
         {detail.data && activeDraft ? <div ref={inspectorDrawerRef} id="documents-inspector-drawer" className={`documents-inspector-shell ${workspace.mobileDrawer === "inspector" ? "drawer-open" : ""}`} role={workspace.mobileDrawer === "inspector" ? "dialog" : undefined} aria-modal={workspace.mobileDrawer === "inspector" ? true : undefined} aria-label={workspace.mobileDrawer === "inspector" ? "Відомості про документ" : undefined} onKeyDown={workspace.mobileDrawer === "inspector" ? trapDrawerFocus : undefined}><DocumentInspector detail={detail.data} content={activeDraft.content} section={workspace.inspectorSection} links={links.data} backlinks={backlinks.data} history={history.data} propertyEditingDisabled={activeTab?.mode === "visual"} onSectionChange={(section) => dispatch({ type: "inspector", section })} onContentChange={(content, warning) => { changeDraft(content); if (warning) setNotice(warning); }} onOpenDocument={openById} onPreviewRevision={(entry) => { setRevisionTarget(entry); dispatch({ type: "mode", documentId: activeId!, mode: "diff" }); }} onRequestRestore={requestRestore} onShowInGraph={() => onShowInGraph(activeId!)} onClose={closeMobileDrawer} /></div> : null}
       </div>

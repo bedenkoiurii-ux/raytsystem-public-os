@@ -60,6 +60,49 @@
 .documents-mobile-panel { display: none; padding: 0; width: 38px; place-items: center; }
 
 .documents-layout { display: grid; grid-template-columns: var(--documents-rail) minmax(0, 1fr) var(--documents-inspector); min-width: 0; min-height: 0; }
+/* Каскад карток (МАКС. 3 вікна: документ → картка 1 → картка 2).
+   • А4-аркуш НЕ змінює розмір — фіксований (як без карток).
+   • Картки — ФІКСОВАНОЇ ширини (--doc-card), однакові в 2- і 3-віконному режимі, НЕ розтягуються.
+   • Вільний простір (де була б відсутня друга картка) забирає ІНСПЕКТОР — без пустот.
+   • Робоча зона (А4+картки) = auto (за вмістом); інспектор = 1fr (заповнює решту). Рейл лишається. */
+.doc-canvas { display: flex; min-width: 0; min-height: 0; }
+.doc-canvas > .documents-workspace { flex: 1 1 0; min-width: 0; }
+/* Контейнер робочої зони (має тло/рамку/радіус) обхоплює РІВНО колонки — жодних порожніх зон
+   усередині — і центрується. --doc-card приходить у px із JS (інакше fit-content циклічний). */
+.route.documents-route[data-cards="open"] { max-width: none; width: fit-content; margin-inline: auto; }
+/* Grid із calc (НЕ `auto`! WebKit/pywebview рахує трек `auto` як min-content → ламає розкладку).
+   ЕТАЛОН — тривіконний: рейл | А4 | картка1 | картка2 | інспектор заповнюють ширину ТОЧНО.
+   Тому ширина картки НЕ фіксована в px, а = половина залишку: (100% − рейл − А4 − інспектор) / 2.
+   Двовіконний: ТІ САМІ розміри, просто без картки 2 — інспектор притискається до картки 1,
+   а порожнє місце (рівно одна картка) лишається праворуч ЗА інспектором. */
+/* Без порожньої колонки: колонки = рейл + робоча зона + інспектор. У тривіконному вони заповнюють
+   ширину точно; у двовіконному сума менша — justify-content центрує весь блок. Розміри не міняються. */
+.documents-layout[data-cards="open"] { grid-template-columns: var(--documents-rail) calc(840px + var(--doc-cards, 0) * var(--doc-card)) var(--documents-inspector); }
+.documents-layout[data-cards="open"] .doc-canvas { overflow: hidden; }
+.documents-layout[data-cards="open"] .doc-canvas > .documents-workspace { flex: 0 0 840px; }
+
+.doc-peek { flex: 1 1 0; min-width: 0; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); min-height: 0; border-left: 1px solid var(--line-soft); background: color-mix(in srgb, var(--surface) 96%, transparent); animation: peek-in 160ms ease both; }
+@keyframes peek-in { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
+.doc-peek-head { display: flex; align-items: center; gap: 10px; min-height: 60px; padding: 9px 12px; border-bottom: 1px solid var(--line-soft); }
+.doc-peek-nav { display: flex; flex: 0 0 auto; gap: 4px; }
+.doc-peek-titles { flex: 1 1 auto; min-width: 0; }
+.doc-peek-titles strong { display: block; margin-top: 2px; overflow: hidden; font: 560 15px/1.2 var(--display); text-overflow: ellipsis; white-space: nowrap; }
+.doc-peek-actions { display: flex; flex: 0 0 auto; gap: 4px; }
+.doc-peek-body { overflow: auto; min-width: 0; padding: 14px 16px 36px; }
+/* У вузькій картці великий padding аркуша (clamp 6vw≈68px) і overflow-wrap:anywhere кришать текст.
+   Даємо тексту всю ширину картки, зменшуємо заголовки, ламаємо по словах. */
+.doc-peek-body .doc-markdown { width: 100%; padding: 0; overflow-wrap: break-word; }
+.doc-peek-body .doc-markdown h1 { font-size: calc(20px * var(--doc-font-scale, 1)); line-height: 1.2; }
+.doc-peek-body .doc-markdown h2 { font-size: calc(15px * var(--doc-font-scale, 1)); }
+.doc-peek-body .doc-markdown h3 { font-size: calc(13.5px * var(--doc-font-scale, 1)); }
+@media (max-width: 1400px) {
+  /* Замало ширини — повертаємо звичайний grid, картки стають накладкою праворуч, не тиснучи документ. */
+  .documents-layout[data-cards="open"] { display: grid; grid-template-columns: var(--documents-rail) minmax(0, 1fr) var(--documents-inspector); overflow-x: visible; }
+  .documents-layout[data-cards="open"] > .documents-inspector-shell { grid-column: auto; }
+  .documents-layout[data-cards="open"] .doc-canvas > .documents-workspace { flex: 1 1 0; }
+  .doc-peek { position: fixed; top: 0; bottom: 0; right: 0; width: min(360px, 92vw); z-index: 40; box-shadow: var(--shadow); }
+  .doc-peek + .doc-peek { right: min(360px, 92vw); z-index: 39; }
+}
 .documents-navigation,
 .documents-inspector-shell,
 .documents-workspace { min-width: 0; min-height: 0; }

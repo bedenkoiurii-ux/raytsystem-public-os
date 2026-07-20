@@ -25,9 +25,10 @@ interface CommandCenterProps {
   onCreateTask: () => void;
   onNavigate: (route: string) => void;
   onSelect: (selection: Selection) => void;
+  onOpenDocument: (documentId: string) => void;
 }
 
-export function CommandCenter({ onCreateTask, onNavigate, onSelect }: CommandCenterProps) {
+export function CommandCenter({ onCreateTask, onNavigate, onSelect, onOpenDocument }: CommandCenterProps) {
   const system = useSystem();
   const tasks = useTasks();
   const runs = useRuns();
@@ -106,7 +107,7 @@ export function CommandCenter({ onCreateTask, onNavigate, onSelect }: CommandCen
           <div className="ls-recent">
             <span className="eyebrow">Нещодавно змінені</span>
             {recent.length ? recent.slice(0, 6).map((doc) => (
-              <button className="ls-recent-row" type="button" key={doc.document_id} onClick={() => onNavigate("documents")} title={doc.path}>
+              <button className="ls-recent-row" type="button" key={doc.document_id} onClick={() => onOpenDocument(doc.document_id)} title={doc.path}>
                 <span className="ls-recent-title">{doc.title || doc.filename}</span>
                 <time>{formatDate(doc.modified_at)}</time>
               </button>

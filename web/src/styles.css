@@ -198,6 +198,7 @@ button:focus-visible, a[href]:focus-visible, input:focus-visible, textarea:focus
 .topbar-title h1 { min-width: 0; margin: 0; overflow: hidden; font: 570 clamp(21px, 2.5cqi, 25px)/1 var(--display); letter-spacing: -.035em; white-space: nowrap; text-overflow: ellipsis; }
 .topbar-title p { margin: 0; color: var(--muted-2); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .topbar-actions { display: flex; flex: 0 0 auto; align-items: center; min-width: 0; gap: 8px; }
+.topbar-history { display: flex; flex: 0 0 auto; align-items: center; gap: 6px; }
 .command-trigger { display: flex; align-items: center; gap: 8px; height: var(--header-control-size); padding: 0 8px 0 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--muted); cursor: pointer; }
 .command-trigger span { font-size: 11px; }
 kbd { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 5px; border: 1px solid var(--line); border-bottom-color: color-mix(in srgb, var(--line) 60%, black); border-radius: 5px; background: var(--carbon-soft); color: var(--muted-2); font: 10px var(--mono); box-shadow: 0 1px 0 rgba(255,255,255,.04); }
@@ -207,7 +208,9 @@ kbd { display: inline-grid; place-items: center; min-width: 22px; height: 22px; 
 .icon-button:hover:not(:disabled) { color: var(--bone); background: var(--raised); border-color: color-mix(in srgb, var(--line) 60%, var(--muted)); }
 .icon-button:disabled { opacity: .4; cursor: not-allowed; }
 .icon-button.compact { width: 27px; height: 27px; border: 0; background: transparent; }
-.main-content { min-width: 0; min-height: 0; overflow: auto; padding: clamp(18px, 2.4cqi, 24px) clamp(18px, 2.8cqi, 28px) 32px; scroll-behavior: smooth; scrollbar-gutter: stable; }
+/* both-edges: місце під смугу прокрутки резервується СИМЕТРИЧНО, інакше центрований вміст
+   зміщений ліворуч на ширину смуги (праворуч відступ від краю більший). */
+.main-content { min-width: 0; min-height: 0; overflow: auto; padding: clamp(18px, 2.4cqi, 24px) clamp(18px, 2.8cqi, 28px) 32px; scroll-behavior: smooth; scrollbar-gutter: stable both-edges; }
 .route { max-width: 1540px; margin: 0 auto; animation: route-in 180ms ease both; }
 @keyframes route-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
@@ -386,6 +389,40 @@ button.table-row:hover { background: var(--surface-2); color: var(--bone); }
 .manifest-ok { color: var(--mint); }
 .route-footnote { margin: 0; color: var(--muted-2); font-size: 11px; text-align: center; }
 .muted-copy { color: var(--muted-2); font-size: 11px; }
+
+/* Таймлайн — ribbon зі століттями-смугами (часова проєкція графа знань) */
+.route-timeline { display: grid; gap: 14px; }
+.tl-head { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; }
+.tl-head-title { display: flex; align-items: center; gap: 12px; }
+.tl-head-title h2 { margin: 3px 0 0; font: 620 18px/1.2 var(--sans); }
+.tl-filters { display: flex; gap: 8px; flex-wrap: wrap; }
+.tl-chip { display: inline-flex; align-items: center; gap: 7px; padding: 7px 13px; border-radius: 999px; border: 1px solid var(--line-soft); background: color-mix(in srgb, var(--surface) 92%, transparent); color: var(--muted); font: 520 12px var(--sans); cursor: pointer; opacity: .5; transition: opacity 140ms ease, border-color 140ms ease; }
+.tl-chip.on { opacity: 1; border-color: var(--line); }
+.tl-chip b { font: 600 11px var(--mono); color: var(--muted-2); }
+.tl-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted-2); flex: none; }
+.tl-person .tl-dot { background: var(--blue); }
+.tl-event .tl-dot { background: var(--gold); }
+.tl-concept .tl-dot { background: var(--mint); }
+
+.tl-scroll { display: grid; gap: 2px; }
+.tl-band { display: grid; grid-template-columns: 138px 1fr; gap: 16px; align-items: start; padding: 12px 0; border-top: 1px solid var(--line-soft); }
+.tl-band:first-child { border-top: none; }
+.tl-band-mark { position: sticky; top: 8px; display: flex; flex-direction: column; gap: 2px; padding-top: 5px; }
+.tl-era { font: 600 13px var(--sans); }
+.tl-era-count { font: 500 10px var(--mono); color: var(--muted-2); }
+.tl-items { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.tl-item { width: 100%; display: grid; grid-template-columns: 12px 150px 1fr auto; align-items: center; gap: 12px; padding: 9px 13px; border: 1px solid transparent; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--surface-2) 55%, transparent); color: inherit; cursor: pointer; text-align: left; transition: background 130ms ease, border-color 130ms ease; }
+.tl-item:hover { background: var(--interactive-hover); border-color: var(--line-soft); }
+.tl-when { font: 500 11px var(--mono); color: var(--muted); white-space: nowrap; }
+.tl-title { font: 540 13px var(--sans); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tl-kind { font: 500 10px var(--mono); color: var(--muted-2); text-transform: uppercase; letter-spacing: .05em; }
+.tl-empty { padding: 44px 0; text-align: center; }
+@media (max-width: 720px) {
+  .tl-band { grid-template-columns: 1fr; gap: 6px; }
+  .tl-band-mark { position: static; flex-direction: row; align-items: baseline; gap: 8px; }
+  .tl-item { grid-template-columns: 12px auto 1fr; }
+  .tl-kind { display: none; }
+}
 
 /* Tasks */
 .tasks-route { width: 100%; min-width: 0; max-width: none; overflow-x: clip; }

@@ -31,6 +31,11 @@ export const routeCopy = {
     description: "Граф знань, роботи та доказів",
     group: "Оркестрація"
   },
+  timeline: {
+    label: "Таймлайн",
+    description: "Часова вісь постатей, подій і понять",
+    group: "Оркестрація"
+  },
   runs: {
     label: "Запуски",
     description: "Історія зафіксованих операцій",

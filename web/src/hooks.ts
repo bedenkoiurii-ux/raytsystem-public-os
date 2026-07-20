@@ -39,6 +39,26 @@ export const useLibrary = () =>
     ...queryDefaults,
   });
 
+// Таймлайн: тягне датовані картки з 30-Research (People/Events/Concepts). Список капить сторінку на ~50,
+// а кожна підтека < 50 — тому limit=50 забирає теку за один запит; 3 запити паралельно й злиття.
+// Клієнт фільтрує за наявністю properties.time_start.
+const TIMELINE_FOLDERS = ["30-Research/People", "30-Research/Events", "30-Research/Concepts"];
+export const useTimeline = () =>
+  useQuery({
+    queryKey: ["timeline"],
+    queryFn: async () => {
+      const envs = await Promise.all(
+        TIMELINE_FOLDERS.map((folder) =>
+          getJson<DocumentListEnvelope>(
+            `/api/v1/documents?folder=${encodeURIComponent(folder)}&limit=50&sort=name_asc`
+          )
+        )
+      );
+      return { items: envs.flatMap((env) => env.items ?? []), index: envs[0]?.index ?? null };
+    },
+    ...queryDefaults,
+  });
+
 export const useUniverse = () =>
   useQuery({
     queryKey: ["universe"],

@@ -227,9 +227,12 @@ interface PersistedWorkspace {
   view: DocumentView;
 }
 
+// localStorage (не sessionStorage): стан робочого простору має переживати перезапуск застосунку
+// (pywebview стартує нову WebKit-сесію → sessionStorage порожній). Відкриті вкладки, активний
+// документ і чернетки відновлюються там, де користувач закрив застосунок.
 function safeSessionStorage(): Storage | null {
   try {
-    return typeof window === "undefined" ? null : window.sessionStorage;
+    return typeof window === "undefined" ? null : window.localStorage;
   } catch {
     return null;
   }
