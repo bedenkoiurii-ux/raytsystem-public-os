@@ -235,6 +235,36 @@ class DocumentIndex:
             if item.mode is not DocumentMode.HIDDEN
         ]
 
+    # ФОРК uk-locale: свіжість — за станом дерева, а не за годинником.
+    # Вихідна логіка оголошувала індекс застарілим через 60 секунд ПІСЛЯ ПОБУДОВИ,
+    # незалежно від того, чи щось змінилося. Для контрольної панелі над git це
+    # виправдано; для бібліотеки, що росте, це нескінченна переіндексація:
+    # кожен старт застосунку = повний ребілд.
+    # Відбиток (кількість .md + найновіший mtime) коштує ~8 мс на 1400 файлів
+    # і ~90 мс на 15 000 — проти 16 секунд повного ребілду.
+    def _tree_fingerprint(self) -> str:
+        newest = 0
+        count = 0
+        for descriptor in self.config.roots:
+            if descriptor.mode is DocumentMode.HIDDEN:
+                continue
+            base = self.root / descriptor.path
+            if not base.is_dir():
+                continue
+            for dirpath, dirnames, filenames in os.walk(base):
+                dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+                for name in filenames:
+                    if name.startswith("."):
+                        continue
+                    count += 1
+                    try:
+                        stamp = os.stat(os.path.join(dirpath, name)).st_mtime_ns
+                    except OSError:
+                        continue
+                    if stamp > newest:
+                        newest = stamp
+        return f"{count}:{newest}"
+
     def status(self) -> dict[str, Any]:
         if not self.path.exists() and not self.path.is_symlink():
             return {
@@ -263,16 +293,15 @@ class DocumentIndex:
             state = "stale"
         freshness_message: str | None = None
         built_at = metadata.get("built_at")
-        if state == "current" and built_at is not None:
-            try:
-                age = datetime.now(UTC) - datetime.fromisoformat(built_at.replace("Z", "+00:00"))
-            except ValueError:
+        if state == "current":
+            # ФОРК uk-locale: застарілий = дерево змінилося, а не «минула хвилина».
+            stored = metadata.get("tree_fingerprint")
+            if stored is None:
                 state = "stale"
-                freshness_message = "Index refresh time is invalid."
-            else:
-                if age.total_seconds() > 60:
-                    state = "stale"
-                    freshness_message = "Index freshness window expired; refresh is required."
+                freshness_message = "Index has no tree fingerprint; refresh is required."
+            elif stored != self._tree_fingerprint():
+                state = "stale"
+                freshness_message = "Files changed on disk; refresh is required."
         return {
             "state": state,
             "snapshot_id": metadata.get("snapshot_id"),
@@ -337,6 +366,8 @@ class DocumentIndex:
                 "built_at": built_at,
                 "error_count": str(error_count),
                 "file_count": str(len(documents)),
+                # ФОРК uk-locale: знімок стану дерева — за ним визначається застарілість
+                "tree_fingerprint": self._tree_fingerprint(),
             }
             connection.executemany(
                 "INSERT INTO meta(key,value) VALUES (?,?)", sorted(metadata.items())
@@ -362,12 +393,84 @@ class DocumentIndex:
                 Path(f"{temporary}{suffix}").unlink(missing_ok=True)
         return self.status()
 
+    # ФОРК uk-locale: обчислення дельти — що саме змінилося на диску.
+    # Порівнюємо (шлях, mtime_ns) дерева з тим, що записано в таблиці documents.
+    # Це дає точний перелік доданого / зміненого / видаленого без читання вмісту.
+    def _changed_paths(self, limit: int = 256) -> tuple[str, ...] | None:
+        """Повертає перелік змінених шляхів або None, якщо змін забагато для інкременту."""
+        on_disk: dict[str, int] = {}
+        for descriptor in self.config.roots:
+            if descriptor.mode is DocumentMode.HIDDEN:
+                continue
+            base = self.root / descriptor.path
+            if not base.is_dir():
+                continue
+            for dirpath, dirnames, filenames in os.walk(base):
+                dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+                for name in filenames:
+                    if name.startswith("."):
+                        continue
+                    full = Path(dirpath) / name
+                    try:
+                        info = full.stat()
+                    except OSError:
+                        continue
+                    # Файли понад ліміт індекс не бере взагалі — без цього фільтра вони
+                    # вважалися б «новими» вічно, і кожен refresh молотив би їх намарно.
+                    if info.st_size > self.config.max_file_bytes:
+                        continue
+                    on_disk[str(full.relative_to(self.root))] = info.st_mtime_ns
+        try:
+            with self._read_connection() as connection:
+                rows = connection.execute(
+                    "SELECT relative_path,mtime_ns FROM documents"
+                ).fetchall()
+        except (OSError, sqlite3.Error, DocumentIndexError, UnsafeWritePath):
+            return None
+        indexed = {str(r["relative_path"]): int(r["mtime_ns"]) for r in rows}
+
+        changed = {path for path, stamp in on_disk.items() if indexed.get(path) != stamp}
+        # Видалене визначаємо існуванням файлу, а не різницею множин: індекс тримає
+        # не лише markdown (є ще зображення), і будь-яка розбіжність у наборі розширень
+        # між обходом і індексом перетворювала б цілі теки на «вічно зниклі».
+        changed |= {path for path in indexed if not (self.root / path).exists()}
+
+        # Політика ховає частину файлів свідомо: вони на диску є, в індексі їх немає
+        # й не буде. Без фільтра вони вважалися б «доданими» вічно і щоразу ламали б
+        # інкремент помилкою «outside the visible workspace policy».
+        visible = set()
+        for path in changed:
+            try:
+                self.policy.require_visible(self.policy.decide(path).relative_path)
+            except (DocumentPolicyError, PathPolicyError, ValueError):
+                continue
+            visible.add(path)
+        changed = visible
+
+        if len(changed) > limit:
+            return None                              # завелика дельта — дешевше ребілд
+        return tuple(sorted(changed))
+
     def refresh(self, paths: tuple[str, ...] = ()) -> dict[str, Any]:
         """Refresh specified files when possible; a missing/stale DB rebuilds safely."""
 
         status = self.status()
-        if not paths or status["state"] != "current":
+        # ФОРК uk-locale: вихідна умова була круговою — інкремент дозволявся лише коли
+        # індекс «current», тобто рівно тоді, коли оновлювати нема чого. Через це будь-яка
+        # правка ззовні тягла повний ребілд. Тепер: ребілд лише коли база відсутня/зламана
+        # або змінився конфіг; в решті випадків рахуємо дельту й оновлюємо точково.
+        if status["state"] in {"missing", "error"}:
             return self.rebuild()
+        with self._read_connection() as connection:
+            if self._metadata(connection).get("config_sha256") != self.config.config_sha256:
+                return self.rebuild()
+        if not paths:
+            computed = self._changed_paths()
+            if computed is None:
+                return self.rebuild()
+            if not computed:
+                return status
+            paths = computed
         if len(paths) > 256:
             raise DocumentIndexError("Incremental refresh path count exceeds 256")
         normalized = tuple(dict.fromkeys(self.policy.decide(path).relative_path for path in paths))
@@ -428,6 +531,12 @@ class DocumentIndex:
                     "INSERT INTO meta(key,value) VALUES ('snapshot_id',?) "
                     "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                     (snapshot_id,),
+                )
+                # ФОРК uk-locale: після точкового оновлення відбиток теж свіжий
+                connection.execute(
+                    "INSERT INTO meta(key,value) VALUES ('tree_fingerprint',?) "
+                    "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (self._tree_fingerprint(),),
                 )
                 connection.execute(
                     "INSERT INTO meta(key,value) VALUES ('built_at',?) "
@@ -683,7 +792,7 @@ class DocumentIndex:
         return result
 
     def detail(
-        self, document_id: str, *, expected_snapshot_id: str | None = None
+        self, document_id: str, *, expected_snapshot_id: str | None = None, _healed: bool = False
     ) -> dict[str, Any]:
         row, snapshot = self._document_row(document_id)
         if expected_snapshot_id is not None and expected_snapshot_id != snapshot:
@@ -699,6 +808,18 @@ class DocumentIndex:
             raise DocumentIndexError("Document is missing or unsafe") from error
         digest = sha256_hex(result.data)
         if digest != str(row["content_sha256"]):
+            # ФОРК uk-locale: самолікування одного документа замість капітуляції.
+            # Файл, змінений поза застосунком (скриптом, редактором, синхроном), давав
+            # «Зріз недоступний» і вимагав перевірки цілісності всієї бібліотеки — при
+            # тисячах документів це перетворює роботу на нескінченну переіндексацію.
+            # Тут оновлюємо РІВНО цей файл (мілісекунди) і читаємо ще раз. Якщо хеш не
+            # збігся й після оновлення — це вже справжня біда, і тоді помилка доречна.
+            # Лікуємо ЛИШЕ звичайне читання. Якщо викликач передав expected_snapshot_id,
+            # він свідомо стежить за версією (редакторський потік) — там розбіжність є
+            # значущою подією, і глушити її самолікуванням не можна.
+            if not _healed and expected_snapshot_id is None:
+                self.refresh((relative,))
+                return self.detail(document_id, _healed=True)
             raise DocumentIndexError("Document changed after the current index snapshot")
         content: str | None
         line_ending: str | None

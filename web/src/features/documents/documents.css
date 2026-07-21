@@ -224,14 +224,16 @@
 .doc-task-list li { display: flex; align-items: baseline; gap: 8px; }
 .doc-task-list input { accent-color: var(--mint); }
 .doc-table-scroll { margin: 1.2em 0; overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
-.doc-table-scroll table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
-.doc-table-scroll th, .doc-table-scroll td { padding: 8px 11px; border-bottom: 1px solid var(--line-soft); text-align: left; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
-/* Розподіл колонок сценарних таблиць: перша (головна) — велика; 2–3 — менші на третину; 4–5 — вдвічі менші. */
-.doc-table-scroll th:first-child, .doc-table-scroll td:first-child { width: 40%; }
-.doc-table-scroll th:nth-child(2), .doc-table-scroll td:nth-child(2),
-.doc-table-scroll th:nth-child(3), .doc-table-scroll td:nth-child(3) { width: 20%; }
-.doc-table-scroll th:nth-child(4), .doc-table-scroll td:nth-child(4),
-.doc-table-scroll th:nth-child(5), .doc-table-scroll td:nth-child(5) { width: 10%; }
+/* Ширина колонок — за насиченістю змістом, а не за номером колонки.
+   Було: зашиті 40/20/20/10/10 «для сценарних таблиць» (S002). Правило пішло на ВСІ
+   markdown-таблиці й у картках сутностей давало зворотне до потрібного: «Коли» з одним
+   роком забирав 40 %, а колонка наслідків, де найбільше тексту, тислася в 10 % і
+   розсипалася на слово в рядок. table-layout: auto віддає ширину тому, де більше змісту. */
+.doc-table-scroll table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: auto; }
+.doc-table-scroll th, .doc-table-scroll td { padding: 8px 11px; border-bottom: 1px solid var(--line-soft); text-align: left; vertical-align: top; overflow-wrap: break-word; }
+/* nowrap на першій колонці НЕ ставимо: у сценарних таблицях там довга проза, і таблицю
+   рознесе вшир. Auto-layout сам дасть короткій колонці дат вузьку ширину. */
+.doc-table-scroll td { font-variant-numeric: tabular-nums; }
 /* HTML-таблиці з docx (складні клітинки): шануємо власні colgroup-ширини, без nth-child-хаків. */
 .doc-html-table { margin: 1.2em 0; overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
 .doc-html-table table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
