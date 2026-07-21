@@ -29,9 +29,63 @@ TAILSCALE_BIN = Path("/Applications/Tailscale.app/Contents/MacOS/Tailscale")
 WORKDIR = Path("/Users/Nemo/Writer-Lab")
 WHISPER = Path("/opt/homebrew/bin/whisper-cli")
 WHISPER_MODEL = Path.home() / ".cache/whisper.cpp/ggml-medium.bin"
+
+# Словник проєкту як початкова підказка. Whisper різко краще впізнає власні назви, коли
+# бачить їх наперед: без цього «Клод» ставав «Хайку», «Writer-Lab» — «врайтер лапом»,
+# а «Боголюбський» — чим завгодно. Тримати короткою: ліміт — половина текстового контексту.
+VOCABULARY = (
+    "Клод, Опус, Writer-Lab, raytsystem, Юрій Беденко, бібліотека, картка, сутність, "
+    "апарат розділу, конвеєр, досьє, ворота якості, аркуш рішень, шкала опори. "
+    "Кров, Камінь на роздоріжжі, Андрій Боголюбський, Вишгородська ікона, Богдан "
+    "Хмельницький, Петро Могила, Сильвестр Косів, Острог, Флорентійська унія, Третій Рим, "
+    "Золота Орда, ярлик, митрополія, Геродот, андрофаги, Катинь, Голодомор. "
+    "Tailscale, ollama, whisper, git, коміт, індекс, скрипт, промпт."
+)
 KEYCHAIN_SERVICE = "writer-lab-claude"
-# plan — пульт читає й аналізує, але не змінює файли. Правки робимо за столом, свідомо.
-PERMISSION_MODE = "plan"
+SESSION_FILE = Path.home() / ".writer-lab/pult-session"
+
+# Пульт МАЄ ПРАВО ДІЯТИ в межах бібліотеки — інакше «а давай запустимо процес» неможливе,
+# а саме заради цього він і робився. Було `plan` (читає, файлів не змінює) — звідси всі оті
+# «я не можу, я не бачу», на які Юрій справедливо нарікав.
+PERMISSION_MODE = "acceptEdits"
+
+# `acceptEdits` приймає автоматично лише ПРАВКИ ФАЙЛІВ. Кожна команда в Bash упирається
+# в запит дозволу — а біля телефона нікого немає, щоб його підтвердити, і запит повертається
+# як відмова. У транскрипті це видно прямо: «Approve only if you trust it» замість результату.
+# Тому Bash дозволяємо явно; заборони нижче однаково мають перевагу.
+ALLOWED = ["Bash"]
+
+# Межа проходить не по режиму, а по переліку заборон. Дозволено правити картки, запускати
+# скрипти, збирати апарат, комітити локально. Заборонено те, що виходить назовні або
+# незворотне: коло пульта нікого немає, щоб зупинити помилку.
+FORBIDDEN = [
+    "Bash(git push:*)",       # назовні — тільки за столом
+    "Bash(rm:*)",             # видалення незворотне; для карантину є _trash/
+    "Bash(rmdir:*)",
+    "Bash(sudo:*)",
+    "Bash(security:*)",       # сховище ключів
+    "Bash(launchctl:*)",      # системні служби
+]
+
+# Пульт стартує НЕ з порожньою головою: читає той самий брифінг, що й сесія за столом.
+# Без цього Юрій говорить не з нами, а з випадковим інтелектом, який нічого не знає
+# про роботу — саме на це він і нарікав після першого тесту.
+BRIEFING = """Ти — Claude Code у бібліотеці Writer-Lab, на зв'язку з Юрієм через голосовий пульт.
+Він не за комп'ютером: відповідай стисло, по суті, без довгих лістингів.
+
+ПЕРЕД ПЕРШОЮ ВІДПОВІДДЮ прочитай, у цьому порядку:
+  Library/VAULT-INDEX.md
+  Library/90-Meta/sessions/KNOWN-ISSUES.md
+  Library/90-Meta/sessions/session-wip.md
+  останній Library/90-Meta/sessions/HANDOFF_S*.md
+Далі говори як людина, що в курсі справ, а не як довідкова служба.
+
+Ти МАЄШ ПРАВО діяти: правити картки, запускати скрипти, збирати апарат, комітити локально.
+Не можеш: пушити, видаляти файли, чіпати сховище ключів і системні служби.
+Що зробив — дописуй у Library/90-Meta/sessions/session-wip.md, щоб сесія за столом побачила.
+
+Питання Юрія:
+"""
 
 app = FastAPI(title="Голосовий пульт")
 
@@ -72,7 +126,11 @@ async def listen(audio: UploadFile = File(...)) -> JSONResponse:
         if not wav.is_file():
             return JSONResponse(status_code=400, content={"error": "Не вдалось прочитати запис.", "detail": convert.stderr[-300:]})
         heard = subprocess.run(
-            [str(WHISPER), "-m", str(WHISPER_MODEL), "-l", "uk", "-nt", "-f", str(wav)],
+            [str(WHISPER), "-m", str(WHISPER_MODEL), "-l", "uk", "-nt",
+             "--prompt", VOCABULARY,      # словник проєкту — головний важіль точності
+             "--carry-initial-prompt",    # тримати його на всіх шматках, а не лише на першому
+             "-bs", "8", "-bo", "8",      # ширший пошук: повільніше, але точніше на власних назвах
+             "-f", str(wav)],
             capture_output=True, text=True, timeout=600,
         )
     text = " ".join(line.strip() for line in heard.stdout.splitlines() if line.strip())
@@ -86,9 +144,12 @@ async def ask(text: str = Form(...), session: str = Form("")) -> StreamingRespon
     Чекати мовчки кілька хвилин на телефоні нестерпно, тому віддаємо кожен шматок одразу.
     MCP-сервери вимкнені (--strict-mcp-config): пульту вони не потрібні, а на старті коштують часу.
     """
+    # Брифінг — лише на першому запиті нитки; далі контекст уже всередині розмови.
     command = [
-        "claude", "-p", text,
+        "claude", "-p", (text if session else BRIEFING + text),
         "--permission-mode", PERMISSION_MODE,
+        "--allowedTools", *ALLOWED,
+        "--disallowedTools", *FORBIDDEN,
         "--strict-mcp-config",
         "--output-format", "stream-json",
         "--verbose",
@@ -121,6 +182,14 @@ async def ask(text: str = Form(...), session: str = Form("")) -> StreamingRespon
                     elif block.get("type") == "tool_use":
                         yield json.dumps({"step": block.get("name", "")}, ensure_ascii=False) + "\n"
             elif kind == "result":
+                # Нитка живе між перезапусками пульта: без цього кожне відкриття сторінки
+                # з телефона починало розмову з нуля, і брифінг читався б щоразу заново.
+                if event.get("session_id"):
+                    try:
+                        SESSION_FILE.parent.mkdir(parents=True, exist_ok=True)
+                        SESSION_FILE.write_text(event["session_id"], encoding="utf-8")
+                    except OSError:
+                        pass
                 if not spoke and event.get("result"):
                     yield json.dumps({"delta": event["result"]}, ensure_ascii=False) + "\n"
                 if event.get("session_id"):
@@ -171,6 +240,8 @@ PAGE = """
 const mic=document.getElementById('mic'), text=document.getElementById('text'),
       answer=document.getElementById('answer'), send=document.getElementById('send');
 let recorder, chunks=[], session='';
+// Підхоплюємо нитку, збережену на сервері: розмова триває між відкриттями сторінки.
+fetch('/session').then(r=>r.json()).then(d=>{ if(d.session) session=d.session; }).catch(()=>{});
 // Стану окремим рядком не показуємо — його видно по самій кнопці й по полю відповіді.
 const label = s => mic.textContent = s;
 
@@ -242,6 +313,15 @@ send.onclick = async () => {
 };
 </script>
 """
+
+
+@app.get("/session")
+async def current_session() -> JSONResponse:
+    """Нитка розмови, збережена на диску: сторінка підхоплює її після перезавантаження."""
+    try:
+        return JSONResponse({"session": SESSION_FILE.read_text(encoding="utf-8").strip()})
+    except OSError:
+        return JSONResponse({"session": ""})
 
 
 @app.get("/", response_class=HTMLResponse)
