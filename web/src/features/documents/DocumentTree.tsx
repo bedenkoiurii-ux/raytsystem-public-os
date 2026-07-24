@@ -285,7 +285,14 @@ function flattenTree(folder: TreeFolder, expanded: ReadonlySet<string>, versions
     entries.push({ id: child.id, type: "folder", name: child.name, depth, parentId, expanded: isExpanded, folder: child, count: countDocuments(child) });
     if (isExpanded) entries.push(...flattenTree(child, expanded, versionsFor, versionChildIds, materialChildIds, depth + 1, child.id));
   }
-  for (const document of [...folder.documents].sort((a, b) => a.filename.localeCompare(b.filename, "uk-UA"))) {
+  // Документи в теці: спершу за layout-порядком (order з frontmatter), тоді за назвою.
+  // Так послідовності (хроніки за часом, редактура за номером розділу) читаються
+  // за своїм принципом, а не за абеткою. Без order — усе як було, за назвою.
+  const docOrder = (d: DocumentSummary) =>
+    typeof d.properties?.order === "number" ? (d.properties.order as number) : Number.POSITIVE_INFINITY;
+  for (const document of [...folder.documents].sort(
+    (a, b) => docOrder(a) - docOrder(b) || a.filename.localeCompare(b.filename, "uk-UA"),
+  )) {
     emitDocument(document, depth, parentId, versionsFor, versionChildIds, materialChildIds, expanded, entries);
   }
   return entries;
