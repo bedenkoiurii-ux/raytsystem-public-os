@@ -23,8 +23,10 @@ PIDF = Path.home() / ".writer-lab/karty-loop.pid"
 DONE = Path.home() / ".writer-lab/karty.done"
 OUT = Path.home() / ".writer-lab/karty-status.html"
 
-# Порядок роботи за наказом (жорсткий)
-ORDER = ["09","11","12","13","14","15","16","17","18","19","01","02","03","04","05","06","07","10"]
+# Робоча послідовність за наказом (жорстка) — драйвить «поточний»
+WORK_ORDER = ["09","11","12","13","14","15","16","17","18","19","01","02","03","04","05","06","07","10"]
+# 08 закрито до появи практики зведень — у робочому порядку його немає, але на
+# дашборді показуємо ВСІ розділи (щоб нічого не «випадало»).
 
 
 def sh(*a) -> str:
@@ -64,14 +66,21 @@ def closed_chapters() -> set[str]:
 
 
 def current_chapter(closed: set[str], alive: bool) -> str | None:
-    # Детерміновано: коли цикл живий, поточний = перший незакритий за порядком
-    # наказу. Надійніше за парсинг логу (claude -p буферизує вивід до кінця).
+    # Детерміновано: коли цикл живий, поточний = перший незакритий за робочим
+    # порядком наказу. Надійніше за парсинг логу (claude -p буферизує вивід).
     if not alive:
         return None
-    for c in ORDER:
+    for c in WORK_ORDER:
         if c not in closed:
             return c
     return None
+
+
+def display_order(titles: dict[str, str]) -> list[str]:
+    # Показуємо ВСІ розділи, що існують як файли, у числовому порядку 01…19 —
+    # щоб жоден (як-от 08) не «випадав» лише тому, що його немає в WORK_ORDER.
+    nums = set(titles) | set(WORK_ORDER)
+    return sorted(nums, key=lambda x: int(x))
 
 
 def counts() -> tuple[int, int]:
@@ -142,9 +151,10 @@ def render() -> str:
         loop_pill = ('rose', 'зупинено')
 
     # плитки статів
-    n_closed = len([c for c in ORDER if c in closed])
+    disp = display_order(titles)
+    n_closed = len([c for c in disp if c in closed])
     stats = [
-        ("розділів закрито", f"{n_closed}/{len(ORDER)}", 'mint'),
+        ("розділів закрито", f"{n_closed}/{len(disp)}", 'mint'),
         ("картки до стандарту", str(enr), 'cyan'),
         ("старих лишилось", str(linked), 'gold' if linked else 'mint'),
         ("черга-питань", str(qopen), 'gold' if qopen else 'mint'),
@@ -154,14 +164,17 @@ def render() -> str:
         f'<div class="tile"><div class="tile-v" style="color:var(--{c})">{esc(v)}</div>'
         f'<div class="tile-k">{esc(k)}</div></div>' for k, v, c in stats)
 
-    # дошка розділів
+    # дошка розділів — усі, числовим порядком
     rows = []
-    for c in ORDER:
+    for c in disp:
         title = titles.get(c, "—")
         if c in closed:
             st, lbl, dot = 'mint', 'закрито', '●'
         elif c == cur and alive:
             st, lbl, dot = 'gold', 'у роботі', '◐'
+        elif c not in WORK_ORDER:
+            # 08: закрито до появи практики зведень — картки є, редакційного нема
+            st, lbl, dot = 'cyan', 'картки є · без зведення', '◍'
         else:
             st, lbl, dot = 'muted-2', 'чекає', '○'
         cls = "chap cur" if (c == cur and alive) else "chap"
@@ -228,7 +241,7 @@ h1{{font-family:var(--sans);font-size:26px;font-weight:650;margin:.15em 0 0;lett
   <div class="pill" style="color:var(--{lp_col})"><span class="b"></span>{esc(lp_txt)}</div>
  </div>
  <div class="stats">{stat_html}</div>
- <div class="section"><div class="label">Порядок розділів · 09 → 19 → 01–07 → 10</div>
+ <div class="section"><div class="label">Розділи 01–19 · робочий порядок 09→19→01–07→10</div>
   <div class="board">{chap_html}</div></div>
  <div class="cols">
   <div class="section"><div class="label">Останні коміти</div><div class="panel">{commit_html}</div></div>
