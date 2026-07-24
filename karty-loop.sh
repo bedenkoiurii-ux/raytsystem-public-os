@@ -36,7 +36,12 @@ FORBIDDEN=(
   "Bash(rm:*)" "Bash(rmdir:*)"
   "Bash(sudo:*)" "Bash(security:*)" "Bash(launchctl:*)"
 )
-ALLOWED=(Bash WebFetch WebSearch)   # правки файлів ідуть авто через acceptEdits
+# Дворівневість (рішення Юрія 2026-07-24): збір фактів — дешевими субагентами
+# (haiku), аналіз і письмо — топ-модель. Тому `Agent` у дозволених: диригент
+# спавнить збирачів фактів, і фетч-важка рутина йде в їхній дешевий контекст,
+# а не в контекст Opus. WebFetch/WebSearch/Bash лишаються — ними користуються
+# й субагенти. Правки файлів ідуть авто через acceptEdits.
+ALLOWED=(Bash WebFetch WebSearch Agent)
 
 token() { security find-generic-password -a "$USER" -s "$KEYCHAIN_SERVICE" -w 2>/dev/null || true; }
 
