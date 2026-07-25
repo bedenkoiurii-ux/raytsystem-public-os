@@ -17,12 +17,16 @@ interface DocumentPeekProps {
   onClose: () => void;
   onOpenFull: (documentId: string, heading?: string) => void;
   onOpenLink: (index: number, documentId: string, heading?: string) => void;
+  /** Світлий «аркуш» — той самий режим, що й в основному полі: картка не має
+      бути темною поруч зі світлим документом. */
+  sheetLight?: boolean;
+  sheetTone?: string;
 }
 
 // Каскадна картка-колонка. Клік по вікілінку ВСЕРЕДИНІ додає наступну колонку праворуч (onOpenLink),
 // тож сторінка → картка 1 → картка 2 → … Стрілки ←/→ згортають/розгортають каскад (повернутися до
 // попередніх карток аж до першої). Кожна картка сама фетчить свій документ — незалежна.
-export function DocumentPeek({ documentId, heading, index, snapshotId, showNav = false, canBack = false, canForward = false, onBack, onForward, onClose, onOpenFull, onOpenLink }: DocumentPeekProps) {
+export function DocumentPeek({ documentId, heading, index, snapshotId, showNav = false, canBack = false, canForward = false, onBack, onForward, onClose, onOpenFull, onOpenLink, sheetLight = false, sheetTone }: DocumentPeekProps) {
   const detail = useDocumentDetail(documentId, snapshotId);
   const links = useDocumentLinks(documentId, snapshotId);
   const doc = detail.data;
@@ -34,7 +38,7 @@ export function DocumentPeek({ documentId, heading, index, snapshotId, showNav =
   };
 
   return (
-    <aside className="doc-peek" aria-label={`Картка ${index + 1}`}>
+    <aside className={`doc-peek${sheetLight ? " sheet-light" : ""}`} data-sheet-tone={sheetLight ? sheetTone : undefined} aria-label={`Картка ${index + 1}`}>
       <header className="doc-peek-head">
         {showNav ? (
           <div className="doc-peek-nav" role="group" aria-label="Навігація в картці">

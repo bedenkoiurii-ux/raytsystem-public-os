@@ -1221,26 +1221,37 @@ button.table-row:hover { background: var(--surface-2); color: var(--bone); }
 .sheet-light-toggle[aria-pressed="true"] { background: var(--carbon-soft); color: var(--gold); }
 .sheet-tone-select { font-size: 11.5px; background: transparent; color: var(--muted); border: 1px solid var(--line, rgba(255,255,255,.14)); border-radius: 7px; padding: 3px 6px; margin-left: 4px; }
 /* Перемапування дизайн-токенів усередині аркуша: успадковується всім вмістом */
-.document-content.sheet-light {
+/* Скоуп аркуша: основне поле І peek-панель картки — щоб читання не розпадалося
+   на два світи (світлий документ / темна картка поруч). */
+:is(.document-content, .doc-peek).sheet-light {
   --sheet-paper: #fbfaf5; --sheet-desk: #efede6;           /* типово: теплий папір */
   --bone: #17140e; --muted: #33312b; --carbon-soft: #e9e6dc;
   --cyan: #1a56a0; --gold: #6d5a10;
   background: var(--sheet-desk);
 }
-.document-content.sheet-light[data-sheet-tone="white"] { --sheet-paper: #ffffff; --sheet-desk: #ececec; }
-.document-content.sheet-light[data-sheet-tone="sepia"] { --sheet-paper: #f7efdc; --sheet-desk: #e9dfc7; --bone: #241c0d; --muted: #3d3420; }
-.document-content.sheet-light .safe-markdown,
-.document-content.sheet-light .milkdown {
+:is(.document-content, .doc-peek).sheet-light[data-sheet-tone="white"] { --sheet-paper: #ffffff; --sheet-desk: #ececec; }
+:is(.document-content, .doc-peek).sheet-light[data-sheet-tone="sepia"] { --sheet-paper: #f7efdc; --sheet-desk: #e9dfc7; --bone: #241c0d; --muted: #3d3420; }
+:is(.document-content, .doc-peek).sheet-light .safe-markdown,
+:is(.document-content, .doc-peek).sheet-light .milkdown {
   background: var(--sheet-paper); color: var(--muted);
   max-width: 860px; margin: 18px auto 40px; border-radius: 6px;
   box-shadow: 0 10px 44px rgba(0,0,0,.35); border: 1px solid rgba(0,0,0,.07);
 }
 .document-content.sheet-light .safe-markdown { padding: 52px 60px; font-size: 15px; }
 .document-content.sheet-light .milkdown .editor { padding: 52px 60px; }
-.document-content.sheet-light .doc-wikilink { color: var(--cyan); border-bottom: 1px dotted var(--cyan); background: none; }
-.document-content.sheet-light .doc-frontmatter,
-.document-content.sheet-light .doc-code-block { background: var(--carbon-soft); color: var(--muted); border: 1px solid rgba(0,0,0,.08); }
-.document-content.sheet-light .safe-markdown blockquote { background: rgba(26,86,160,.07); border-left-color: var(--cyan); }
+:is(.document-content, .doc-peek).sheet-light .doc-wikilink { color: var(--cyan); border-bottom: 1px dotted var(--cyan); background: none; }
+:is(.document-content, .doc-peek).sheet-light .doc-frontmatter,
+:is(.document-content, .doc-peek).sheet-light .doc-code-block { background: var(--carbon-soft); color: var(--muted); border: 1px solid rgba(0,0,0,.08); }
+:is(.document-content, .doc-peek).sheet-light .safe-markdown blockquote { background: rgba(26,86,160,.07); border-left-color: var(--cyan); }
+
+/* Peek — вузька колонка: аркуш на всю ширину панелі, поля менші за А4-читалку,
+   а шапка/кнопки картки йдуть у тон паперу, щоб панель була цілісною. */
+.doc-peek.sheet-light { border-left-color: rgba(0,0,0,.10); }
+.doc-peek.sheet-light .doc-peek-head { background: var(--sheet-desk); border-bottom-color: rgba(0,0,0,.10); color: var(--bone); }
+.doc-peek.sheet-light .doc-peek-head button { color: var(--muted); border-color: rgba(0,0,0,.14); }
+.doc-peek.sheet-light .doc-peek-head button:hover:not(:disabled) { background: rgba(0,0,0,.06); }
+.doc-peek.sheet-light .doc-peek-body { background: var(--sheet-desk); }
+.doc-peek.sheet-light .safe-markdown { max-width: none; margin: 10px 0 24px; padding: 30px 32px; font-size: 14.5px; box-shadow: 0 6px 24px rgba(0,0,0,.22); }
 /* Формат сторінки читалки: А4 вертикальний (типово) / А4 горизонтальний / вільний (на всю ширину).
    Для сценаріїв і широких таблиць вертикальний А4 тісний — тут розширюємо аркуш. */
 .sheet-format-select { font-size: 11.5px; background: transparent; color: var(--muted); border: 1px solid var(--line, rgba(255,255,255,.14)); border-radius: 7px; padding: 3px 6px; margin-left: 4px; }
