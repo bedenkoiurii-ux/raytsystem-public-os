@@ -7,7 +7,7 @@
 # спершу другий рівень фільму «Катинь», тоді решта.
 #
 # ВЖИВАННЯ:
-#   ./apparat-loop.sh старт | стоп | стан | лог | раз
+#   ./apparat-loop.sh старт | стоп | стан | лог | раз | злити
 #
 # МЕЖІ ті самі: acceptEdits, Bash/фетч/Agent дозволені, push/rm/rmdir/sudo/
 # security/launchctl заборонені. Коміти локальні; назовні — ніколи.
@@ -15,7 +15,12 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VAULT="$HOME/Writer-Lab/Library"
+# Конвеєр працює в ОКРЕМОМУ git-worktree, а не в каталозі, який читає застосунок:
+# інакше кожен його запис зсуває «перевірений стан» під ногами читача і в застосунку
+# вискакує «Зріз недоступний». Готове зливаємо пачкою: ./apparat-loop.sh злити
+VAULT="$HOME/Writer-Lab/.apparat-work"
+MAIN="$HOME/Writer-Lab/Library"
+BRANCH="apparat-wave2"
 WORKLIST="$HOME/.writer-lab/apparat-worklist.txt"
 PROMPT='працюй за НАКАЗ-апарату.md. Безголовий прогін: доведи ОДНУ картку апарату з ~/.writer-lab/apparat-worklist.txt (перша, що ще не enriched) до стандарту — card_prep → haiku збирає факти → ти пишеш за kartky → ворота card_order → локальний коміт — і заверши відповідь. Стан бери з git і статусів карток, не з памʼяті. Коли всі картки worklist стали enriched — `touch "$HOME/.writer-lab/apparat.done"` і напиши, що готово.'
 
@@ -90,5 +95,10 @@ case "${1:-}" in
     [ -f "$WORKLIST" ] && echo "у worklist: $(wc -l <"$WORKLIST" | tr -d ' ') карток"
     [ -f "$LOG" ] && { echo "--- останнє з логу ---"; tail -6 "$LOG"; } ;;
   лог|log) tail -f "$LOG" ;;
-  *) echo "вживання: $0 {старт|стоп|стан|лог|раз}"; exit 1 ;;
+  злити|merge)                                # перенести напрацьоване в основний каталог
+    n=$(cd "$VAULT" && git rev-list --count "main..$BRANCH" 2>/dev/null || echo 0)
+    if [ "$n" = "0" ]; then echo "нема чого зливати"; exit 0; fi
+    echo "зливаю $n комітів з $BRANCH у main…"
+    ( cd "$MAIN" && git merge --no-edit "$BRANCH" ) && echo "злито. Перезапусти застосунок, щоб побачити." ;;
+  *) echo "вживання: $0 {старт|стоп|стан|лог|раз|злити}"; exit 1 ;;
 esac
