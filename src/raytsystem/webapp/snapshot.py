@@ -67,8 +67,19 @@ class SnapshotProvider:
             self._cached = None
             self._cached_at = 0.0
 
+    # Скільки разів пробувати зняти узгоджений зріз. Три спроби поспіль розраховані
+    # на миттєву гонку; але коли поруч працює фоновий конвеєр карток, він переписує
+    # файли пачками, і три спроби без пауз стабільно не встигають у тихе вікно —
+    # користувач бачить «Зріз недоступний» просто читаючи документ (підтверджено
+    # наживо 2026-07-25). Інваріант не послаблено: кожна спроба й далі вимагає
+    # повної узгодженості, ми лише чекаємо, доки запис осяде.
+    _CAPTURE_ATTEMPTS = 12
+    _CAPTURE_BACKOFF_SECONDS = 0.15
+
     def _load_consistent(self) -> ReadSnapshot:
-        for _ in range(3):
+        for attempt in range(self._CAPTURE_ATTEMPTS):
+            if attempt:
+                time.sleep(self._CAPTURE_BACKOFF_SECONDS)
             corpus = ActiveCorpus.load(self.root, verify_evidence=True)
             tasks = TaskService(self.root).snapshot()
             catalog = CatalogService(self.root).load()
