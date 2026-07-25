@@ -233,6 +233,26 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
   const [visualBlocked, setVisualBlocked] = useState<Record<string, boolean>>({});
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(restoreFavorites);
   const [pendingTabClose, setPendingTabClose] = useState<{ kind: "one" | "others"; documentId: string; label: string } | null>(null);
+  // Вирівнювання карток по документу: висоту шапки стейджа (вкладки + заголовок +
+  // панель режимів) НЕ вгадуємо константою — міряємо в рантаймі й віддаємо в CSS.
+  // Так тіло картки завжди починається рівно там, де тіло документа, хоч би як
+  // змінилися шрифт, масштаб чи кількість рядків у заголовку.
+  const canvasRef = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const measure = () => {
+      const content = canvas.querySelector(".document-content");
+      if (!content) return;
+      const offset = Math.round(content.getBoundingClientRect().top - canvas.getBoundingClientRect().top);
+      if (offset > 0) canvas.style.setProperty("--stage-head-h", `${offset}px`);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  });
+
   const initializedRoute = useRef(false);
   const workspaceRef = useRef(workspace);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -709,7 +729,7 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
           <footer aria-live="polite"><span>{documents.length} показано</span><span>{index?.last_refresh_at ? `оновлено ${new Date(index.last_refresh_at).toLocaleTimeString("uk-UA", { hour: "2-digit", minute: "2-digit" })}` : "ще не оновлювався"}</span></footer>
         </aside>
 
-        <div className="doc-canvas" style={{ ["--doc-font-scale" as string]: String(fontScale) }}>
+        <div className="doc-canvas" ref={canvasRef} style={{ ["--doc-font-scale" as string]: String(fontScale) }}>
         <section className="documents-workspace" id="document-workbench" role="tabpanel" aria-label="Відкритий документ" inert={workspace.mobileDrawer ? true : undefined}>
           <DocumentTabs tabs={workspace.tabs} activeDocumentId={activeId} canReopen={workspace.recentlyClosed.length > 0} onActivate={(documentId) => dispatch({ type: "activate", documentId })} onClose={closeTab} onCloseOthers={closeOthers} onPin={(documentId) => dispatch({ type: "pin", documentId })} onReopen={() => dispatch({ type: "reopen" })} />
           {!activeId ? <EmptyState title="Відкрийте документ" action={<button type="button" className="primary-button" onClick={() => setAction("create")} disabled={!roots.some((root) => root.writable)}>Новий документ</button>}>Виберіть файл ліворуч або знайдіть його за назвою, вмістом, тегами й властивостями.</EmptyState> : detail.isError && !activeDraft ? <ErrorState error={detail.error} onRetry={() => void detail.refetch()} /> : !activeDraft ? <LoadingState label="Відкриваємо активний документ…" /> : activeTab && activeDraft ? (
