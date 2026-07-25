@@ -57,6 +57,16 @@ def create_document_router(
     history = DocumentHistory(resolved_root, index=index)
     projection_lock = threading.RLock()
 
+    def _recover_index() -> None:
+        # Освіжити протухлий індекс під тим самим локом, що й записи-проєкції, щоб
+        # авто-відновлення читання не гналося з ручним refresh/rebuild.
+        with projection_lock:
+            index.refresh()
+
+    def _read_i(callback: Callable[[], dict[str, Any]]) -> Any:
+        # Читання з авто-відновленням зрізу (див. _read).
+        return _read(callback, recover=_recover_index)
+
     def idempotent_projection(
         *,
         operation: str,
@@ -95,7 +105,7 @@ def create_document_router(
         document_ids: Annotated[list[str] | None, Query()] = None,
         sort: str = "modified_desc",
     ) -> Any:
-        return _read(
+        return _read_i(
             lambda: index.list_documents(
                 limit=limit,
                 cursor=cursor,
@@ -122,7 +132,7 @@ def create_document_router(
         tag: str | None = None,
         sort: str = "modified_desc",
     ) -> Any:
-        return _read(
+        return _read_i(
             lambda: index.search(
                 q,
                 limit=limit,
@@ -143,7 +153,7 @@ def create_document_router(
         limit: Annotated[int | None, Query(ge=1, le=200)] = None,
         cursor: str | None = None,
     ) -> Any:
-        return _read(lambda: index.recent(kind=kind, limit=limit, cursor=cursor))
+        return _read_i(lambda: index.recent(kind=kind, limit=limit, cursor=cursor))
 
     @router.get("/documents/index")
     def document_index(
@@ -277,7 +287,7 @@ def create_document_router(
         limit: Annotated[int, Query(ge=1, le=500)] = 200,
         cursor: str | None = None,
     ) -> Any:
-        return _read(
+        return _read_i(
             lambda: index.folders(
                 root_id=root_id,
                 parent_path=parent_path,
@@ -292,7 +302,7 @@ def create_document_router(
         _session: Annotated[Any, Depends(require_session)],
         expected_snapshot_id: str | None = None,
     ) -> Any:
-        return _read(lambda: index.detail(document_id, expected_snapshot_id=expected_snapshot_id))
+        return _read_i(lambda: index.detail(document_id, expected_snapshot_id=expected_snapshot_id))
 
     @router.get("/documents/{document_id}/links")
     def document_links(
@@ -302,7 +312,7 @@ def create_document_router(
         limit: Annotated[int, Query(ge=1, le=2000)] = 500,
         cursor: str | None = None,
     ) -> Any:
-        return _read(
+        return _read_i(
             lambda: index.links(
                 document_id,
                 expected_snapshot_id=expected_snapshot_id,
@@ -319,7 +329,7 @@ def create_document_router(
         limit: Annotated[int, Query(ge=1, le=2000)] = 500,
         cursor: str | None = None,
     ) -> Any:
-        return _read(
+        return _read_i(
             lambda: index.links(
                 document_id,
                 backlinks=True,
@@ -337,7 +347,7 @@ def create_document_router(
         limit: Annotated[int, Query(ge=1, le=200)] = 100,
         cursor: str | None = None,
     ) -> Any:
-        return _read(
+        return _read_i(
             lambda: history.list(
                 document_id,
                 expected_snapshot_id=expected_snapshot_id,
@@ -353,7 +363,7 @@ def create_document_router(
         _session: Annotated[Any, Depends(require_session)],
         expected_snapshot_id: str | None = None,
     ) -> Any:
-        return _read(
+        return _read_i(
             lambda: history.detail(
                 document_id,
                 history_id,
@@ -368,7 +378,7 @@ def create_document_router(
         max_nodes: Annotated[int, Query(ge=1, le=500)] = 250,
         max_edges: Annotated[int, Query(ge=1, le=2000)] = 500,
     ) -> Any:
-        return _read(
+        return _read_i(
             lambda: index.focused_graph(document_id, max_nodes=max_nodes, max_edges=max_edges)
         )
 
@@ -513,7 +523,10 @@ def _degraded_router(
     return router
 
 
-def _read(callback: Callable[[], dict[str, Any]]) -> Any:
+def _read(
+    callback: Callable[[], dict[str, Any]],
+    recover: Callable[[], None] | None = None,
+) -> Any:
     try:
         return callback()
     except DocumentNotFound:
@@ -536,6 +549,17 @@ def _read(callback: Callable[[], dict[str, Any]]) -> Any:
                 },
                 headers={"Cache-Control": "no-store", "Retry-After": "1"},
             )
+        # Авто-відновлення зрізу: індекс протух (фоновий конвеєр переписав файли й
+        # зсунув docsnap). Замість «Зріз недоступний» — освіжаємо індекс і читаємо
+        # ще раз. recover() робить той самий інкрементний refresh, що й кнопка
+        # «перевірка цілісності», під локом. Повтор — БЕЗ recover, щоб один refresh
+        # був верхньою межею (як і раніше стало → 409, тільки тепер після спроби).
+        if recover is not None and str(error) == "Document index is stale":
+            try:
+                recover()
+            except Exception:
+                return _error(409, "document_index_stale", str(error))
+            return _read_i(callback)
         return _error(409, "document_index_stale", str(error))
 
 
