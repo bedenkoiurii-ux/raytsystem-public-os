@@ -24,7 +24,7 @@ import {
   Sun,
   Wrench,
   X
-} from "lucide-react";
+, Inbox} from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import brandWordmarkUrl from "../assets/brand-wordmark.svg";
 import { shortId } from "../api";
@@ -40,6 +40,7 @@ import { Context } from "../features/CatalogViews";
 import { AgentsSurface } from "../features/AgentsSurface";
 import { CommandCenter } from "../features/CommandCenter";
 import { Documents } from "../features/documents/Documents";
+import { Reception } from "../features/Reception";
 import { Handbook } from "../features/Handbook";
 import { Onboarding } from "../features/Onboarding";
 import { Runs } from "../features/Runs";
@@ -57,6 +58,7 @@ const routeMeta: Record<RouteKey, { label: string; description: string; icon: ty
   "command-center": { ...routeCopy["command-center"], icon: LayoutDashboard },
   handbook: { ...routeCopy.handbook, icon: BookOpen },
   documents: { ...routeCopy.documents, icon: Files },
+  reception: { ...routeCopy.reception, icon: Inbox },
   onboarding: { ...routeCopy.onboarding, icon: PlugZap },
   tasks: { ...routeCopy.tasks, icon: ListTodo },
   universe: { ...routeCopy.universe, icon: Orbit },
@@ -320,6 +322,7 @@ export function App() {
       case "handbook": return <Handbook />;
       case "onboarding": return <Onboarding />;
       case "documents": return <Documents onShowInGraph={showDocumentInGraph} />;
+      case "reception": return <Reception />;
       case "tasks": return <Tasks createOpen={createTaskOpen} onCreateOpenChange={setCreateTaskOpenWithFocus} onSelect={setSelection} />;
       case "universe": return <Universe theme={theme} selectedId={selection?.id ?? null} focusedDocumentId={universeDocumentId} onSelect={setSelection} onClear={() => setSelection(null)} />;
       case "timeline": return <Timeline onOpenDocument={navigateToDocument} />;

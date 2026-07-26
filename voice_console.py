@@ -16,8 +16,10 @@ from __future__ import annotations
 import ipaddress
 import json
 import os
+import re
 import subprocess
 import tempfile
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, UploadFile, File, Form
@@ -43,6 +45,24 @@ VOCABULARY = (
 )
 KEYCHAIN_SERVICE = "writer-lab-claude"
 SESSION_FILE = Path.home() / ".writer-lab/pult-session"
+
+# ── Стан справ ────────────────────────────────────────────────────────────────
+# Другий екран НЕ питає Claude. Питання коштує 1–3 хвилини й токени, а вимога
+# «актуальне щоразу, коли відкриваю» вимагає майже миттєвості. Усі потрібні факти
+# вже лежать на диску — pid-файли, логи, git — і читаються за ~100 мс.
+STATE_DIR = Path.home() / ".writer-lab"
+VAULT = WORKDIR / "Library"
+WAVE_BRANCH = "apparat-wave2"          # гілка конвеєра; глибина хвилі = скільки чекає на злиття
+HERE = Path(__file__).resolve().parent
+CLAUDE_PROJECTS = Path.home() / ".claude/projects"
+
+#         ярлик      скрипт              pid-файл            лог                 сентинел        черга
+LOOPS = [
+    ("Апарат", "apparat-loop.sh", "apparat-loop.pid", "apparat-loop.log", "apparat.done", "apparat-worklist.txt"),
+    ("Картки", "karty-loop.sh",   "karty-loop.pid",   "karty-loop.log",   "karty.done",   None),
+]
+LOOP_SCRIPTS = {script for _, script, *_ in LOOPS}
+LOOP_ACTIONS = {"старт", "стоп"}
 
 # Пульт МАЄ ПРАВО ДІЯТИ в межах бібліотеки — інакше «а давай запустимо процес» неможливе,
 # а саме заради цього він і робився. Було `plan` (читає, файлів не змінює) — звідси всі оті
@@ -117,6 +137,146 @@ async def only_local_or_tailnet(request, call_next):
     return await call_next(request)
 
 
+def _alive(pid_file: str) -> bool:
+    """Чи живий процес за pid-файлом. Сам файл лишається й після падіння — вірити лише сигналу."""
+    try:
+        pid = int((STATE_DIR / pid_file).read_text().strip())
+        os.kill(pid, 0)
+    except (OSError, ValueError):
+        return False
+    return True
+
+
+def _tail_text(path: Path, limit: int = 65536) -> str:
+    """Хвіст файлу без читання всього: логи ростуть до сотень кілобайт, а опитування часте."""
+    try:
+        with path.open("rb") as handle:
+            handle.seek(0, os.SEEK_END)
+            handle.seek(max(0, handle.tell() - limit))
+            return handle.read().decode("utf-8", "replace")
+    except OSError:
+        return ""
+
+
+def _git(*args: str) -> str:
+    try:
+        done = subprocess.run(["git", "-C", str(VAULT), *args], capture_output=True, text=True, timeout=5)
+        return done.stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def _loop_state(label: str, script: str, pid_file: str, log_file: str, done_file: str, worklist: str | None) -> dict:
+    tail = _tail_text(STATE_DIR / log_file)
+    lines = [line.strip() for line in tail.splitlines() if line.strip()]
+    notes = []
+    runs = re.findall(r"прогін #(\d+)", tail)
+    if runs:
+        notes.append(f"прогін #{runs[-1]}")
+    if worklist:
+        try:
+            queued = len([l for l in (STATE_DIR / worklist).read_text(encoding="utf-8").splitlines() if l.strip()])
+            notes.append(f"{queued} у черзі")
+        except OSError:
+            pass
+    if (STATE_DIR / done_file).exists():
+        notes.append("сентинел: доведено")
+    return {
+        "label": label,
+        "script": script,
+        "alive": _alive(pid_file),
+        "note": " · ".join(notes) or "ще не запускався",
+        "last": lines[-1][:160] if lines else "",
+    }
+
+
+@app.get("/state")
+async def state() -> JSONResponse:
+    """Дешевий зріз стану — лише локальні файли й git, без звернення до Claude."""
+    try:
+        wave = int(_git("rev-list", "--count", f"main..{WAVE_BRANCH}") or 0)
+    except ValueError:
+        wave = 0
+    wip = VAULT / "90-Meta/sessions/session-wip.md"
+    return JSONResponse({
+        "at": datetime.now().strftime("%H:%M"),
+        "loops": [_loop_state(*loop) for loop in LOOPS],
+        "wave": wave,
+        "commits": _git("log", "-4", "--format=%h  %s").splitlines(),
+        "wip": datetime.fromtimestamp(wip.stat().st_mtime).strftime("%d.%m %H:%M") if wip.exists() else "",
+    })
+
+
+@app.post("/loop")
+async def loop_control(script: str = Form(...), action: str = Form(...)) -> JSONResponse:
+    """Старт/стоп конвеєра з телефона. Білий список — єдина перепона, тож він тут жорсткий."""
+    if script not in LOOP_SCRIPTS or action not in LOOP_ACTIONS:
+        return JSONResponse(status_code=400, content={"error": "Невідома команда."})
+    try:
+        done = subprocess.run(["./" + script, action], cwd=str(HERE), capture_output=True, text=True, timeout=90)
+    except subprocess.SubprocessError as error:
+        return JSONResponse(status_code=500, content={"error": str(error)[:200]})
+    return JSONResponse({"ok": done.returncode == 0, "out": (done.stdout + done.stderr).strip()[-300:]})
+
+
+def _session_title(path: Path) -> str:
+    """Перше людське питання в нитці — як назва. Читаємо лише початок, файли бувають по мегабайту."""
+    try:
+        with path.open(encoding="utf-8", errors="replace") as handle:
+            for _ in range(400):
+                line = handle.readline()
+                if not line:
+                    break
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if event.get("type") != "user" or event.get("isSidechain"):
+                    continue
+                content = (event.get("message") or {}).get("content")
+                if isinstance(content, list):
+                    content = " ".join(b.get("text", "") for b in content if isinstance(b, dict))
+                if isinstance(content, str) and content.strip() and not content.startswith("<"):
+                    # Власна нитка пульта починається з брифінгу — показувати його як назву безглуздо.
+                    if content.startswith(BRIEFING[:40]):
+                        return "Пульт — розмова з телефона"
+                    return " ".join(content.split())[:70]
+    except OSError:
+        pass
+    return "без назви"
+
+
+def _project_label(folder: str) -> str:
+    home = "-" + str(Path.home()).strip("/").replace("/", "-") + "-"
+    return folder[len(home):] if folder.startswith(home) else folder.lstrip("-")
+
+
+@app.get("/sessions")
+async def sessions() -> JSONResponse:
+    """Останні нитки Claude Code — щоб з телефона продовжити ту, яку треба, а не єдину збережену."""
+    # Не більше двох ниток на проєкт. Без цього список забивають безголові прогони конвеєра —
+    # кожен прогін заводить власну сесію, і за пів дня вони витісняють усі справжні розмови.
+    try:
+        found = sorted(CLAUDE_PROJECTS.glob("*/*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+    except OSError:
+        found = []
+    files, seen = [], {}
+    for path in found:
+        folder = path.parent.name
+        if seen.get(folder, 0) >= 2:
+            continue
+        seen[folder] = seen.get(folder, 0) + 1
+        files.append(path)
+        if len(files) >= 12:
+            break
+    return JSONResponse({"sessions": [{
+        "id": path.stem,
+        "project": _project_label(path.parent.name),
+        "when": datetime.fromtimestamp(path.stat().st_mtime).strftime("%d.%m %H:%M"),
+        "title": _session_title(path),
+    } for path in files]})
+
+
 @app.post("/listen")
 async def listen(audio: UploadFile = File(...)) -> JSONResponse:
     """Аудіо з браузера → 16 кГц моно WAV → whisper українською → текст."""
@@ -168,6 +328,7 @@ async def ask(text: str = Form(...), session: str = Form("")) -> StreamingRespon
             text=True, bufsize=1, env={**os.environ, "CLAUDE_CODE_OAUTH_TOKEN": claude_token()},
         )
         spoke = False
+        announced = ""   # нитку шлемо лише коли вона змінилась: інакше 7 однакових рядків на одну відповідь
         for line in process.stdout:
             line = line.strip()
             if not line:
@@ -177,8 +338,9 @@ async def ask(text: str = Form(...), session: str = Form("")) -> StreamingRespon
             except json.JSONDecodeError:
                 continue
             kind = event.get("type")
-            if kind == "system" and event.get("session_id"):
-                yield json.dumps({"session": event["session_id"]}, ensure_ascii=False) + "\n"
+            if kind == "system" and event.get("session_id") and event["session_id"] != announced:
+                announced = event["session_id"]
+                yield json.dumps({"session": announced}, ensure_ascii=False) + "\n"
             elif kind == "assistant":
                 for block in (event.get("message") or {}).get("content") or []:
                     if block.get("type") == "text" and block.get("text"):
@@ -197,8 +359,9 @@ async def ask(text: str = Form(...), session: str = Form("")) -> StreamingRespon
                         pass
                 if not spoke and event.get("result"):
                     yield json.dumps({"delta": event["result"]}, ensure_ascii=False) + "\n"
-                if event.get("session_id"):
-                    yield json.dumps({"session": event["session_id"]}, ensure_ascii=False) + "\n"
+                if event.get("session_id") and event["session_id"] != announced:
+                    announced = event["session_id"]
+                    yield json.dumps({"session": announced}, ensure_ascii=False) + "\n"
         process.wait()
         if process.returncode:
             detail = (process.stderr.read() or "")[-300:]
@@ -213,40 +376,119 @@ PAGE = """
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Пульт</title>
 <style>
-  :root { --bg:#0d1117; --panel:#161b22; --line:#29313a; --ink:#e8e3d9; --muted:#8b95a1; --accent:#ddbb65; }
+  /* Токени дизайн-системи Райта, темна тема (rayt-tokens.css) — щоб пульт не був
+     чужим серед решти інструментів. Тут лише ті, що справді вживані на телефоні. */
+  :root { --carbon:#090a0d; --surface:#12161b; --raised:#1a2027; --line:#29313a; --line-soft:#20262d;
+          --bone:#f2eee6; --muted:#a6afbb; --muted-2:#808b97;
+          --gold:#ddbb65; --mint:#75d4a1; --rose:#ff7085; --cyan:#63d8d2;
+          --radius-xs:7px; --radius-sm:11px; --radius:16px;
+          --sans:"IBM Plex Sans Variable",-apple-system,system-ui,sans-serif;
+          --mono:"IBM Plex Mono",ui-monospace,monospace; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html, body { height:100%; }
-  /* Два екрани й ряд кнопок між ними. Кнопки — на рівні бокової кнопки телефона,
-     туди дістає великий палець, не закриваючи жодного з полів. Нічого зайвого. */
   body { margin:0; display:flex; flex-direction:column; gap:8px; height:100dvh;
-         padding:10px 10px calc(10px + env(safe-area-inset-bottom)); background:var(--bg); color:var(--ink);
-         font:16px/1.5 -apple-system,system-ui,sans-serif; }
-  textarea { flex:0 0 28vh; width:100%; padding:12px; border:1px solid var(--line); border-radius:12px;
-             background:var(--panel); color:var(--ink); font:inherit; resize:none; }
+         padding:10px 10px calc(6px + env(safe-area-inset-bottom)); background:var(--carbon); color:var(--bone);
+         font:16px/1.5 var(--sans); }
+
+  /* Свайп — нативний scroll-snap, а не обробник жестів: браузер робить це сам,
+     і на iPhone воно відчувається як звичайний скрол, бо це він і є. */
+  .deck { flex:1 1 0; min-height:0; display:flex; gap:10px; overflow-x:auto; overflow-y:hidden;
+          scroll-snap-type:x mandatory; scrollbar-width:none; overscroll-behavior-x:contain; }
+  .deck::-webkit-scrollbar { display:none; }
+  .pane { flex:0 0 100%; scroll-snap-align:center; scroll-snap-stop:always;
+          display:flex; flex-direction:column; gap:8px; min-width:0; min-height:0; }
+
+  .eyebrow { flex:0 0 auto; display:flex; align-items:center; justify-content:space-between;
+             font:600 10px/1 var(--sans); text-transform:uppercase; letter-spacing:.08em; color:var(--muted-2); }
+  textarea { flex:0 0 24vh; width:100%; padding:12px; border:1px solid var(--line); border-radius:var(--radius-sm);
+             background:var(--surface); color:var(--bone); font:inherit; resize:none; }
+  select { flex:0 0 auto; width:100%; padding:9px 10px; border:1px solid var(--line-soft); border-radius:var(--radius-xs);
+           background:var(--surface); color:var(--muted); font:13px/1.2 var(--sans); }
   .row { flex:0 0 auto; display:flex; gap:8px; }
-  button { min-height:56px; border:1px solid var(--line); border-radius:12px; background:var(--panel);
-           color:var(--ink); font:600 16px/1.2 inherit; }
+  button { min-height:56px; border:1px solid var(--line); border-radius:var(--radius-sm); background:var(--surface);
+           color:var(--bone); font:600 16px/1.2 var(--sans); }
+  button:active { background:var(--raised); }
+  button:disabled { opacity:.48; }
   #send { flex:1; }
-  #mic { flex:1.2; border-color:var(--accent); color:var(--accent); }
-  #mic.rec { background:#3a2020; border-color:#ff7085; color:#ff7085; }
-  button:disabled { opacity:.45; }
+  #mic { flex:1.2; border-color:var(--gold); color:var(--gold); }
+  #mic.rec { background:#3a2020; border-color:var(--rose); color:var(--rose); }
   #answer { flex:1 1 0; min-height:0; overflow:auto; padding:12px; border:1px solid var(--line);
-            border-radius:12px; background:var(--panel); white-space:pre-wrap; }
+            border-radius:var(--radius-sm); background:var(--surface); white-space:pre-wrap; }
+
+  /* Екран стану */
+  #state { flex:1 1 0; min-height:0; overflow:auto; display:flex; flex-direction:column; gap:8px; }
+  .card { border:1px solid var(--line-soft); border-radius:var(--radius); background:var(--surface); padding:12px; }
+  .card h3 { margin:0; font:600 15px/1.2 var(--sans); display:flex; align-items:center; gap:8px; }
+  .pill { font:600 11px/1 var(--sans); padding:4px 8px; border-radius:999px; border:1px solid var(--line);
+          color:var(--muted-2); }
+  .pill.on { color:var(--mint); border-color:color-mix(in srgb, var(--mint) 45%, transparent); }
+  .pill.warn { color:var(--gold); border-color:color-mix(in srgb, var(--gold) 45%, transparent); }
+  .note { margin:6px 0 0; color:var(--muted); font-size:13px; }
+  .last { margin:6px 0 0; color:var(--muted-2); font:12px/1.45 var(--mono); word-break:break-word;
+          max-height:3.4em; overflow:hidden; }
+  .acts { display:flex; gap:8px; margin-top:10px; }
+  .acts button { flex:1; min-height:42px; font-size:14px; border-radius:var(--radius-xs); }
+  .commits { margin:0; padding:0; list-style:none; font:12px/1.7 var(--mono); color:var(--muted); }
+  .commits li { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #refresh { min-height:0; padding:5px 7px; border-radius:var(--radius-xs); border-color:var(--line-soft);
+             color:var(--muted-2); background:none; }
+  #refresh svg { display:block; width:14px; height:14px; }
+
+  .dots { flex:0 0 auto; display:flex; gap:7px; justify-content:center; padding:2px 0 0; }
+  .dots i { width:6px; height:6px; border-radius:50%; background:var(--line); transition:background .2s; }
+  .dots i.on { background:var(--gold); }
 </style>
 
-<textarea id="text" placeholder="Тримай кнопку й говори — тут з'явиться розпізнане. Виправ, якщо треба, і надішли."></textarea>
-<div class="row">
-  <button id="send">Надіслати</button>
-  <button id="mic">🎙 Тримай і говори</button>
+<div class="deck" id="deck">
+
+  <section class="pane" aria-label="Розмова">
+    <select id="thread" aria-label="Нитка розмови"><option value="">— нитка —</option></select>
+    <textarea id="text" placeholder="Тримай кнопку й говори — тут з'явиться розпізнане. Виправ, якщо треба, і надішли."></textarea>
+    <div class="row">
+      <button id="send">Надіслати</button>
+      <button id="mic">🎙 Тримай і говори</button>
+    </div>
+    <div id="answer"></div>
+  </section>
+
+  <section class="pane" aria-label="Стан справ">
+    <div class="eyebrow">
+      <span>Стан · <span id="at">—</span></span>
+      <button id="refresh" aria-label="Оновити стан">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>
+          <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>
+        </svg>
+      </button>
+    </div>
+    <div id="state"></div>
+  </section>
+
 </div>
-<div id="answer"></div>
+<div class="dots" aria-hidden="true"><i class="on"></i><i></i></div>
 
 <script>
 const mic=document.getElementById('mic'), text=document.getElementById('text'),
       answer=document.getElementById('answer'), send=document.getElementById('send');
+const thread=document.getElementById('thread');
 let recorder, chunks=[], session='';
-// Підхоплюємо нитку, збережену на сервері: розмова триває між відкриттями сторінки.
-fetch('/session').then(r=>r.json()).then(d=>{ if(d.session) session=d.session; }).catch(()=>{});
+
+// Нитки. Збережена на сервері — типова, але список дає вибрати іншу: за столом сесій кілька,
+// і з телефона треба продовжити ту, яка потрібна, а не єдину останню.
+Promise.all([
+  fetch('/session').then(r=>r.json()).catch(()=>({session:''})),
+  fetch('/sessions').then(r=>r.json()).catch(()=>({sessions:[]}))
+]).then(([cur, list])=>{
+  session = cur.session || '';
+  for(const s of list.sessions){
+    const o=document.createElement('option');
+    o.value=s.id; o.textContent=s.project+' · '+s.when+' — '+s.title;
+    thread.appendChild(o);
+  }
+  if(session && list.sessions.some(s=>s.id===session)) thread.value=session;
+  else if(session) thread.insertAdjacentHTML('afterbegin','<option value="'+session+'" selected>поточна нитка</option>');
+});
+thread.onchange = () => { session = thread.value; answer.textContent = session ? '' : 'Нова нитка — я почну з брифінгу.'; };
 // Стану окремим рядком не показуємо — його видно по самій кнопці й по полю відповіді.
 const label = s => mic.textContent = s;
 
@@ -316,6 +558,68 @@ send.onclick = async () => {
   }catch(e){ answer.textContent='Не вдалось зв.язатись — пульт на Mac не відповів.'; }
   clearInterval(timer); send.disabled=false; send.textContent='Надіслати';
 };
+
+// ── Екран стану ───────────────────────────────────────────────────────────
+// Дані беруться з /state — це читання файлів і git, а не питання до Claude.
+// Тому оновлення безкоштовне й може бути автоматичним.
+const stateBox=document.getElementById('state'), atLabel=document.getElementById('at'),
+      deck=document.getElementById('deck'), dots=[...document.querySelectorAll('.dots i')];
+const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+function renderState(d){
+  atLabel.textContent = d.at;
+  const loops = d.loops.map(l => `
+    <div class="card">
+      <h3>${esc(l.label)} <span class="pill ${l.alive?'on':''}">${l.alive?'живий':'спить'}</span></h3>
+      <p class="note">${esc(l.note)}</p>
+      ${l.last ? `<p class="last">${esc(l.last)}</p>` : ''}
+      <div class="acts">
+        <button data-s="${esc(l.script)}" data-a="старт" ${l.alive?'disabled':''}>Старт</button>
+        <button data-s="${esc(l.script)}" data-a="стоп" ${l.alive?'':'disabled'}>Стоп</button>
+      </div>
+    </div>`).join('');
+  stateBox.innerHTML = loops + `
+    <div class="card">
+      <h3>Хвиля <span class="pill ${d.wave?'warn':''}">${d.wave}</span></h3>
+      <p class="note">${d.wave ? d.wave+' комітів чекає на злиття в main' : 'нічого не чекає на злиття'}</p>
+      ${d.wip ? `<p class="note">останній запис у робочому журналі: ${esc(d.wip)}</p>` : ''}
+      <ul class="commits">${d.commits.map(c => `<li>${esc(c)}</li>`).join('')}</ul>
+    </div>`;
+}
+
+let loading=false;
+async function loadState(){
+  if(loading) return; loading=true;
+  try { renderState(await (await fetch('/state')).json()); }
+  catch(e){ stateBox.innerHTML='<div class="card"><p class="note">Пульт на Mac не відповів.</p></div>'; }
+  loading=false;
+}
+
+stateBox.onclick = async e => {
+  const b = e.target.closest('button[data-s]'); if(!b) return;
+  const name = b.closest('.card').querySelector('h3').firstChild.textContent.trim();
+  if(b.dataset.a==='стоп' && !confirm('Спинити «'+name+'»?')) return;
+  b.disabled=true; b.textContent='…';
+  const fd=new FormData(); fd.append('script', b.dataset.s); fd.append('action', b.dataset.a);
+  try { await fetch('/loop',{method:'POST',body:fd}); } catch(e){}
+  setTimeout(loadState, 1500);   // лупу треба мить, щоб підняти або прибрати pid-файл
+};
+
+// Крапки й підвантаження: приїхав на екран стану — дані свіжі, а не ті, що були при відкритті.
+let pane=0;
+const atState = () => deck.scrollLeft > deck.clientWidth/2;
+deck.addEventListener('scroll', () => {
+  const i = atState() ? 1 : 0;
+  if(i===pane) return;
+  pane=i; dots.forEach((dot,n)=>dot.classList.toggle('on', n===i));
+  if(i===1) loadState();
+}, {passive:true});
+
+// Повернувся у вкладку з фону — теж оновлюємо: телефон тримає сторінку відкритою добами.
+document.addEventListener('visibilitychange', () => { if(!document.hidden) loadState(); });
+setInterval(() => { if(!document.hidden && atState()) loadState(); }, 15000);
+document.getElementById('refresh').onclick = loadState;
+loadState();
 </script>
 """
 

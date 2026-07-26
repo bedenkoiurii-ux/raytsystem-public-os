@@ -1269,3 +1269,27 @@ button.table-row:hover { background: var(--surface-2); color: var(--bone); }
 .document-content[data-sheet-format="a4-land"] .doc-milkdown-root { width: min(1160px, 100%); }
 .document-content[data-sheet-format="free"] .doc-markdown,
 .document-content[data-sheet-format="free"] .doc-milkdown-root { width: 100%; }
+
+/* === Приймальня — черга матеріалів на входження === */
+.route-reception { padding: 22px 26px 60px; max-width: 980px; }
+.reception-head h1 { margin: .15em 0 .2em; font: 650 26px/1.1 var(--display); letter-spacing: -.01em; }
+.reception-head .sub { color: var(--muted-2); font-weight: 400; }
+.reception-head p { color: var(--muted); margin: 0 0 20px; }
+.reception-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.reception-item { border: 1px solid var(--line-soft); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
+.reception-item.open { border-color: color-mix(in srgb, var(--gold) 45%, var(--line)); }
+.reception-summary { display: grid; gap: 4px; width: 100%; padding: 14px 16px; border: 0; background: transparent; color: var(--bone); text-align: left; cursor: pointer; }
+.reception-summary:hover { background: color-mix(in srgb, var(--bone) 7%, transparent); }
+.reception-summary strong { font: 560 15px/1.25 var(--display); }
+.reception-meta { font: 10px var(--mono); text-transform: uppercase; letter-spacing: .07em; color: var(--muted-2); }
+.reception-lead { color: var(--muted); font-size: 13px; }
+.reception-body { padding: 0 16px 16px; display: grid; gap: 10px; }
+.reception-text { max-height: 340px; overflow: auto; padding: 12px 14px; border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--carbon-soft); color: var(--muted); font: 12px/1.55 var(--mono); white-space: pre-wrap; }
+.reception-body textarea { padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--carbon-soft); color: var(--bone); font: 13px var(--sans); resize: vertical; }
+.reception-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.reception-actions button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 14px; border: 1px solid var(--line); border-radius: var(--radius-xs); background: var(--carbon-soft); color: var(--muted); font-size: 13px; cursor: pointer; }
+.reception-actions button:hover:not(:disabled) { background: color-mix(in srgb, var(--bone) 8%, transparent); }
+.reception-actions button:disabled { opacity: .42; cursor: not-allowed; }
+.reception-actions .accept { border-color: color-mix(in srgb, var(--mint) 50%, var(--line)); color: var(--mint); }
+.reception-actions .revise { border-color: color-mix(in srgb, var(--gold) 50%, var(--line)); color: var(--gold); }
+.reception-actions .reject { border-color: color-mix(in srgb, var(--rose) 45%, var(--line)); color: var(--rose); }

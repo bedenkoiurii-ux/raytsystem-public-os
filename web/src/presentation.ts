@@ -11,6 +11,11 @@ export const routeCopy = {
     description: "Документація raytsystem: встановлення, інтерфейс, граф, безпека",
     group: "Простір"
   },
+  reception: {
+    label: "Приймальня",
+    description: "Черга матеріалів на входження в бібліотеку",
+    group: "Простір"
+  },
   documents: {
     label: "Документи",
     description: "Керовані файли та нотатки поточного робочого простору",
