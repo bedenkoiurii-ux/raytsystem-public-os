@@ -107,5 +107,55 @@ def library_read(name: str) -> str:
     return target.read_text(encoding="utf-8")[:60_000]
 
 
+INBOX = VAULT / "00-Inbox/Пропозиції"
+
+
+@mcp.tool()
+def library_propose(title: str, content: str, kind: str = "нотатка", rationale: str = "") -> str:
+    """Запропонувати новий матеріал у бібліотеку. НЕ пише в бібліотеку — кладе в
+    карантин 00-Inbox/Пропозиції на схвалення Юрія. Використовувати, коли в розмові
+    народилося щось варте збереження: думка, засівний документ, знахідка."""
+    INBOX.mkdir(parents=True, exist_ok=True)
+    safe = re.sub(r'[/\\:*?"<>|]', "-", title).strip()[:80] or "без назви"
+    path = INBOX / f"{safe}.md"
+    n = 2
+    while path.exists():
+        path = INBOX / f"{safe} ({n}).md"
+        n += 1
+    from datetime import date
+    head = (
+        "---\n"
+        f"title: {safe}\n"
+        "type: proposal\n"
+        "status: proposed\n"           # чекає рішення автора: прийняти / доопрацювати / відхилити
+        f"kind: {kind}\n"
+        f"proposed_at: '{date.today()}'\n"
+        "proposed_by: chat\n"          # хто запропонував; думки автора позначати в тілі
+        "lang: uk\n"
+        "---\n\n"
+    )
+    body = content if not rationale else f"{content}\n\n---\n\n**Навіщо це в бібліотеці:** {rationale}\n"
+    path.write_text(head + body, encoding="utf-8")
+    return (f"Пропозицію покладено в карантин: 00-Inbox/Пропозиції/{path.name}\n"
+            "Вона НЕ в бібліотеці. Юрій перегляне й вирішить: прийняти, доопрацювати чи відхилити.")
+
+
+@mcp.tool()
+def library_proposals() -> str:
+    """Показати пропозиції, що чекають на рішення Юрія."""
+    if not INBOX.is_dir():
+        return "Пропозицій немає."
+    items = sorted(INBOX.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if not items:
+        return "Пропозицій немає."
+    out = [f"Чекають рішення: {len(items)}\n"]
+    for p in items:
+        out.append(f"  · {p.stem}")
+        lead = _lead(p)
+        if lead:
+            out.append(f"      {lead[:160]}")
+    return "\n".join(out)
+
+
 if __name__ == "__main__":
     mcp.run()
