@@ -1,6 +1,7 @@
 import { Check, RotateCcw, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { EmptyState, ErrorState, LoadingState } from "../components/StatePanel";
+import { postJson } from "../api";
 
 /** Приймальня — черга матеріалів на входження в бібліотеку.
  *  Варта інбоксу кладе пропозиції в 00-Inbox/Пропозиції зі `status: proposed`.
@@ -40,13 +41,8 @@ export function Reception() {
   const resolve = (name: string, verdict: Verdict) => {
     if (verdict === "revise" && !note.trim()) return;   // «доопрацювати» без пояснення марне
     setBusy(name);
-    fetch("/api/v1/reception/resolve", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json", Origin: window.location.origin },
-      body: JSON.stringify({ name, verdict, resolution: note.trim() })
-    })
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+    // postJson сам мінтить сесію й додає X-CSRF-Token — власний fetch це не вміє
+    postJson("/api/v1/reception/resolve", { name, verdict, resolution: note.trim() })
       .then(() => { setNote(""); setOpen(null); load(); })
       .catch((e) => setError(String(e)))
       .finally(() => setBusy(null));
