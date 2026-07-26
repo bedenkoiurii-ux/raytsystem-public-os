@@ -34,6 +34,22 @@ def _safe(rel: Path) -> bool:
     return not SECRET.search(str(rel)) and not any(p in SKIP for p in rel.parts)
 
 
+def _lead(path: Path) -> str:
+    """Перший змістовний абзац документа. За стандартом kartky кожна картка
+    починається з жирного ліду («**Митрополит Київський (1647–1657)**, …») —
+    він і є найкращою анотацією, окремого поля description заводити не треба."""
+    try:
+        text = path.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return ""
+    body = text.split("---", 2)[-1] if text.startswith("---") else text
+    for line in body.splitlines():
+        s = line.strip()
+        if s and not s.startswith(("#", ">", "-", "|", "*", "=")):
+            return re.sub(r"[*\[\]]|\|[^\]]*", "", s)[:220]
+    return ""
+
+
 @mcp.tool()
 def library_context(topic: str, per_file: int = 2) -> str:
     """Що бібліотека вже знає про тему. Викликати ПЕРЕД пошуком в інтернеті
@@ -49,7 +65,10 @@ def library_context(topic: str, per_file: int = 2) -> str:
         out.append(f"── {root} · {label}")
         for rel, n, lines in sorted(items, key=lambda x: -x[1])[:8]:
             out.append(f"   {rel}  ({n} згадок)")
-            out += [f"       {l[:200]}" for l in lines]
+            lead = _lead(VAULT / rel)
+            if lead:
+                out.append(f"       {lead}")
+            out += [f"       · {l[:180]}" for l in lines]
     return "\n".join(out)
 
 
