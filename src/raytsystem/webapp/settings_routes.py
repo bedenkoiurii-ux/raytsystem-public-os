@@ -94,4 +94,32 @@ def create_settings_router(root: Path, *, require_session: Callable[..., Any]) -
         _write(fname, items)
         return {"ok": True, "items": items}
 
+    @router.post("/settings/pick-folder")
+    def pick_folder(_session=Depends(require_session)) -> Any:
+        """Нативний діалог вибору теки — через osascript.
+
+        Два глухі кути, вже пройдені:
+        1. `window.pywebview.api` не працює: CSP застосунку має `script-src 'self'`,
+           тож інжектований pywebview-скрипт у сторінку не потрапляє.
+        2. `create_file_dialog` з бекенду теж ні: Cocoa вимагає GUI-потік, а сервер
+           живе в іншому — діалог мовчки повертає порожньо.
+
+        osascript працює з будь-якого потоку, бо це окремий процес системи.
+        """
+        import subprocess
+        script = 'POSIX path of (choose folder with prompt "Виберіть теку для стеження")'
+        try:
+            done = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=180)
+        except (OSError, subprocess.TimeoutExpired) as error:
+            return JSONResponse(status_code=500, content={"error": {"code": "dialog_failed",
+                "message": f"Не вдалося відкрити діалог: {error}"}})
+        if done.returncode != 0:
+            # -128 = користувач натиснув «Скасувати». Це не помилка.
+            if "-128" in done.stderr or "cancel" in done.stderr.lower():
+                return {"ok": True, "path": None}
+            return JSONResponse(status_code=500, content={"error": {"code": "dialog_failed",
+                "message": done.stderr.strip()[:200] or "Діалог не відкрився."}})
+        path = done.stdout.strip().rstrip("/")
+        return {"ok": True, "path": path or None}
+
     return router

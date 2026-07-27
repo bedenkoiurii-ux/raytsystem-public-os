@@ -21,38 +21,20 @@ interface ListBlock {
   items: Entry[];
 }
 
-/** Нативний вибір теки. Доступний лише у вікні застосунку (pywebview);
- *  у браузері його немає — тоді лишається введення шляху. */
-type PyWebview = { api?: { pick_folder?: () => Promise<string | null> } };
 
 export function Settings() {
   const [lists, setLists] = useState<ListBlock[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
-  // pywebview інжектує API АСИНХРОННО (подія pywebviewready), тому читати
-  // window.pywebview під час рендеру марно — на першому проході його ще немає.
-  const [native, setNative] = useState<boolean>(
-    () => Boolean((window as unknown as { pywebview?: PyWebview }).pywebview?.api?.pick_folder)
-  );
-  useEffect(() => {
-    if (native) return;
-    const ready = () => setNative(Boolean((window as unknown as { pywebview?: PyWebview }).pywebview?.api?.pick_folder));
-    window.addEventListener("pywebviewready", ready);
-    const timer = window.setInterval(ready, 400);          // подія могла статися до монтування
-    const stop = window.setTimeout(() => window.clearInterval(timer), 8000);
-    return () => { window.removeEventListener("pywebviewready", ready); window.clearInterval(timer); window.clearTimeout(stop); };
-  }, [native]);
 
   const pick = (key: string) => {
-    const api = (window as unknown as { pywebview?: PyWebview }).pywebview?.api?.pick_folder;
-    if (!api) {
-      setError("Нативний вибір теки доступний лише у вікні застосунку Writer-Lab (не в браузері). Шлях можна вписати вручну в полі поруч.");
-      return;
-    }
-    api()
-      .then((path) => { if (path) edit(key, path, "add"); })   // вибрав — одразу додаємо, зайвого кроку не треба
-      .catch((e) => setError(String(e)));
+    setError(null);
+    // Діалог відкриває бекенд: сервер живе в тому самому процесі, що й вікно,
+    // а CSP (script-src 'self') не пускає інжектований pywebview-скрипт у сторінку.
+    postJson<{ ok: boolean; path: string | null }>("/api/v1/settings/pick-folder", {})
+      .then((r) => { if (r.path) edit(key, r.path, "add"); })
+      .catch((e) => setError(e?.message ? String(e.message) : String(e)));
   };
 
   const load = useCallback(() => {
@@ -131,9 +113,8 @@ export function Settings() {
               aria-label={`Додати до списку «${block.label}»`}
               spellCheck={false}
             />
-            {/* Кнопку показуємо ЗАВЖДИ: невидима кнопка не пояснює, чому її немає.
-                Якщо місток pywebview не піднявся — кажемо це прямо при кліку. */}
-            <button type="button" className="pick" onClick={() => pick(block.key)} title={native ? "Вибрати теку в Finder" : "Доступно у вікні застосунку"}>
+            {/* Діалог відкриває бекенд — див. /settings/pick-folder. */}
+            <button type="button" className="pick" onClick={() => pick(block.key)} title="Вибрати теку в Finder">
               <FolderOpen size={15} /> Вибрати теку…
             </button>
             <button type="submit" disabled={!(drafts[block.key] ?? "").trim()}>
