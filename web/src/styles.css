@@ -1317,3 +1317,4 @@ button.table-row:hover { background: var(--surface-2); color: var(--bone); }
 .settings-add input:focus { outline: 0; border-color: color-mix(in srgb, var(--cyan) 55%, var(--line)); box-shadow: 0 0 0 2px color-mix(in srgb, var(--cyan) 12%, transparent); }
 .settings-add button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 14px; border: 1px solid color-mix(in srgb, var(--cyan) 45%, var(--line)); border-radius: var(--radius-xs); background: var(--carbon-soft); color: var(--cyan); font-size: 13px; cursor: pointer; }
 .settings-add button:disabled { opacity: .42; cursor: not-allowed; }
+.settings-add .pick { border-color: color-mix(in srgb, var(--gold) 45%, var(--line)); color: var(--gold); }

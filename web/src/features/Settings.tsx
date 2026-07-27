@@ -1,4 +1,4 @@
-import { FolderPlus, Trash2 } from "lucide-react";
+import { FolderOpen, FolderPlus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { EmptyState, ErrorState, LoadingState } from "../components/StatePanel";
 import { postJson } from "../api";
@@ -21,11 +21,23 @@ interface ListBlock {
   items: Entry[];
 }
 
+/** Нативний вибір теки. Доступний лише у вікні застосунку (pywebview);
+ *  у браузері його немає — тоді лишається введення шляху. */
+type PyWebview = { api?: { pick_folder?: () => Promise<string | null> } };
+
 export function Settings() {
   const [lists, setLists] = useState<ListBlock[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  const native = (window as unknown as { pywebview?: PyWebview }).pywebview?.api?.pick_folder;
+
+  const pick = (key: string) => {
+    if (!native) return;
+    native()
+      .then((path) => { if (path) edit(key, path, "add"); })   // вибрав — одразу додаємо, зайвого кроку не треба
+      .catch((e) => setError(String(e)));
+  };
 
   const load = useCallback(() => {
     setError(null);
@@ -103,6 +115,11 @@ export function Settings() {
               aria-label={`Додати до списку «${block.label}»`}
               spellCheck={false}
             />
+            {native ? (
+              <button type="button" className="pick" onClick={() => pick(block.key)}>
+                <FolderOpen size={15} /> Вибрати теку…
+              </button>
+            ) : null}
             <button type="submit" disabled={!(drafts[block.key] ?? "").trim()}>
               <FolderPlus size={15} /> Додати
             </button>

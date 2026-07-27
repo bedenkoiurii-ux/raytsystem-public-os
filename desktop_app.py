@@ -131,6 +131,25 @@ def main() -> None:
 
     import webview
 
+    class DesktopApi:
+        """Місток до нативних можливостей macOS, яких немає у вебі.
+
+        Вибір теки: WKWebView (як і будь-який браузер) з міркувань безпеки не
+        віддає шлях до папки — лише вміст окремих файлів. Тому «вибрати теку»
+        неможливо зробити самим фронтом, і замість цього доводилося вводити
+        повний шлях руками через термінал. pywebview має нативний діалог —
+        прокидаємо його у вікно як window.pywebview.api.pick_folder().
+        """
+
+        def pick_folder(self) -> str | None:
+            windows = webview.windows
+            if not windows:
+                return None
+            result = windows[0].create_file_dialog(webview.FOLDER_DIALOG)
+            if not result:
+                return None
+            return result[0] if isinstance(result, (list, tuple)) else str(result)
+
     # Відкривати на НАЙБІЛЬШОМУ екрані, максимізовано (зручно працювати).
     kwargs = dict(min_size=(1024, 680))
     try:
@@ -144,7 +163,7 @@ def main() -> None:
     else:
         kwargs["width"], kwargs["height"] = 1600, 1000
 
-    webview.create_window("Система Райта — Writer-Lab", url, **kwargs)
+    webview.create_window("Система Райта — Writer-Lab", url, js_api=DesktopApi(), **kwargs)
     webview.start()  # блокує, поки вікно відкрите (головний потік, Cocoa)
 
     server.should_exit = True
