@@ -5,6 +5,7 @@ import {
   BookOpen,
   Bot,
   CalendarClock,
+  Map,
   ChevronLeft,
   Database,
   Files,
@@ -51,6 +52,7 @@ import { SystemSections } from "../features/SystemSections";
 import { Tasks } from "../features/Tasks";
 import { Universe } from "../features/Universe";
 import { Timeline } from "../features/Timeline";
+import { MapView } from "../features/MapView";
 import { routeCopy, type RouteKey } from "../presentation";
 
 type Theme = "dark" | "light" | "contrast";
@@ -65,6 +67,7 @@ const routeMeta: Record<RouteKey, { label: string; description: string; icon: ty
   tasks: { ...routeCopy.tasks, icon: ListTodo },
   universe: { ...routeCopy.universe, icon: Orbit },
   timeline: { ...routeCopy.timeline, icon: CalendarClock },
+  map: { ...routeCopy.map, icon: Map },
   runs: { ...routeCopy.runs, icon: GitBranch },
   agents: { ...routeCopy.agents, icon: Bot },
   skills: { ...routeCopy.skills, icon: Wrench },
@@ -329,6 +332,7 @@ export function App() {
       case "tasks": return <Tasks createOpen={createTaskOpen} onCreateOpenChange={setCreateTaskOpenWithFocus} onSelect={setSelection} />;
       case "universe": return <Universe theme={theme} selectedId={selection?.id ?? null} focusedDocumentId={universeDocumentId} onSelect={setSelection} onClear={() => setSelection(null)} />;
       case "timeline": return <Timeline onOpenDocument={navigateToDocument} />;
+      case "map": return <MapView onOpenDocument={navigateToDocument} />;
       case "runs": return <Runs onSelect={setSelection} />;
       case "agents": return <AgentsSurface onOpenSkill={openSkill} />;
       case "skills": return <SkillsSurface />;
@@ -441,7 +445,7 @@ export function App() {
       {mobileMore ? (
         <Dialog className="mobile-more-sheet" backdropClassName="mobile-more modal-backdrop" label="Додаткова навігація" onClose={() => setMobileMore(false)}>
             <header><strong>Ще</strong><button className="icon-button" type="button" onClick={() => setMobileMore(false)} aria-label="Закрити"><X size={18} /></button></header>
-            {(["timeline", "handbook", "onboarding", "runs", "agents", "skills", "context", "safety", "systems"] as RouteKey[]).map((key) => {
+            {(["timeline", "map", "handbook", "onboarding", "runs", "agents", "skills", "context", "safety", "systems"] as RouteKey[]).map((key) => {
               const Icon = routeMeta[key].icon;
               return <button type="button" key={key} onClick={() => navigate(key)}><Icon size={19} /><span><strong>{routeMeta[key].label}</strong><small>{routeMeta[key].description}</small></span></button>;
             })}

@@ -1337,3 +1337,28 @@ button.table-row:hover { background: var(--surface-2); color: var(--bone); }
 .reception-meta .phase.queued { color: var(--cyan); background: color-mix(in srgb, var(--cyan) 12%, transparent); }
 .reception-meta .phase.proposed { color: var(--mint); background: color-mix(in srgb, var(--mint) 12%, transparent); }
 .reception-note { font-size: 12px; color: var(--muted-2); align-self: center; }
+/* Мапа — четверта проєкція */
+.route-map { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+.map-head h1 .sub { font: 500 15px var(--mono); color: var(--mint); margin-left: 8px; }
+.map-head h1 .of { color: var(--muted-2); }
+/* Пропорція замість flex:1 — інакше низ мапи й повзунок ідуть за край вікна
+   і по них треба скролити. Ширина веде, висота йде за нею. */
+.map-stage { position: relative; aspect-ratio: 1000 / 620; max-height: calc(100vh - 330px); margin-inline: auto; width: 100%; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--carbon-soft); overflow: hidden; }
+.map-svg { width: 100%; height: 100%; display: block; }
+.map-land path { fill: color-mix(in srgb, var(--bone) 5%, transparent); stroke: var(--line); stroke-width: .6; }
+.map-point { cursor: pointer; }
+.map-point circle { fill: var(--cyan); opacity: .8; transition: r .12s ease; }
+.map-point text { font: 10.5px var(--sans); fill: var(--muted); pointer-events: none; }
+.map-point.on circle { fill: var(--tangerine); opacity: 1; }
+.map-point.on text { fill: var(--bone); }
+.map-tip { position: absolute; transform: translate(12px, -50%); pointer-events: none; padding: 7px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--carbon); display: grid; gap: 2px; max-width: 260px; }
+.map-tip strong { font: 500 13px var(--sans); color: var(--bone); }
+.map-tip span { font: 10.5px var(--mono); color: var(--muted-2); }
+.map-scrub { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--carbon-soft); }
+.map-scrub input[type="range"] { flex: 1; accent-color: var(--cyan); }
+.map-scrub button { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius-xs); background: var(--carbon); color: var(--muted); cursor: pointer; font-size: 12.5px; }
+.map-year { font: 500 13px var(--mono); color: var(--mint); min-width: 76px; text-align: right; }
+.map-tip-events { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 3px; }
+.map-tip-events li { font: 11px var(--sans); color: var(--muted); }
+.map-tip-events b { font: 500 10.5px var(--mono); color: var(--cyan); margin-right: 5px; }
+.map-tip-events .more { color: var(--muted-2); font-style: italic; }

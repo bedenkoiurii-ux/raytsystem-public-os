@@ -122,6 +122,7 @@ _SPA_ROUTES = frozenset(
         "tasks",
         "universe",
         "timeline",
+        "map",
         "runs",
         "agents",
         "skills",
