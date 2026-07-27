@@ -1824,8 +1824,10 @@ def create_app(
     app.router.add_event_handler("startup", start_document_initialization)
     app.include_router(create_document_router(resolved_root, require_session=require_session))
     # Приймальня — черга матеріалів на входження (варта кладе, Юрій судить).
+    from raytsystem.webapp.settings_routes import create_settings_router
     from raytsystem.webapp.reception_routes import create_reception_router
     app.include_router(create_reception_router(resolved_root, require_session=require_session))
+    app.include_router(create_settings_router(resolved_root, require_session=require_session))
 
     app.include_router(create_feature_router(resolved_root, require_session=require_session))
 
