@@ -1,4 +1,5 @@
 import { MapPin, Pause, Play } from "lucide-react";
+import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { EmptyState, ErrorState, LoadingState } from "../components/StatePanel";
@@ -152,10 +153,52 @@ function useLand() {
 export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => void }) {
   const places = usePlaces();
   const land = useLand();
+  // Зум і панорама через viewBox: SVG масштабується без розмиття, а підписи
+  // лишаються однакового розміру на екрані (vector-effect + зворотний масштаб).
+  const [view, setView] = useState({ x: 0, y: 0, k: 1 });
+  const drag = useRef<{ px: number; py: number; x: number; y: number } | null>(null);
   const [year, setYear] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
   const [hover, setHover] = useState<Point | null>(null);
   const timer = useRef<number | null>(null);
+  const stage = useRef<HTMLDivElement | null>(null);
+
+  const onWheel = useCallback((e: React.WheelEvent<SVGSVGElement>) => {
+    e.preventDefault();
+    const box = stage.current?.getBoundingClientRect();
+    if (!box) return;
+    // Курсор — нерухома точка масштабування: під ним лишається те саме місце.
+    const cx = ((e.clientX - box.left) / box.width) * W;
+    const cy = ((e.clientY - box.top) / box.height) * H;
+    setView((v) => {
+      const k = Math.min(12, Math.max(1, v.k * (e.deltaY < 0 ? 1.15 : 1 / 1.15)));
+      const x = cx - ((cx - v.x) * v.k) / k;
+      const y = cy - ((cy - v.y) * v.k) / k;
+      const span = { w: W / k, h: H / k };
+      return {
+        k,
+        x: Math.min(Math.max(0, x), W - span.w),
+        y: Math.min(Math.max(0, y), H - span.h)
+      };
+    });
+  }, []);
+
+  const onDown = (e: React.MouseEvent) => {
+    drag.current = { px: e.clientX, py: e.clientY, x: view.x, y: view.y };
+  };
+  const onMove = (e: React.MouseEvent) => {
+    if (!drag.current) return;
+    const box = stage.current?.getBoundingClientRect();
+    if (!box) return;
+    const dx = ((e.clientX - drag.current.px) / box.width) * (W / view.k);
+    const dy = ((e.clientY - drag.current.py) / box.height) * (H / view.k);
+    setView((v) => ({
+      ...v,
+      x: Math.min(Math.max(0, drag.current!.x - dx), W - W / v.k),
+      y: Math.min(Math.max(0, drag.current!.y - dy), H - H / v.k)
+    }));
+  };
+  const onUp = () => { drag.current = null; };
 
   const points = places.data ?? [];
   const years = useMemo(
@@ -196,7 +239,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
   {
     const taken = new Set<string>();
     for (const p of [...visible].sort((a, b) => a.title.length - b.title.length)) {
-      const cell = `${Math.round(p.x / 96)}:${Math.round(p.y / 18)}`;
+      const cell = `${Math.round((p.x * view.k) / 96)}:${Math.round((p.y * view.k) / 18)}`;
       if (taken.has(cell)) continue;
       taken.add(cell);
       labelled.add(p.id);
@@ -211,10 +254,14 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
         <p>Місця бібліотеки з подіями, що там сталися. Повзунок веде по роках, клік по точці відкриває картку.</p>
       </header>
 
-      <div className="map-stage">
-        <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Мапа місць бібліотеки" className="map-svg">
+      <div className="map-stage" ref={stage}>
+        <svg viewBox={`${view.x} ${view.y} ${W / view.k} ${H / view.k}`}
+             role="img" aria-label="Мапа місць бібліотеки"
+             className={`map-svg${drag.current ? " dragging" : ""}`}
+             onWheel={onWheel} onMouseDown={onDown} onMouseMove={onMove}
+             onMouseUp={onUp} onMouseLeave={onUp}>
           <g className="map-land">
-            {(land.data ?? []).map((d, i) => <path key={i} d={d} />)}
+            {(land.data ?? []).map((d, i) => <path key={i} d={d} style={{ strokeWidth: 0.6 / view.k }} />)}
           </g>
           <g className="map-points">
             {visible.map((p) => (
@@ -222,8 +269,8 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                  onMouseEnter={() => setHover(p)} onMouseLeave={() => setHover(null)}
                  onClick={() => onOpenDocument?.(p.id)} role="button" tabIndex={0}
                  onKeyDown={(e) => { if (e.key === "Enter") onOpenDocument?.(p.id); }}>
-                <circle cx={p.x} cy={p.y} r={hover?.id === p.id ? 6 : 4} />
-                {labelled.has(p.id) || hover?.id === p.id ? <text x={p.x + 9} y={p.y + 4}>{p.title}</text> : null}
+                <circle cx={p.x} cy={p.y} r={(hover?.id === p.id ? 6 : 4) / view.k} />
+                {labelled.has(p.id) || hover?.id === p.id ? <text x={p.x + 9 / view.k} y={p.y + 4 / view.k} style={{ fontSize: `${10.5 / view.k}px` }}>{p.title}</text> : null}
               </g>
             ))}
           </g>
@@ -252,6 +299,11 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                  onChange={(e) => { setPlaying(false); setYear(Number(e.target.value)); }}
                  aria-label="Рік" />
           <span className="map-year">{year ?? "усі роки"}</span>
+          {view.k > 1 ? (
+            <button type="button" className="map-reset" onClick={() => setView({ x: 0, y: 0, k: 1 })}>
+              ×{view.k.toFixed(1)} · вся мапа
+            </button>
+          ) : null}
           {year !== null ? (
             <button type="button" className="map-reset" onClick={() => { setYear(null); setPlaying(false); }}>
               <MapPin size={14} /> показати всі
