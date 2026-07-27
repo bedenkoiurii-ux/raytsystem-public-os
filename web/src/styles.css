@@ -1293,3 +1293,27 @@ button.table-row:hover { background: var(--surface-2); color: var(--bone); }
 .reception-actions .accept { border-color: color-mix(in srgb, var(--mint) 50%, var(--line)); color: var(--mint); }
 .reception-actions .revise { border-color: color-mix(in srgb, var(--gold) 50%, var(--line)); color: var(--gold); }
 .reception-actions .reject { border-color: color-mix(in srgb, var(--rose) 45%, var(--line)); color: var(--rose); }
+
+/* === Налаштування — списки, якими живляться фонові задачі === */
+.route-settings { padding: 22px 26px 60px; max-width: 860px; }
+.settings-head h1 { margin: .15em 0 .2em; font: 650 26px/1.1 var(--display); letter-spacing: -.01em; }
+.settings-head p { color: var(--muted); margin: 0 0 24px; }
+.settings-error { margin: 0 0 16px; padding: 10px 14px; border: 1px solid color-mix(in srgb, var(--rose) 45%, var(--line)); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--rose) 8%, transparent); color: var(--rose); font-size: 13px; }
+.settings-block { margin-bottom: 26px; padding: 16px 18px; border: 1px solid var(--line-soft); border-radius: var(--radius); background: var(--surface); }
+.settings-block h2 { margin: 0 0 4px; font: 560 15px/1.25 var(--display); }
+.settings-hint { margin: 0 0 14px; color: var(--muted-2); font-size: 12.5px; line-height: 1.5; }
+.settings-items { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 6px; }
+.settings-items li { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--carbon-soft); }
+.settings-items li.missing { border-color: color-mix(in srgb, var(--rose) 40%, var(--line-soft)); }
+.settings-items .mark { color: var(--mint); font-size: 12px; width: 12px; }
+.settings-items li.missing .mark { color: var(--rose); }
+.settings-items code { flex: 1 1 auto; min-width: 0; overflow: hidden; color: var(--bone); font: 12px var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+.settings-warn { flex: 0 0 auto; color: var(--rose); font-size: 11px; }
+.settings-items button { flex: 0 0 auto; display: inline-flex; align-items: center; min-height: 28px; padding: 0 8px; border: 1px solid var(--line); border-radius: var(--radius-xs); background: transparent; color: var(--muted-2); cursor: pointer; }
+.settings-items button:hover:not(:disabled) { border-color: color-mix(in srgb, var(--rose) 45%, var(--line)); color: var(--rose); }
+.settings-empty { margin: 0 0 12px; color: var(--muted-2); font-size: 13px; }
+.settings-add { display: flex; gap: 8px; flex-wrap: wrap; }
+.settings-add input { flex: 1 1 320px; min-width: 0; min-height: 36px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--radius-xs); background: var(--carbon-soft); color: var(--bone); font: 12.5px var(--mono); }
+.settings-add input:focus { outline: 0; border-color: color-mix(in srgb, var(--cyan) 55%, var(--line)); box-shadow: 0 0 0 2px color-mix(in srgb, var(--cyan) 12%, transparent); }
+.settings-add button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 14px; border: 1px solid color-mix(in srgb, var(--cyan) 45%, var(--line)); border-radius: var(--radius-xs); background: var(--carbon-soft); color: var(--cyan); font-size: 13px; cursor: pointer; }
+.settings-add button:disabled { opacity: .42; cursor: not-allowed; }

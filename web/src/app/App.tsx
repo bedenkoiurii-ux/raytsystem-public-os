@@ -24,7 +24,7 @@ import {
   Sun,
   Wrench,
   X
-, Inbox} from "lucide-react";
+, Inbox, SlidersHorizontal} from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import brandWordmarkUrl from "../assets/brand-wordmark.svg";
 import { shortId } from "../api";
@@ -41,6 +41,7 @@ import { AgentsSurface } from "../features/AgentsSurface";
 import { CommandCenter } from "../features/CommandCenter";
 import { Documents } from "../features/documents/Documents";
 import { Reception } from "../features/Reception";
+import { Settings } from "../features/Settings";
 import { Handbook } from "../features/Handbook";
 import { Onboarding } from "../features/Onboarding";
 import { Runs } from "../features/Runs";
@@ -59,6 +60,7 @@ const routeMeta: Record<RouteKey, { label: string; description: string; icon: ty
   handbook: { ...routeCopy.handbook, icon: BookOpen },
   documents: { ...routeCopy.documents, icon: Files },
   reception: { ...routeCopy.reception, icon: Inbox },
+  settings: { ...routeCopy.settings, icon: SlidersHorizontal },
   onboarding: { ...routeCopy.onboarding, icon: PlugZap },
   tasks: { ...routeCopy.tasks, icon: ListTodo },
   universe: { ...routeCopy.universe, icon: Orbit },
@@ -323,6 +325,7 @@ export function App() {
       case "onboarding": return <Onboarding />;
       case "documents": return <Documents onShowInGraph={showDocumentInGraph} />;
       case "reception": return <Reception />;
+      case "settings": return <Settings />;
       case "tasks": return <Tasks createOpen={createTaskOpen} onCreateOpenChange={setCreateTaskOpenWithFocus} onSelect={setSelection} />;
       case "universe": return <Universe theme={theme} selectedId={selection?.id ?? null} focusedDocumentId={universeDocumentId} onSelect={setSelection} onClear={() => setSelection(null)} />;
       case "timeline": return <Timeline onOpenDocument={navigateToDocument} />;
