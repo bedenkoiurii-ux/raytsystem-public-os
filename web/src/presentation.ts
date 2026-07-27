@@ -46,6 +46,11 @@ export const routeCopy = {
     description: "Часова вісь постатей, подій і понять",
     group: "Оркестрація"
   },
+  senses: {
+    label: "Стрічка сенсів",
+    description: "Наскрізні мотиви крізь століття",
+    group: "Оркестрація"
+  },
   map: {
     label: "Мапа",
     description: "Місця бібліотеки в просторі й часі",
