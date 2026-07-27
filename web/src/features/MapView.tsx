@@ -26,7 +26,8 @@ const H = 620;
 interface Place { title: string; lat: number; lon: number; path: string }
 interface StoryEvent { title: string; year: number; year_end: number | null; place_raw: string; route: string[]; path: string }
 interface Story { title: string; from: number; to: number; events: StoryEvent[]; mapped: number }
-interface MapData { places: Place[]; stories: Story[]; loose: StoryEvent[] }
+interface Period { title: string; from: number; to: number; path: string }
+interface MapData { places: Place[]; periods: Period[]; stories: Story[]; loose: StoryEvent[] }
 
 const projectY = (lat: number) => Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360));
 const yTop = projectY(BOX.latMax);
@@ -75,6 +76,7 @@ function useLand() {
 export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => void }) {
   const data = useMapData();
   const land = useLand();
+  const [tab, setTab] = useState<"stories" | "periods">("stories");
   const [openStory, setOpenStory] = useState<string | null>(null);
   const [active, setActive] = useState<string | null>(null);       // підсвічений сюжет
   const [span, setSpan] = useState<[number, number] | null>(null);  // обраний період
@@ -99,7 +101,9 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
   }, [stories]);
 
   // Сюжет входить у зріз, якщо його роки перетинаються з обраним періодом.
+  const [lo, hi] = span ?? bounds;
   const shown = stories.filter((s) => !span || (s.to >= span[0] && s.from <= span[1]));
+  const periods = data.data?.periods ?? [];
   const drawn = active ? shown.filter((s) => s.title === active) : shown;
 
   const onWheel = (e: React.WheelEvent<SVGSVGElement>) => {
@@ -210,23 +214,65 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
               <Maximize2 size={13} /> ×{view.k.toFixed(1)} · вся мапа
             </button>
           ) : null}
+
+          {/* Дві ручки на одній шкалі: «від» і «до». Той самий стан, що й поля
+              років праворуч, — рухаєш тут, змінюється там, і навпаки. */}
+          <div className="map-range">
+            <div className="map-range-track">
+              <div className="map-range-fill"
+                   style={{
+                     left: `${((lo - bounds[0]) / Math.max(1, bounds[1] - bounds[0])) * 100}%`,
+                     right: `${100 - ((hi - bounds[0]) / Math.max(1, bounds[1] - bounds[0])) * 100}%`
+                   }} />
+            </div>
+            <input type="range" min={bounds[0]} max={bounds[1]} value={lo} aria-label="Від року"
+                   onChange={(e) => setSpan([Math.min(Number(e.target.value), hi), hi])} />
+            <input type="range" min={bounds[0]} max={bounds[1]} value={hi} aria-label="До року"
+                   onChange={(e) => setSpan([lo, Math.max(Number(e.target.value), lo)])} />
+            <span className="map-range-lo">{lo}</span>
+            <span className="map-range-hi">{hi}</span>
+          </div>
         </div>
 
         <aside className="map-side">
           <div className="map-period">
-            <span className="eyebrow">ПЕРІОД</span>
             <div className="map-period-row">
-              <input type="number" value={span?.[0] ?? bounds[0]} min={bounds[0]} max={bounds[1]}
-                     onChange={(e) => setSpan([Number(e.target.value), span?.[1] ?? bounds[1]])} aria-label="Від року" />
+              <input type="number" value={lo} min={bounds[0]} max={bounds[1]}
+                     onChange={(e) => setSpan([Number(e.target.value), hi])} aria-label="Від року" />
               <span className="dash">—</span>
-              <input type="number" value={span?.[1] ?? bounds[1]} min={bounds[0]} max={bounds[1]}
-                     onChange={(e) => setSpan([span?.[0] ?? bounds[0], Number(e.target.value)])} aria-label="До року" />
+              <input type="number" value={hi} min={bounds[0]} max={bounds[1]}
+                     onChange={(e) => setSpan([lo, Number(e.target.value)])} aria-label="До року" />
               {span ? <button type="button" className="map-clear" onClick={() => setSpan(null)}>увесь час</button> : null}
             </div>
           </div>
 
+          <div className="map-tabs" role="tablist">
+            <button type="button" role="tab" aria-selected={tab === "stories"}
+                    className={tab === "stories" ? "on" : ""} onClick={() => setTab("stories")}>
+              Сюжети <b>{shown.length}</b>
+            </button>
+            <button type="button" role="tab" aria-selected={tab === "periods"}
+                    className={tab === "periods" ? "on" : ""} onClick={() => setTab("periods")}>
+              Періоди <b>{periods.length}</b>
+            </button>
+          </div>
+
+          {tab === "periods" ? (
+            <div className="map-stories">
+              <ul className="map-periods">
+                {periods.map((p) => (
+                  <li key={p.path} className={span && span[0] === p.from && span[1] === p.to ? "on" : ""}>
+                    <button type="button" onClick={() => { setSpan([p.from, p.to]); setTab("stories"); setActive(null); }}>
+                      <b>{p.from}–{p.to}</b>
+                      <span>{p.title}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <p className="map-note">Періоди взято з бібліотеки, не вигадано: хроніки й дослідження за десятиліттями. Для давнішої історії періодів у матеріалі ще немає — там одиницею лишається розділ.</p>
+            </div>
+          ) : (
           <div className="map-stories">
-            <span className="eyebrow">СЮЖЕТИ <b>{shown.length}</b></span>
             <ul>
               {shown.map((story) => {
                 const open = openStory === story.title;
@@ -260,6 +306,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
               })}
             </ul>
           </div>
+          )}
         </aside>
       </div>
 

@@ -35,6 +35,10 @@ from fastapi import APIRouter, Depends
 
 PLACES = "30-Research/Places"
 EVENTS = "30-Research/Events"
+# Періоди не вигадуємо — беремо ті, що вже виписані в бібліотеці: хроніки й
+# дослідження за десятиліттями (1917–2019). Для давнішої історії періодів
+# у матеріалі немає, там одиницею розповіді лишається розділ книги.
+PERIOD_HINTS = ("хронік", "дослідж", "макроподі", "період", "доба", "епоха")
 MIN_NAME = 4          # коротші назви ловлять випадкові підрядки
 
 
@@ -102,6 +106,29 @@ def create_map_router(root: Path, *, require_session: Callable[..., Any]) -> API
         found.sort()
         return [name for _, name in found]
 
+    def _periods() -> list[dict[str, Any]]:
+        found = []
+        for path in sorted(root.rglob("*.md")):
+            parts = set(path.relative_to(root).parts)
+            if {".git", "graphify-out", "90-Meta"} & parts:
+                continue
+            head = path.read_text(encoding="utf-8", errors="ignore")[:1400]
+            fm = _front(head)
+            start, end = _field(fm, "time_start"), _field(fm, "time_end")
+            if not (re.fullmatch(r"-?\d+", start or "") and re.fullmatch(r"-?\d+", end or "")):
+                continue
+            if _field(fm, "time_kind") == "life" or int(end) - int(start) < 5:
+                continue
+            title = _field(fm, "title") or path.stem
+            if not any(h in title.lower() for h in PERIOD_HINTS):
+                continue
+            if title.startswith("Зауваги"):          # службовий супутник хроніки
+                continue
+            found.append({"title": title, "from": int(start), "to": int(end),
+                          "path": str(path.relative_to(root))})
+        found.sort(key=lambda x: x["from"])
+        return found
+
     @router.get("/map")
     def map_data(_session=Depends(require_session)) -> dict[str, Any]:
         canon, alias = _places()
@@ -144,10 +171,13 @@ def create_map_router(root: Path, *, require_session: Callable[..., Any]) -> API
                 "events": events,
                 "mapped": len(mapped),        # скільки подій сюжету лягає на мапу
             })
-        # Сюжети, що справді малюються, — вище; далі за часом.
-        out.sort(key=lambda s: (-s["mapped"], s["from"]))
+        # Хронологія, а не «спершу цікаве»: якщо це часова шкала, то й порядок
+        # часовий (Юрій, 2026-07-27). Сюжети без жодної точки на мапі лишаються
+        # в списку на своєму місці в часі — вони теж частина розповіді.
+        out.sort(key=lambda s: (s["from"], s["to"]))
         return {
             "places": list(canon.values()),
+            "periods": _periods(),
             "stories": out,
             "loose": sorted(loose, key=lambda e: e["year"]),
         }
