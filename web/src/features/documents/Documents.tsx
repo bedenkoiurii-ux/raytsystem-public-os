@@ -36,6 +36,7 @@ import {
   useDocumentIndexMutation,
   useDocumentLinks,
   useDocumentListing,
+  useIndexPulse,
   useDocumentRestorePreview,
   useDocumentRevisionDetail,
   useMoveDocument,
@@ -360,6 +361,7 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
     limit: 200
   };
   const listing = useDocumentListing(listingQuery);
+  useIndexPulse();   // дерево саме бачить файли, що з'явилися ззовні
   // Writer-Lab: у режимі перегляду ("Файли") без активного пошуку — автоматично довантажуємо
   // всі сторінки, щоб дерево показувало ПОВНУ структуру, а не лише першу сторінку за сортуванням.
   const browsingFullTree = workspace.view === "files" && debouncedQuery.trim() === "";

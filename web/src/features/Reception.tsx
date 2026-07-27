@@ -2,6 +2,7 @@ import { Check, Play, RotateCcw, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { EmptyState, ErrorState, LoadingState } from "../components/StatePanel";
 import { postJson } from "../api";
+import { useIndexPulse } from "./documents/documentHooks";
 
 /** Приймальня — черга матеріалів на входження в бібліотеку.
  *  Черга двофазна (рішення Юрія 2026-07-27): модель не працює над матеріалом,
@@ -41,6 +42,9 @@ export function Reception() {
   }, []);
 
   useEffect(load, [load]);
+  // Черга змінюється ззовні (скан, варта) — перечитуємо на той самий пульс індексу.
+  const pulse = useIndexPulse();
+  useEffect(() => { if (pulse) load(); }, [pulse, load]);
 
   const resolve = (name: string, verdict: Verdict) => {
     if (verdict === "revise" && !note.trim()) return;   // «доопрацювати» без пояснення марне

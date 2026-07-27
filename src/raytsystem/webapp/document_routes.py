@@ -159,6 +159,22 @@ def create_document_router(
     def document_index(
         _session: Annotated[Any, Depends(require_session)],
     ) -> dict[str, Any]:
+        """Статус індексу — і точка самолікування.
+
+        Файли міняються ззовні постійно: конвеєр у worktree, git-злиття, правки
+        руками. Раніше це вимагало перезапуску застосунку, бо індекс будувався
+        лише на старті. Тепер: побачив `stale` — освіжив і віддав свіже.
+
+        Дешево навмисно: `status()` спершу рахує відбиток дерева (~8 мс на 1400
+        файлів), і `refresh()` викликається ЛИШЕ коли відбиток розійшовся.
+        """
+        status = index.status()
+        if status.get("state") != "stale":
+            return status
+        try:
+            index.refresh()
+        except (DocumentIndexError, OSError):
+            return status          # не змогли — хай фронт покаже те, що є
         return index.status()
 
     @router.post("/documents/index/refresh")

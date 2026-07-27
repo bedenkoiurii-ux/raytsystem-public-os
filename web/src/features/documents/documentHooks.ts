@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ensureSession } from "../../api";
 import type {
@@ -273,3 +274,41 @@ interface DocumentIndexStatusEnvelope {
 }
 
 export { documentGet, documentPost, newIntentKey, queryString };
+
+/** Пульс індексу: помічає зміни на диску й перечитує все, що з них залежить.
+ *
+ *  Файли міняються ззовні постійно — конвеєр у worktree, git-злиття, правки
+ *  руками. Раніше це вимагало перезапуску застосунку. Тепер вкладка сама
+ *  бачить нове за ~10 с.
+ *
+ *  Дешево: GET /documents/index рахує відбиток дерева (~8 мс на 1400 файлів)
+ *  і освіжає індекс лише коли відбиток розійшовся. */
+export function useIndexPulse() {
+  const client = useQueryClient();
+  const previous = useRef<string | null>(null);
+  const pulse = useQuery({
+    queryKey: ["documents", "index-pulse"],
+    queryFn: ({ signal }) => documentGet<{ snapshot_id: string | null; state: string; file_count: number }>("/api/v1/documents/index", signal),
+    refetchInterval: 10_000,
+    // Пульс іде і у фоні: у вікні застосунку «прихованих вкладок» не буває
+    // (внутрішні вкладки — не браузерні), а запит коштує ~8 мс і моделі не будить.
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
+    staleTime: 5_000,
+    retry: false
+  });
+
+  const snapshot = pulse.data?.snapshot_id ?? null;
+  useEffect(() => {
+    if (!snapshot) return;
+    if (previous.current === null) { previous.current = snapshot; return; }   // перший вимір — не привід перечитувати
+    if (previous.current === snapshot) return;
+    previous.current = snapshot;
+    void client.invalidateQueries({ queryKey: ["documents", "listing"] });
+    void client.invalidateQueries({ queryKey: ["documents", "detail"] });
+    void client.invalidateQueries({ queryKey: ["universe"] });
+    void client.invalidateQueries({ queryKey: ["timeline"] });
+  }, [snapshot, client]);
+
+  return snapshot;
+}
