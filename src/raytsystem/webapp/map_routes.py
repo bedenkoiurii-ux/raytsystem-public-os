@@ -1,0 +1,155 @@
+"""Мапа сюжетів — географія розповіді, а не список точок.
+
+ЗАДУМ ЮРІЯ (2026-07-27): «Тема розгортається в кількох вимірах. Вона бере
+початок в одній географічній точці, набуває розвитку в іншій, а закінчується
+в третій. Ліворуч мапа, праворуч перелік подій, згорнутих у назву або часовий
+проміжок; під назвою — реперні точки: рік, місце, що сталося. І пунктирні
+лінії, які зв'язують, а також стрілки — вектори розвитку в часі й просторі.»
+
+**Сюжет = документ**, до якого прив'язані події: розділ книги, епізод фільму,
+MOC. Окремого поля не заводимо — розділ уже є одиницею розповіді, і зв'язок
+уже існує: картка події має секцію «## Згадується в» з вікілінком на документ.
+Той самий механізм, яким `build_apparatus.py` збирає апарат.
+
+**Місце події — поле `place:`**, не вікілінки з тіла. Вікілінк може бути
+порівнянням: картка «Чорнобильська катастрофа» згадує [[Катинь]] як приклад
+тієї самої державної брехні — і мапа ставила туди точку аварії. `place:` каже
+буквально, де це сталося.
+
+**Маршрут події.** У `place:` автор часто пише не точку, а рух: «Київ →
+Володимир-на-Клязьмі → Москва», «Вискулі (Біловезька пуща) — Москва». Ми
+шукаємо в рядку всі відомі місця **в порядку появи** — це і є вектор події.
+
+**Областей не малюємо.** Рішення Юрія: «Області точно не малюємо і обводити
+їх теж не потрібно. Ніколи нічим.» Контурів історичних територій у бібліотеці
+немає, а домальовувати кордони на око — вигадана географія з виглядом факту.
+"""
+from __future__ import annotations
+
+import re
+from collections import defaultdict
+from pathlib import Path
+from typing import Any, Callable
+
+from fastapi import APIRouter, Depends
+
+PLACES = "30-Research/Places"
+EVENTS = "30-Research/Events"
+MIN_NAME = 4          # коротші назви ловлять випадкові підрядки
+
+
+def _front(text: str) -> str:
+    m = re.match(r"^---\n(.*?)\n---\n", text, re.S)
+    return m.group(1) if m else ""
+
+
+def _field(fm: str, key: str) -> str:
+    m = re.search(rf"^{key}:\s*(.+?)$", fm, re.M)
+    return m.group(1).strip().strip("'\"") if m else ""
+
+
+def _list_field(fm: str, key: str) -> list[str]:
+    m = re.search(rf"^{key}:\s*\n((?:\s*-\s*.+\n)+)", fm, re.M)
+    return [x.strip().strip("'\"") for x in re.findall(r"-\s*(.+)", m.group(1))] if m else []
+
+
+def _mentions(body: str) -> list[str]:
+    """Документи, до яких прив'язана картка — секція «## Згадується в»."""
+    m = re.search(r"^## Згадується в\s*\n(.*?)(?=\n## |\Z)", body, re.S | re.M)
+    if not m:
+        return []
+    return [x.strip() for x in re.findall(r"\[\[([^\]|#]+)", m.group(1))]
+
+
+def create_map_router(root: Path, *, require_session: Callable[..., Any]) -> APIRouter:
+    router = APIRouter(prefix="/api/v1")
+
+    def _places() -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
+        """Канонічні місця з координатами + індекс «будь-яка назва → канон»."""
+        canon: dict[str, dict[str, Any]] = {}
+        alias: dict[str, str] = {}
+        base = root / PLACES
+        if not base.is_dir():
+            return canon, alias
+        for path in sorted(base.glob("*.md")):
+            text = path.read_text(encoding="utf-8", errors="ignore")
+            fm = _front(text)
+            coords = re.search(r"^coordinates:\s*\n\s*-\s*([\d.-]+)\s*\n\s*-\s*([\d.-]+)", fm, re.M)
+            if not coords:
+                continue
+            name = _field(fm, "title") or path.stem
+            canon[name] = {
+                "title": name,
+                "lat": float(coords.group(1)),
+                "lon": float(coords.group(2)),
+                "path": str(path.relative_to(root)),
+            }
+            for variant in [name, path.stem, *_list_field(fm, "aliases")]:
+                if len(variant) >= MIN_NAME:
+                    alias.setdefault(variant, name)
+        return canon, alias
+
+    def _route(place_line: str, alias: dict[str, str]) -> list[str]:
+        """Місця в рядку `place:` у порядку появи — маршрут події."""
+        found: list[tuple[int, str]] = []
+        seen: set[str] = set()
+        for variant, name in alias.items():
+            at = place_line.find(variant)
+            if at < 0 or name in seen:
+                continue
+            seen.add(name)
+            found.append((at, name))
+        found.sort()
+        return [name for _, name in found]
+
+    @router.get("/map")
+    def map_data(_session=Depends(require_session)) -> dict[str, Any]:
+        canon, alias = _places()
+        stories: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        loose: list[dict[str, Any]] = []
+
+        base = root / EVENTS
+        for path in sorted(base.glob("*.md")) if base.is_dir() else []:
+            text = path.read_text(encoding="utf-8", errors="ignore")
+            fm = _front(text)
+            year = _field(fm, "time_start")
+            if not re.fullmatch(r"-?\d+", year or ""):
+                continue
+            route = _route(_field(fm, "place"), alias)
+            event = {
+                "title": _field(fm, "title") or path.stem,
+                "year": int(year),
+                "year_end": int(_field(fm, "time_end")) if re.fullmatch(r"-?\d+", _field(fm, "time_end") or "") else None,
+                "place_raw": _field(fm, "place"),
+                "route": route,                       # 0, 1 або кілька точок
+                "path": str(path.relative_to(root)),
+            }
+            targets = _mentions(text)
+            if targets:
+                for target in targets:
+                    stories[target].append(event)
+            else:
+                loose.append(event)
+
+        out = []
+        for title, events in stories.items():
+            events.sort(key=lambda e: e["year"])
+            mapped = [e for e in events if e["route"]]
+            if not events:
+                continue
+            out.append({
+                "title": title,
+                "from": events[0]["year"],
+                "to": max(e["year_end"] or e["year"] for e in events),
+                "events": events,
+                "mapped": len(mapped),        # скільки подій сюжету лягає на мапу
+            })
+        # Сюжети, що справді малюються, — вище; далі за часом.
+        out.sort(key=lambda s: (-s["mapped"], s["from"]))
+        return {
+            "places": list(canon.values()),
+            "stories": out,
+            "loose": sorted(loose, key=lambda e: e["year"]),
+        }
+
+    return router

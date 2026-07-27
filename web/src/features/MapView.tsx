@@ -1,121 +1,45 @@
-import { MapPin, Pause, Play } from "lucide-react";
 import type React from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronRight, Maximize2 } from "lucide-react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { EmptyState, ErrorState, LoadingState } from "../components/StatePanel";
 import { getJson } from "../api";
-import type { DocumentListEnvelope, DocumentSummary } from "../features/documents/documentTypes";
 
-/** Мапа подій — четверта проєкція над тими самими даними (після Дерева, Всесвіту й Таймлайну).
+/** Мапа сюжетів — географія розповіді.
  *
- *  Рішення Юрія (2026-07-27): контурна, не «точки в порожнечі» — берегова лінія
- *  потрібна як орієнтир. Підкладка вбудована (`land.json`, Natural Earth
- *  110m, обрізаний до вікна Європи): CSP застосунку має `img-src 'self'` і
- *  `connect-src 'self'`, тож жодні зовнішні тайли неможливі — і це правильно,
- *  бібліотека не мусить ходити в мережу, щоб показати власні дані.
+ *  ЗАДУМ ЮРІЯ (2026-07-27): «Тема розгортається в кількох вимірах: бере початок
+ *  в одній географічній точці, набуває розвитку в іншій, закінчується в третій.
+ *  Ліворуч мапа, праворуч перелік подій, згорнутих у назву або часовий проміжок;
+ *  під назвою — реперні точки: рік, місце, що сталося. І пунктирні лінії, які
+ *  зв'язують, а також стрілки — вектори розвитку в часі й просторі.»
  *
- *  Даних свого API мапа не потребує: `coordinates` і `time_start` уже приходять
- *  у properties списку документів — так само працює Таймлайн. */
-const PLACES = "30-Research/Places";
-const EVENTS = "30-Research/Events";
-// Вікно від Толедо до Золотої Орди й від Гіппона до Новгорода: точка поза
-// межами не зникає, а липне до краю й бреше — тому вікно ширше за поточні дані.
+ *  Сюжет = документ (розділ книги, епізод, MOC), до якого прив'язані події.
+ *  Збирає `map_routes.py`; тут лише показ.
+ *
+ *  Областей не малюємо — рішення Юрія: контурів історичних територій у
+ *  бібліотеці немає, а домальовувати кордони на око означає видати вигадку
+ *  за факт. Територія лишається точкою з підписом. */
 const BOX = { lonMin: -8, latMin: 34, lonMax: 52, latMax: 60 };
 const W = 1000;
 const H = 620;
 
-interface Point {
-  id: string;
-  title: string;
-  lat: number;
-  lon: number;
-  year: number | null;      // рік самого місця (заснування) — є в одиниць
-  x: number;
-  y: number;
-  events: { title: string; year: number }[];   // події, що тут відбулися
-}
+interface Place { title: string; lat: number; lon: number; path: string }
+interface StoryEvent { title: string; year: number; year_end: number | null; place_raw: string; route: string[]; path: string }
+interface Story { title: string; from: number; to: number; events: StoryEvent[]; mapped: number }
+interface MapData { places: Place[]; stories: Story[]; loose: StoryEvent[] }
 
-/** Меркатор: для широт 38–60° він природніший за рівнокутну — Північ не сплющена. */
-function projectY(lat: number): number {
-  const rad = (lat * Math.PI) / 180;
-  return Math.log(Math.tan(Math.PI / 4 + rad / 2));
-}
-
+const projectY = (lat: number) => Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360));
 const yTop = projectY(BOX.latMax);
 const yBottom = projectY(BOX.latMin);
+const toScreen = (lat: number, lon: number): [number, number] => [
+  ((lon - BOX.lonMin) / (BOX.lonMax - BOX.lonMin)) * W,
+  ((yTop - projectY(lat)) / (yTop - yBottom)) * H
+];
 
-function toScreen(lat: number, lon: number): [number, number] {
-  const x = ((lon - BOX.lonMin) / (BOX.lonMax - BOX.lonMin)) * W;
-  const y = ((yTop - projectY(lat)) / (yTop - yBottom)) * H;
-  return [x, y];
-}
-
-/** Сторінками по 50: limit понад 50 віддає 409, а не «скільки є». */
-async function listAll(folder: string): Promise<DocumentSummary[]> {
-  const docs: DocumentSummary[] = [];
-  let cursor: string | null = null;
-  do {
-    const env: DocumentListEnvelope = await getJson<DocumentListEnvelope>(
-      `/api/v1/documents?folder=${encodeURIComponent(folder)}&limit=50&sort=name_asc`
-      + (cursor ? `&cursor=${encodeURIComponent(cursor)}` : "")
-    );
-    docs.push(...((env.items ?? []) as DocumentSummary[]));
-    cursor = (env as { next_cursor?: string | null }).next_cursor ?? null;
-  } while (cursor && docs.length < 500);
-  return docs;
-}
-
-function usePlaces() {
+function useMapData() {
   return useQuery({
-    queryKey: ["map", "places"],
-    queryFn: async () => {
-      const [docs, eventDocs] = await Promise.all([listAll(PLACES), listAll(EVENTS)]);
-
-      // Час у бібліотеці живе в подіях, не в місцях: у картці місця `time_start`
-      // означає заснування й стоїть в одиниць (діапазон вийшов 1589–1616 на всю
-      // мапу). Тому подію прив'язуємо до місця через зворотні посилання: подія
-      // згадала [[Крим]] — отже вона сталася там. Це той самий механізм, яким
-      // build_apparatus.py збирає апарат документа.
-      const eventYear = new Map<string, number>();
-      for (const ev of eventDocs) {
-        const year = Number((ev.properties as Record<string, unknown> | undefined)?.time_start);
-        if (Number.isFinite(year)) eventYear.set(ev.title || ev.filename, year);
-      }
-
-      const points: Point[] = [];
-      for (const doc of docs) {
-        const coords = (doc.properties as Record<string, unknown> | undefined)?.coordinates;
-        if (!Array.isArray(coords) || coords.length < 2) continue;
-        const lat = Number(coords[0]);
-        const lon = Number(coords[1]);
-        if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
-        if (lon < BOX.lonMin || lon > BOX.lonMax || lat < BOX.latMin || lat > BOX.latMax) continue;
-        const rawYear = (doc.properties as Record<string, unknown> | undefined)?.time_start;
-        const year = Number.isFinite(Number(rawYear)) ? Number(rawYear) : null;
-        const [x, y] = toScreen(lat, lon);
-        const title = doc.title || doc.filename;
-        points.push({ id: doc.document_id, title, lat, lon, year, x, y, events: [] });
-      }
-      // Зворотні посилання — по одному запиту на точку, паралельно. Дешевше за
-      // читання тіл усіх подій і не потребує власного ендпойнта.
-      const snapshot = (await getJson<{ snapshot_id: string }>("/api/v1/documents/index")).snapshot_id;
-      await Promise.all(points.map(async (point) => {
-        try {
-          const back = await getJson<{ items?: { source_title?: string; target?: string; label?: string }[] }>(
-            `/api/v1/documents/${encodeURIComponent(point.id)}/backlinks?expected_snapshot_id=${encodeURIComponent(snapshot)}`
-          );
-          for (const item of back.items ?? []) {
-            const name = item.source_title ?? item.label ?? item.target ?? "";
-            const year = eventYear.get(name);
-            if (year !== undefined) point.events.push({ title: name, year });
-          }
-          point.events.sort((a, b) => a.year - b.year);
-        } catch {
-          // Точка без зворотних посилань — не помилка, просто місце без подій.
-        }
-      }));
-      return points;
-    },
+    queryKey: ["map", "data"],
+    queryFn: () => getJson<MapData>("/api/v1/map"),
     staleTime: 30_000
   });
 }
@@ -123,11 +47,10 @@ function usePlaces() {
 function useLand() {
   return useQuery({
     queryKey: ["map", "land"],
-    // Підкладка статична й лежить у бандлі — рахуємо один раз на сеанс.
     staleTime: Infinity,
     queryFn: async () => {
-      // Динамічний import: Vite кладе контур окремим чанком у /assets і вантажить
-      // його лише коли відкрито Мапу. Мережі не треба — CSP тут ні до чого.
+      // Контур у бандлі окремим чанком: CSP має connect-src 'self', зовнішні
+      // тайли неможливі — і не потрібні, бібліотека не ходить у мережу.
       const data = (await import("./land.json")).default as unknown as {
         features: { geometry: { coordinates: number[][][][] } }[];
       };
@@ -137,11 +60,10 @@ function useLand() {
           const ring = poly[0];
           if (!ring?.length) continue;
           let d = "";
-          for (let i = 0; i < ring.length; i += 1) {
-            const [lon, lat] = ring[i];
+          ring.forEach(([lon, lat], i) => {
             const [x, y] = toScreen(lat, lon);
             d += `${i ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`;
-          }
+          });
           paths.push(`${d}Z`);
         }
       }
@@ -151,40 +73,48 @@ function useLand() {
 }
 
 export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => void }) {
-  const places = usePlaces();
+  const data = useMapData();
   const land = useLand();
-  // Зум і панорама через viewBox: SVG масштабується без розмиття, а підписи
-  // лишаються однакового розміру на екрані (vector-effect + зворотний масштаб).
+  const [openStory, setOpenStory] = useState<string | null>(null);
+  const [active, setActive] = useState<string | null>(null);       // підсвічений сюжет
+  const [span, setSpan] = useState<[number, number] | null>(null);  // обраний період
+  const [hover, setHover] = useState<Place | null>(null);
   const [view, setView] = useState({ x: 0, y: 0, k: 1 });
   const drag = useRef<{ px: number; py: number; x: number; y: number } | null>(null);
-  const [year, setYear] = useState<number | null>(null);
-  const [playing, setPlaying] = useState(false);
-  const [hover, setHover] = useState<Point | null>(null);
-  const timer = useRef<number | null>(null);
   const stage = useRef<HTMLDivElement | null>(null);
 
-  const onWheel = useCallback((e: React.WheelEvent<SVGSVGElement>) => {
-    e.preventDefault();
+  const places = useMemo(() => {
+    const map = new Map<string, Place & { x: number; y: number }>();
+    for (const p of data.data?.places ?? []) {
+      const [x, y] = toScreen(p.lat, p.lon);
+      map.set(p.title, { ...p, x, y });
+    }
+    return map;
+  }, [data.data]);
+
+  const stories = data.data?.stories ?? [];
+  const bounds = useMemo(() => {
+    const years = stories.flatMap((s) => [s.from, s.to]);
+    return years.length ? ([Math.min(...years), Math.max(...years)] as const) : ([0, 0] as const);
+  }, [stories]);
+
+  // Сюжет входить у зріз, якщо його роки перетинаються з обраним періодом.
+  const shown = stories.filter((s) => !span || (s.to >= span[0] && s.from <= span[1]));
+  const drawn = active ? shown.filter((s) => s.title === active) : shown;
+
+  const onWheel = (e: React.WheelEvent<SVGSVGElement>) => {
     const box = stage.current?.getBoundingClientRect();
     if (!box) return;
-    // Курсор — нерухома точка масштабування: під ним лишається те саме місце.
     const cx = ((e.clientX - box.left) / box.width) * W;
     const cy = ((e.clientY - box.top) / box.height) * H;
     setView((v) => {
-      const k = Math.min(12, Math.max(1, v.k * (e.deltaY < 0 ? 1.15 : 1 / 1.15)));
-      const x = cx - ((cx - v.x) * v.k) / k;
-      const y = cy - ((cy - v.y) * v.k) / k;
-      const span = { w: W / k, h: H / k };
+      const k = Math.min(14, Math.max(1, v.k * (e.deltaY < 0 ? 1.18 : 1 / 1.18)));
       return {
         k,
-        x: Math.min(Math.max(0, x), W - span.w),
-        y: Math.min(Math.max(0, y), H - span.h)
+        x: Math.min(Math.max(0, cx - ((cx - v.x) * v.k) / k), W - W / k),
+        y: Math.min(Math.max(0, cy - ((cy - v.y) * v.k) / k), H - H / k)
       };
     });
-  }, []);
-
-  const onDown = (e: React.MouseEvent) => {
-    drag.current = { px: e.clientX, py: e.clientY, x: view.x, y: view.y };
   };
   const onMove = (e: React.MouseEvent) => {
     if (!drag.current) return;
@@ -198,118 +128,143 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
       y: Math.min(Math.max(0, drag.current!.y - dy), H - H / v.k)
     }));
   };
-  const onUp = () => { drag.current = null; };
 
-  const points = places.data ?? [];
-  const years = useMemo(
-    () => points.flatMap((p) => p.events.map((e) => e.year)).sort((a, b) => a - b),
-    [points]
-  );
-  const first = years[0] ?? 0;
-  const last = years[years.length - 1] ?? 0;
-
-  const step = useCallback(() => {
-    setYear((prev) => {
-      const next = (prev ?? first) + 25;
-      if (next > last) { setPlaying(false); return last; }
-      return next;
+  /** Наблизити до точки — коли клікаєш реперну точку в правій колонці. */
+  const focus = useCallback((name: string) => {
+    const p = places.get(name);
+    if (!p) return;
+    const k = 5;
+    setView({
+      k,
+      x: Math.min(Math.max(0, p.x - W / k / 2), W - W / k),
+      y: Math.min(Math.max(0, p.y - H / k / 2), H - H / k)
     });
-  }, [first, last]);
+  }, [places]);
 
-  useEffect(() => {
-    if (!playing) return;
-    timer.current = window.setInterval(step, 220);
-    return () => { if (timer.current) window.clearInterval(timer.current); };
-  }, [playing, step]);
-
-  if (places.isError) return <ErrorState error={places.error as Error} onRetry={() => void places.refetch()} />;
-  if (places.isLoading) return <LoadingState label="Читаємо місця з координатами…" />;
-  if (!points.length)
-    return <EmptyState title="Місць із координатами немає">Картки в 30-Research/Places ще не мають поля coordinates — їх проставляє фонова задача «гео».</EmptyState>;
-
-  // Без часового фільтра показуємо все; з фільтром — те, що вже існувало на цей рік.
-  const visible = year === null ? points : points.filter((p) => p.events.some((e) => e.year <= year));
-
-  // Антиколізія підписів. Київські святині лежать в одній точці з точністю до
-  // кілометра, і без цього «Києво-Печерська лавра» накриває «Софійський собор».
-  // Груба сітка замість справжнього розкладання міток: підпис дістає перша
-  // точка в комірці, решта лишається кружечками — назву видно на наведення.
-  // ponytail: сітка 96×18, справжній label-placement — якщо стане тісно.
-  const labelled = new Set<string>();
-  {
-    const taken = new Set<string>();
-    for (const p of [...visible].sort((a, b) => a.title.length - b.title.length)) {
-      const cell = `${Math.round((p.x * view.k) / 96)}:${Math.round((p.y * view.k) / 18)}`;
-      if (taken.has(cell)) continue;
-      taken.add(cell);
-      labelled.add(p.id);
-    }
-  }
+  if (data.isError) return <ErrorState error={data.error as Error} onRetry={() => void data.refetch()} />;
+  if (data.isLoading) return <LoadingState label="Збираємо сюжети й місця…" />;
+  if (!places.size) return <EmptyState title="Місць із координатами немає">Картки в 30-Research/Places ще не мають координат — їх ставить фонова задача «гео».</EmptyState>;
 
   return (
     <div className="route route-map">
-      <header className="map-head">
-        <span className="eyebrow">МАПА</span>
-        <h1>Місця <span className="sub">{visible.length}<span className="of">/{points.length}</span></span></h1>
-        <p>Місця бібліотеки з подіями, що там сталися. Повзунок веде по роках, клік по точці відкриває картку.</p>
-      </header>
+      <div className="map-split">
+        <div className="map-stage" ref={stage}>
+          <svg viewBox={`${view.x} ${view.y} ${W / view.k} ${H / view.k}`} className="map-svg"
+               role="img" aria-label="Мапа сюжетів"
+               onWheel={onWheel} onMouseMove={onMove}
+               onMouseDown={(e) => { drag.current = { px: e.clientX, py: e.clientY, x: view.x, y: view.y }; }}
+               onMouseUp={() => { drag.current = null; }} onMouseLeave={() => { drag.current = null; }}>
+            <defs>
+              <marker id="arrow" viewBox="0 0 8 8" refX="7" refY="4"
+                      markerWidth={5 / view.k} markerHeight={5 / view.k} orient="auto">
+                <path d="M0 0 L8 4 L0 8 z" className="map-arrow" />
+              </marker>
+            </defs>
 
-      <div className="map-stage" ref={stage}>
-        <svg viewBox={`${view.x} ${view.y} ${W / view.k} ${H / view.k}`}
-             role="img" aria-label="Мапа місць бібліотеки"
-             className={`map-svg${drag.current ? " dragging" : ""}`}
-             onWheel={onWheel} onMouseDown={onDown} onMouseMove={onMove}
-             onMouseUp={onUp} onMouseLeave={onUp}>
-          <g className="map-land">
-            {(land.data ?? []).map((d, i) => <path key={i} d={d} style={{ strokeWidth: 0.6 / view.k }} />)}
-          </g>
-          <g className="map-points">
-            {visible.map((p) => (
-              <g key={p.id} className={`map-point${hover?.id === p.id ? " on" : ""}`}
-                 onMouseEnter={() => setHover(p)} onMouseLeave={() => setHover(null)}
-                 onClick={() => onOpenDocument?.(p.id)} role="button" tabIndex={0}
-                 onKeyDown={(e) => { if (e.key === "Enter") onOpenDocument?.(p.id); }}>
-                <circle cx={p.x} cy={p.y} r={(hover?.id === p.id ? 6 : 4) / view.k} />
-                {labelled.has(p.id) || hover?.id === p.id ? <text x={p.x + 9 / view.k} y={p.y + 4 / view.k} style={{ fontSize: `${10.5 / view.k}px` }}>{p.title}</text> : null}
-              </g>
-            ))}
-          </g>
-        </svg>
-        {hover ? (
-          <div className="map-tip" style={{ left: `${(hover.x / W) * 100}%`, top: `${(hover.y / H) * 100}%` }}>
-            <strong>{hover.title}</strong>
-            <span>{hover.lat.toFixed(2)}, {hover.lon.toFixed(2)}</span>
-            {hover.events.length ? (
-              <ul className="map-tip-events">
-                {hover.events.slice(0, 4).map((e) => <li key={e.title}><b>{e.year}</b> {e.title}</li>)}
-                {hover.events.length > 4 ? <li className="more">…ще {hover.events.length - 4}</li> : null}
-              </ul>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
+            <g className="map-land">
+              {(land.data ?? []).map((d, i) => <path key={i} d={d} style={{ strokeWidth: 0.6 / view.k }} />)}
+            </g>
 
-      {years.length ? (
-        <div className="map-scrub">
-          <button type="button" onClick={() => { setPlaying((v) => !v); if (year === null) setYear(first); }}
-                  aria-label={playing ? "Спинити" : "Прогнати роками"}>
-            {playing ? <Pause size={15} /> : <Play size={15} />}
-          </button>
-          <input type="range" min={first} max={last} value={year ?? last}
-                 onChange={(e) => { setPlaying(false); setYear(Number(e.target.value)); }}
-                 aria-label="Рік" />
-          <span className="map-year">{year ?? "усі роки"}</span>
+            {/* Пунктир — послідовність подій сюжету в часі. Суцільна зі стрілкою —
+                рух усередині однієї події (place: «Київ → Володимир → Москва»). */}
+            <g className="map-chains">
+              {drawn.map((story) => {
+                const stops: { name: string; solid: boolean }[] = [];
+                for (const ev of story.events) {
+                  if (span && ((ev.year_end ?? ev.year) < span[0] || ev.year > span[1])) continue;
+                  ev.route.forEach((name, i) => stops.push({ name, solid: i > 0 }));
+                }
+                const segments = [];
+                for (let i = 1; i < stops.length; i += 1) {
+                  const a = places.get(stops[i - 1].name);
+                  const b = places.get(stops[i].name);
+                  if (!a || !b || (a.x === b.x && a.y === b.y)) continue;
+                  segments.push(
+                    <line key={`${story.title}-${i}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y}
+                          className={stops[i].solid ? "vector" : "chain"}
+                          markerEnd={stops[i].solid ? "url(#arrow)" : undefined}
+                          style={{
+                            strokeWidth: (stops[i].solid ? 1.6 : 1.1) / view.k,
+                            strokeDasharray: stops[i].solid ? undefined : `${5 / view.k} ${4 / view.k}`
+                          }} />
+                  );
+                }
+                return <g key={story.title} className={active === story.title ? "on" : ""}>{segments}</g>;
+              })}
+            </g>
+
+            <g className="map-points">
+              {[...places.values()].map((p) => (
+                <g key={p.title} className={`map-point${hover?.title === p.title ? " on" : ""}`}
+                   onMouseEnter={() => setHover(p)} onMouseLeave={() => setHover(null)}
+                   onClick={() => onOpenDocument?.(p.path)} role="button" tabIndex={0}>
+                  <circle cx={p.x} cy={p.y} r={(hover?.title === p.title ? 6 : 4) / view.k} />
+                  <text x={p.x + 9 / view.k} y={p.y + 4 / view.k} style={{ fontSize: `${10.5 / view.k}px` }}>{p.title}</text>
+                </g>
+              ))}
+            </g>
+          </svg>
+
           {view.k > 1 ? (
-            <button type="button" className="map-reset" onClick={() => setView({ x: 0, y: 0, k: 1 })}>
-              ×{view.k.toFixed(1)} · вся мапа
-            </button>
-          ) : null}
-          {year !== null ? (
-            <button type="button" className="map-reset" onClick={() => { setYear(null); setPlaying(false); }}>
-              <MapPin size={14} /> показати всі
+            <button type="button" className="map-fit" onClick={() => setView({ x: 0, y: 0, k: 1 })}>
+              <Maximize2 size={13} /> ×{view.k.toFixed(1)} · вся мапа
             </button>
           ) : null}
         </div>
+
+        <aside className="map-side">
+          <div className="map-period">
+            <span className="eyebrow">ПЕРІОД</span>
+            <div className="map-period-row">
+              <input type="number" value={span?.[0] ?? bounds[0]} min={bounds[0]} max={bounds[1]}
+                     onChange={(e) => setSpan([Number(e.target.value), span?.[1] ?? bounds[1]])} aria-label="Від року" />
+              <span className="dash">—</span>
+              <input type="number" value={span?.[1] ?? bounds[1]} min={bounds[0]} max={bounds[1]}
+                     onChange={(e) => setSpan([span?.[0] ?? bounds[0], Number(e.target.value)])} aria-label="До року" />
+              {span ? <button type="button" className="map-clear" onClick={() => setSpan(null)}>увесь час</button> : null}
+            </div>
+          </div>
+
+          <div className="map-stories">
+            <span className="eyebrow">СЮЖЕТИ <b>{shown.length}</b></span>
+            <ul>
+              {shown.map((story) => {
+                const open = openStory === story.title;
+                return (
+                  <li key={story.title} className={`${open ? "open " : ""}${active === story.title ? "active" : ""}`}>
+                    <button type="button" className="map-story-head"
+                            onClick={() => { setOpenStory(open ? null : story.title); setActive(open ? null : story.title); }}>
+                      <ChevronRight size={14} className="chev" />
+                      <span className="name">{story.title}</span>
+                      <span className="span">{story.from}–{story.to}</span>
+                      <span className={`cnt${story.mapped ? "" : " empty"}`}>{story.mapped}/{story.events.length}</span>
+                    </button>
+                    {open ? (
+                      <ul className="map-beats">
+                        {story.events.map((ev) => (
+                          <li key={ev.path} className={ev.route.length ? "" : "unmapped"}>
+                            <button type="button"
+                                    onClick={() => { if (ev.route[0]) focus(ev.route[0]); onOpenDocument?.(ev.path); }}>
+                              <b>{ev.year}{ev.year_end && ev.year_end !== ev.year ? `–${ev.year_end}` : ""}</b>
+                              <span className="what">{ev.title}</span>
+                              <span className="where">
+                                {ev.route.length ? ev.route.join(" → ") : (ev.place_raw ? "місця нема в бібліотеці" : "без місця")}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </aside>
+      </div>
+
+      {hover ? (
+        <div className="map-tip-fixed"><strong>{hover.title}</strong><span>{hover.lat.toFixed(2)}, {hover.lon.toFixed(2)}</span></div>
       ) : null}
     </div>
   );

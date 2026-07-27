@@ -1337,10 +1337,6 @@ button.table-row:hover { background: var(--surface-2); color: var(--bone); }
 .reception-meta .phase.queued { color: var(--cyan); background: color-mix(in srgb, var(--cyan) 12%, transparent); }
 .reception-meta .phase.proposed { color: var(--mint); background: color-mix(in srgb, var(--mint) 12%, transparent); }
 .reception-note { font-size: 12px; color: var(--muted-2); align-self: center; }
-/* Мапа — четверта проєкція */
-.route-map { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
-.map-head h1 .sub { font: 500 15px var(--mono); color: var(--mint); margin-left: 8px; }
-.map-head h1 .of { color: var(--muted-2); }
 /* Пропорція замість flex:1 — інакше низ мапи й повзунок ідуть за край вікна
    і по них треба скролити. Ширина веде, висота йде за нею. */
 .map-stage { position: relative; aspect-ratio: 1000 / 620; max-height: calc(100vh - 330px); margin-inline: auto; width: 100%; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--carbon-soft); overflow: hidden; }
@@ -1358,10 +1354,52 @@ button.table-row:hover { background: var(--surface-2); color: var(--bone); }
 .map-scrub input[type="range"] { flex: 1; accent-color: var(--cyan); }
 .map-scrub button { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius-xs); background: var(--carbon); color: var(--muted); cursor: pointer; font-size: 12.5px; }
 .map-year { font: 500 13px var(--mono); color: var(--mint); min-width: 76px; text-align: right; }
-.map-tip-events { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 3px; }
-.map-tip-events li { font: 11px var(--sans); color: var(--muted); }
-.map-tip-events b { font: 500 10.5px var(--mono); color: var(--cyan); margin-right: 5px; }
-.map-tip-events .more { color: var(--muted-2); font-style: italic; }
-.map-svg { cursor: grab; }
-.map-svg.dragging { cursor: grabbing; }
-.map-reset { display: inline-flex; align-items: center; gap: 6px; font: 11px var(--mono) !important; color: var(--muted-2) !important; }
+/* Мапа сюжетів: ліворуч географія, праворуч розповідь */
+.route-map { display: flex; flex-direction: column; min-height: 0; }
+.map-split { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 14px; min-height: 0; align-items: start; }
+@media (max-width: 1100px) { .map-split { grid-template-columns: 1fr; } }
+
+.map-stage { position: relative; aspect-ratio: 1000 / 620; max-height: calc(100vh - 190px); width: 100%; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--carbon-soft); overflow: hidden; }
+.map-svg { width: 100%; height: 100%; display: block; cursor: grab; }
+.map-svg:active { cursor: grabbing; }
+.map-land path { fill: color-mix(in srgb, var(--bone) 5%, transparent); stroke: var(--line); }
+.map-point circle { fill: var(--cyan); opacity: .8; }
+.map-point text { fill: var(--muted); pointer-events: none; }
+.map-point.on circle { fill: var(--tangerine); opacity: 1; }
+.map-point.on text { fill: var(--bone); }
+.map-point { cursor: pointer; }
+.map-chains line.chain { stroke: color-mix(in srgb, var(--periwinkle) 55%, transparent); fill: none; }
+.map-chains line.vector { stroke: var(--tangerine); fill: none; }
+.map-chains g.on line.chain { stroke: var(--periwinkle); }
+.map-arrow { fill: var(--tangerine); }
+.map-fit { position: absolute; right: 10px; bottom: 10px; display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border: 1px solid var(--line); border-radius: var(--radius-xs); background: var(--carbon); color: var(--muted); font: 11px var(--mono); cursor: pointer; }
+.map-tip-fixed { position: fixed; right: 372px; bottom: 26px; padding: 7px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--carbon); display: grid; gap: 2px; pointer-events: none; }
+.map-tip-fixed strong { font: 500 13px var(--sans); color: var(--bone); }
+.map-tip-fixed span { font: 10.5px var(--mono); color: var(--muted-2); }
+
+.map-side { display: flex; flex-direction: column; gap: 12px; min-height: 0; max-height: calc(100vh - 190px); }
+.map-period { padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--carbon-soft); }
+.map-period-row { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
+.map-period input { width: 74px; min-height: 30px; padding: 0 8px; border: 1px solid var(--line); border-radius: var(--radius-xs); background: var(--carbon); color: var(--bone); font: 12.5px var(--mono); }
+.map-period .dash { color: var(--muted-2); }
+.map-clear { margin-left: auto; padding: 0 9px; min-height: 28px; border: 1px solid var(--line); border-radius: var(--radius-xs); background: var(--carbon); color: var(--muted); font: 11px var(--mono); cursor: pointer; }
+
+.map-stories { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+.map-stories > ul { list-style: none; margin: 0; padding: 0; overflow-y: auto; display: grid; gap: 4px; }
+.map-stories .eyebrow b { color: var(--mint); margin-left: 6px; }
+.map-story-head { width: 100%; display: grid; grid-template-columns: 14px 1fr auto auto; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--line-soft); border-radius: var(--radius-xs); background: var(--carbon-soft); color: var(--bone); text-align: left; cursor: pointer; }
+.map-story-head:hover { border-color: var(--line); }
+li.active .map-story-head { border-color: var(--periwinkle); }
+li.open .chev { transform: rotate(90deg); }
+.map-story-head .chev { color: var(--muted-2); transition: transform .12s ease; }
+.map-story-head .name { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.map-story-head .span { font: 10.5px var(--mono); color: var(--muted-2); }
+.map-story-head .cnt { font: 10px var(--mono); color: var(--mint); }
+.map-story-head .cnt.empty { color: var(--muted-2); }
+.map-beats { list-style: none; margin: 3px 0 8px; padding: 0 0 0 12px; display: grid; gap: 2px; border-left: 1px solid var(--line-soft); }
+.map-beats button { width: 100%; display: grid; grid-template-columns: 54px 1fr; gap: 6px; padding: 5px 8px; border: 0; background: transparent; color: var(--muted); text-align: left; cursor: pointer; border-radius: var(--radius-xs); }
+.map-beats button:hover { background: color-mix(in srgb, var(--bone) 5%, transparent); }
+.map-beats b { font: 500 11px var(--mono); color: var(--cyan); }
+.map-beats .what { font-size: 12px; color: var(--bone); }
+.map-beats .where { grid-column: 2; font: 10.5px var(--mono); color: var(--muted-2); }
+.map-beats li.unmapped .what, .map-beats li.unmapped .where { color: var(--muted-2); }
