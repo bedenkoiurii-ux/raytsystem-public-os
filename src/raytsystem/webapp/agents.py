@@ -9,10 +9,20 @@ launchd означає, що частина системи живе поза с�
 Це чесно й передбачувано — прихована служба, що сканує диск за спиною автора,
 гірша за агента, який видимо живе у вікні.
 
-Дешевизна тут principova: відбиток тек (кількість файлів + найновіший mtime)
-рахується за мілісекунди й коштує нуль токенів. Модель прокидається ЛИШЕ коли
-відбиток змінився. До цього постійний цикл варти будив Claude кожні кілька
-хвилин, і шість прогонів поспіль закінчувалися висновком «усі файли — дублікати».
+ДВІ ФАЗИ (рішення Юрія 2026-07-27). Модель не працює над матеріалом, поки
+автор не сказав «у роботу»:
+
+  зміна в теці → inbox_scan.py (БЕЗ МОДЕЛІ) → черга зі status: queued
+                                                     ↓ автор у Приймальні
+                                              status: in_work
+                                                     ↓
+                                        варта (Claude) — лише тепер
+
+Агент будить Claude ЛИШЕ якщо в черзі є `in_work`. Раніше він будив варту на
+будь-яку зміну, і та розбирала все підряд: з 29 файлів теки 26 виявилися
+дублікатами вже наявного — робота, витрачена на те, що автор відхилив би не
+читаючи. Сама перевірка тек (відбиток: кількість файлів + найновіший mtime)
+рахується за мілісекунди й коштує нуль.
 """
 from __future__ import annotations
 
@@ -26,6 +36,9 @@ STORE = Path.home() / ".writer-lab"
 WATCH_LIST = STORE / "inbox-watch.txt"
 FINGERPRINT = STORE / "inbox-fingerprint"
 LOOP = Path.home() / "Writer-Lab/raytsystem/wl-loop.sh"
+LIBRARY = Path.home() / "Writer-Lab/Library"
+SCAN = LIBRARY / "90-Meta/scripts/inbox_scan.py"
+PROPOSALS = LIBRARY / "00-Inbox/Пропозиції"
 
 INTERVAL_SECONDS = 300          # перевірка дешева; частіше просто не має сенсу
 
@@ -49,6 +62,8 @@ class InboxWatcher:
             "last_event": self.last_event,
             "watching": self._folders(),
             "varta_running": self._varta_running(),
+            "queued": self._count("queued"),
+            "in_work": self._count("in_work"),
         }
 
     @staticmethod
@@ -68,6 +83,15 @@ class InboxWatcher:
             return True
         except (OSError, ValueError):
             return False
+
+    @staticmethod
+    def _count(status: str) -> int:
+        """Скільки карток черги в цій фазі. Читання файлів, не модель."""
+        if not PROPOSALS.is_dir():
+            return 0
+        needle = f"status: {status}"
+        return sum(1 for p in PROPOSALS.glob("*.md")
+                   if needle in p.read_text(encoding="utf-8", errors="ignore")[:600])
 
     def _fingerprint(self) -> str:
         """Скільки файлів і коли останній змінювався. Недоступні теки (macOS може
@@ -90,23 +114,38 @@ class InboxWatcher:
         return ";".join(parts)
 
     async def _tick(self) -> None:
-        current = await asyncio.to_thread(self._fingerprint)
         self.last_check = datetime.now(UTC).isoformat(timespec="seconds")
+
+        # Фаза 1 — упізнати. Тільки якщо теки справді змінились.
+        current = await asyncio.to_thread(self._fingerprint)
         previous = FINGERPRINT.read_text(encoding="utf-8").strip() if FINGERPRINT.is_file() else ""
-        if current == previous:
-            return                                   # нічого не змінилось — модель не будимо
-        if self._varta_running():
-            self.last_event = "зміни є, але варта вже працює"
-            return
-        STORE.mkdir(parents=True, exist_ok=True)
-        FINGERPRINT.write_text(current, encoding="utf-8")
-        (STORE / "inbox.done").unlink(missing_ok=True)      # робота зʼявилась знову
-        if LOOP.is_file():
+        if current != previous:
+            STORE.mkdir(parents=True, exist_ok=True)
+            FINGERPRINT.write_text(current, encoding="utf-8")
+            found = await asyncio.to_thread(self._scan)
+            self.last_event = (f"{self.last_check} — {found}" if found
+                               else f"{self.last_check} — зміни в теках, нового не знайшлось")
+
+        # Фаза 2 — опрацювати. Будимо Claude ЛИШЕ на те, що автор пустив у роботу.
+        if self._count("in_work") and not self._varta_running() and LOOP.is_file():
+            (STORE / "inbox.done").unlink(missing_ok=True)
             await asyncio.to_thread(
                 subprocess.run, ["/bin/bash", str(LOOP), "inbox", "старт"],
                 capture_output=True, text=True, timeout=60,
             )
-            self.last_event = f"{datetime.now(UTC).isoformat(timespec='seconds')} — знайдено нове, варту розбуджено"
+            self.last_event = f"{self.last_check} — є «у роботу», варту розбуджено"
+
+    @staticmethod
+    def _scan() -> str:
+        """inbox_scan.py — конвертація, sha256, звірка з бібліотекою. Нуль токенів."""
+        if not SCAN.is_file():
+            return ""
+        done = subprocess.run(
+            ["uv", "run", "--with", "pyyaml", "--with", "python-docx", "python3", str(SCAN)],
+            capture_output=True, text=True, timeout=900, cwd=str(LIBRARY),
+        )
+        tail = [l for l in done.stdout.strip().splitlines() if l.startswith("нового:")]
+        return tail[-1] if tail else ""
 
     async def _loop(self) -> None:
         while True:

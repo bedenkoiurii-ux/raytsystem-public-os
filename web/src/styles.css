@@ -1331,3 +1331,9 @@ button.table-row:hover { background: var(--surface-2); color: var(--bone); }
 .agent-facts strong { font: 500 13px var(--sans); color: var(--bone); }
 .agent-facts strong.ok { color: var(--mint); }
 .agent-facts strong.off { color: var(--muted-2); }
+/* Приймальня: фаза «не розбирано» */
+.reception-item.fresh { border-left: 2px solid var(--cyan); }
+.reception-meta .phase { font-style: normal; font: 9.5px var(--mono); text-transform: uppercase; letter-spacing: .08em; padding: 2px 6px; border-radius: var(--radius-xs); }
+.reception-meta .phase.queued { color: var(--cyan); background: color-mix(in srgb, var(--cyan) 12%, transparent); }
+.reception-meta .phase.proposed { color: var(--mint); background: color-mix(in srgb, var(--mint) 12%, transparent); }
+.reception-note { font-size: 12px; color: var(--muted-2); align-self: center; }

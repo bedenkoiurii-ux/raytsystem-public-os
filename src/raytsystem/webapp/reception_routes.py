@@ -1,8 +1,18 @@
 """Приймальня — черга матеріалів на входження в бібліотеку.
 
-Варта інбоксу (НАКАЗ-інбоксу.md) кладе пропозиції в 00-Inbox/Пропозиції зі
-`status: proposed`. Тут Юрій виносить резолюцію, і вона пишеться назад у
-frontmatter; конвеєр наступним прогоном її виконує.
+Черга двофазна (рішення Юрія 2026-07-27): модель не працює над матеріалом,
+поки автор не сказав «у роботу».
+
+  queued  ── «У роботу» ─→ in_work ── варта розібрала ─→ proposed ─→ accepted
+     │                                                       ├─→ revise
+     └── «Не треба» ─→ rejected                              └─→ rejected
+
+  queued   — знайдено скануванням (`inbox_scan.py`, без моделі): назва, звідки,
+             обсяг, повний текст. Жодного судження ще не робилось.
+  in_work  — автор запустив у роботу; варта бере В РОБОТУ ЛИШЕ ЦЕ.
+  proposed — розібрано, чекає остаточної резолюції.
+
+Резолюція пишеться назад у frontmatter; конвеєр наступним прогоном її виконує.
 
 Вузький ендпойнт навмисно: наріжний API документів вимагає sha/snapshot/CSRF
 заради двох полів frontmatter — для трьох кнопок це зайве.
@@ -19,7 +29,13 @@ from pydantic import BaseModel, Field
 
 PROPOSALS = "00-Inbox/Пропозиції"
 REJECTED = "00-Inbox/Відхилені"
-VERDICTS = {"accepted", "revise", "rejected"}
+# Що дозволено з якої фази: нерозібране не можна «прийняти», розібране —
+# не можна вдруге «пустити в роботу».
+ALLOWED = {
+    "queued": {"in_work", "rejected"},
+    "proposed": {"accepted", "revise", "rejected"},
+}
+VERDICTS = {v for s in ALLOWED.values() for v in s}
 
 
 class Resolution(BaseModel):
@@ -65,13 +81,17 @@ def create_reception_router(root: Path, *, require_session: Callable[..., Any]) 
         if inbox.is_dir():
             for p in sorted(inbox.glob("*.md"), key=lambda x: x.stat().st_mtime, reverse=True):
                 fm, body = _split(p.read_text(encoding="utf-8", errors="ignore"))
-                if _field(fm, "status") != "proposed":
+                status = _field(fm, "status")
+                if status not in ALLOWED:
                     continue
                 items.append({
                     "name": p.name,
                     "title": _field(fm, "title") or p.stem,
                     "kind": _field(fm, "kind") or "матеріал",
-                    "proposed_at": _field(fm, "proposed_at"),
+                    "phase": status,
+                    "size_chars": _field(fm, "size_chars"),
+                    "source_origin": _field(fm, "source_origin"),
+                    "proposed_at": _field(fm, "proposed_at") or _field(fm, "found_at"),
                     "lead": _lead(body),
                     "body": body[:20_000],
                 })
@@ -89,6 +109,11 @@ def create_reception_router(root: Path, *, require_session: Callable[..., Any]) 
 
         text = path.read_text(encoding="utf-8")
         fm, body = _split(text)
+        phase = _field(fm, "status")
+        if payload.verdict not in ALLOWED.get(phase, set()):
+            # Головна перепона двофазності: «прийняти» нерозібране неможливо.
+            return JSONResponse(status_code=409, content={"error": {"code": "wrong_phase",
+                "message": f"З фази «{phase}» так вчинити не можна."}})
         fm = re.sub(r"^status:.*$", f"status: {payload.verdict}", fm, count=1, flags=re.M) or fm
         if payload.resolution.strip():
             line = "resolution: " + payload.resolution.strip().replace("\n", " ")
