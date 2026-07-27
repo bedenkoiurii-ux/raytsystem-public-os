@@ -122,4 +122,17 @@ def create_settings_router(root: Path, *, require_session: Callable[..., Any]) -
         path = done.stdout.strip().rstrip("/")
         return {"ok": True, "path": path or None}
 
+    @router.get("/settings/watchdog")
+    def watchdog_state(_session=Depends(require_session)) -> dict[str, Any]:
+        """Стан внутрішнього агента-сторожа. Читається без моделі."""
+        from raytsystem.webapp.agents import watcher
+        return watcher.state()
+
+    @router.post("/settings/watchdog/toggle")
+    def watchdog_toggle(_session=Depends(require_session)) -> Any:
+        """Увімкнути/вимкнути стеження — з вікна, без термінала."""
+        from raytsystem.webapp.agents import watcher
+        watcher.enabled = not watcher.enabled
+        return {"ok": True, "enabled": watcher.enabled}
+
     return router

@@ -1,4 +1,4 @@
-import { FolderOpen, FolderPlus, Trash2 } from "lucide-react";
+import { Activity, FolderOpen, FolderPlus, Pause, Play, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { EmptyState, ErrorState, LoadingState } from "../components/StatePanel";
 import { postJson } from "../api";
@@ -14,6 +14,16 @@ interface Entry {
   exists: boolean;
 }
 
+interface WatcherState {
+  enabled: boolean;
+  alive: boolean;
+  interval_seconds: number;
+  last_check: string | null;
+  last_event: string | null;
+  watching: string[];
+  varta_running: boolean;
+}
+
 interface ListBlock {
   key: string;
   label: string;
@@ -27,6 +37,22 @@ export function Settings() {
   const [error, setError] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  const [watcher, setWatcher] = useState<WatcherState | null>(null);
+
+  const loadWatcher = useCallback(() => {
+    fetch("/api/v1/settings/watchdog", { credentials: "same-origin" })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then(setWatcher)
+      .catch(() => setWatcher(null));   // агент недоступний — блок просто не показуємо
+  }, []);
+
+  const toggleWatcher = () => {
+    setBusy("watcher");
+    postJson<{ ok: boolean }>("/api/v1/settings/watchdog/toggle", {})
+      .then(loadWatcher)
+      .catch((e) => setError(e?.message ? String(e.message) : String(e)))
+      .finally(() => setBusy(null));
+  };
 
   const pick = (key: string) => {
     setError(null);
@@ -46,6 +72,13 @@ export function Settings() {
   }, []);
 
   useEffect(load, [load]);
+  useEffect(() => {
+    loadWatcher();
+    // Стан агента читається з файлів і памʼяті процесу — дешево, тож оновлюємо,
+    // поки вікно відкрите. Модель тут не бере участі.
+    const timer = window.setInterval(loadWatcher, 15000);
+    return () => window.clearInterval(timer);
+  }, [loadWatcher]);
 
   const edit = (key: string, value: string, action: "add" | "remove") => {
     if (!value.trim()) return;
@@ -72,6 +105,32 @@ export function Settings() {
       </header>
 
       {error ? <p className="settings-error" role="alert">{error}</p> : null}
+
+      {watcher ? (
+        <section className={`settings-block agent${watcher.enabled && watcher.alive ? " on" : ""}`}>
+          <div className="agent-head">
+            <h2><Activity size={16} aria-hidden="true" /> Автономне стеження</h2>
+            <button type="button" className="agent-toggle" disabled={busy === "watcher"} onClick={toggleWatcher}>
+              {watcher.enabled ? <><Pause size={15} /> Вимкнути</> : <><Play size={15} /> Увімкнути</>}
+            </button>
+          </div>
+          <p className="settings-hint">
+            Агент живе всередині Writer-Lab: перевіряє теки кожні {Math.round(watcher.interval_seconds / 60)} хв
+            і будить варту <strong>лише коли зʼявилося нове</strong> — сама перевірка не витрачає токенів.
+            Працює, поки відкритий застосунок.
+          </p>
+          <ul className="agent-facts">
+            <li><span>стан</span><strong className={watcher.enabled && watcher.alive ? "ok" : "off"}>
+              {watcher.enabled ? (watcher.alive ? "стежить" : "увімкнено, але не працює") : "вимкнено"}
+            </strong></li>
+            <li><span>тек під наглядом</span><strong>{watcher.watching.length}</strong></li>
+            <li><span>варта</span><strong className={watcher.varta_running ? "ok" : ""}>
+              {watcher.varta_running ? "розбирає матеріали" : "спить"}
+            </strong></li>
+            {watcher.last_event ? <li className="wide"><span>останнє</span><strong>{watcher.last_event}</strong></li> : null}
+          </ul>
+        </section>
+      ) : null}
 
       {lists.map((block) => (
         <section key={block.key} className="settings-block">

@@ -386,6 +386,8 @@ def create_app(
     )
     execution_service: ExecutionService | None = None
     execution_service_lock = asyncio.Lock()
+    from raytsystem.webapp.agents import watcher as inbox_watcher
+
     app = FastAPI(
         title="raytsystem local control plane",
         version="0.1.0",
@@ -1828,6 +1830,16 @@ def create_app(
     from raytsystem.webapp.reception_routes import create_reception_router
     app.include_router(create_reception_router(resolved_root, require_session=require_session))
     app.include_router(create_settings_router(resolved_root, require_session=require_session))
+
+    # Агенти живуть усередині системи, а не в launchd (рішення Юрія 2026-07-27):
+    # стеження працює, поки працює Writer-Lab — видимо й передбачувано.
+    @app.on_event("startup")
+    async def _start_agents() -> None:
+        inbox_watcher.start()
+
+    @app.on_event("shutdown")
+    async def _stop_agents() -> None:
+        await inbox_watcher.stop()
 
     app.include_router(create_feature_router(resolved_root, require_session=require_session))
 

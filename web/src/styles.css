@@ -1318,3 +1318,16 @@ button.table-row:hover { background: var(--surface-2); color: var(--bone); }
 .settings-add button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 14px; border: 1px solid color-mix(in srgb, var(--cyan) 45%, var(--line)); border-radius: var(--radius-xs); background: var(--carbon-soft); color: var(--cyan); font-size: 13px; cursor: pointer; }
 .settings-add button:disabled { opacity: .42; cursor: not-allowed; }
 .settings-add .pick { border-color: color-mix(in srgb, var(--gold) 45%, var(--line)); color: var(--gold); }
+/* Блок внутрішнього агента */
+.settings-block.agent.on { border-color: color-mix(in srgb, var(--mint) 35%, var(--line-soft)); }
+.agent-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+.agent-head h2 { display: inline-flex; align-items: center; gap: 8px; margin: 0; }
+.agent-toggle { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--radius-xs); background: var(--carbon-soft); color: var(--muted); font-size: 12.5px; cursor: pointer; }
+.agent-toggle:hover:not(:disabled) { background: color-mix(in srgb, var(--bone) 8%, transparent); }
+.agent-facts { list-style: none; margin: 12px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.agent-facts li { padding: 9px 11px; border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--carbon-soft); display: grid; gap: 3px; }
+.agent-facts li.wide { grid-column: 1 / -1; }
+.agent-facts span { font: 9.5px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted-2); }
+.agent-facts strong { font: 500 13px var(--sans); color: var(--bone); }
+.agent-facts strong.ok { color: var(--mint); }
+.agent-facts strong.off { color: var(--muted-2); }
