@@ -64,6 +64,7 @@ class InboxWatcher:
             "varta_running": self._varta_running(),
             "queued": self._count("queued"),
             "in_work": self._count("in_work"),
+            "pending": self._pending(),      # резолюції, які варта ще не виконала
         }
 
     @staticmethod
@@ -92,6 +93,10 @@ class InboxWatcher:
         needle = f"status: {status}"
         return sum(1 for p in PROPOSALS.glob("*.md")
                    if needle in p.read_text(encoding="utf-8", errors="ignore")[:600])
+
+    def _pending(self) -> int:
+        """Скільки карток чекають дії варти: розбору або виконання резолюції."""
+        return sum(self._count(s) for s in ("in_work", "accepted", "revise"))
 
     def _fingerprint(self) -> str:
         """Скільки файлів і коли останній змінювався. Недоступні теки (macOS може
@@ -126,14 +131,16 @@ class InboxWatcher:
             self.last_event = (f"{self.last_check} — {found}" if found
                                else f"{self.last_check} — зміни в теках, нового не знайшлось")
 
-        # Фаза 2 — опрацювати. Будимо Claude ЛИШЕ на те, що автор пустив у роботу.
-        if self._count("in_work") and not self._varta_running() and LOOP.is_file():
+        # Фаза 2 — опрацювати. Будимо Claude лише на те, де вже є слово автора:
+        # «у роботу» (розібрати), «прийнято» (перенести в бібліотеку), «доопрацювати».
+        # Без accepted/revise у списку прийнятий матеріал завис би в черзі назавжди.
+        if self._pending() and not self._varta_running() and LOOP.is_file():
             (STORE / "inbox.done").unlink(missing_ok=True)
             await asyncio.to_thread(
                 subprocess.run, ["/bin/bash", str(LOOP), "inbox", "старт"],
                 capture_output=True, text=True, timeout=60,
             )
-            self.last_event = f"{self.last_check} — є «у роботу», варту розбуджено"
+            self.last_event = f"{self.last_check} — {self._pending()} на виконанні, варту розбуджено"
 
     @staticmethod
     def _scan() -> str:

@@ -52,9 +52,39 @@ ALLOWED=(Bash WebFetch WebSearch Agent)
 token() { security find-generic-password -a "$USER" -s "$KEYCHAIN_SERVICE" -w 2>/dev/null || true; }
 
 ensure_worktree() {
-  [ -d "$VAULT" ] && return 0
-  ( cd "$MAIN" && git worktree add -b "$BRANCH" "$VAULT" HEAD ) >>"$LOG" 2>&1 \
-    || ( cd "$MAIN" && git worktree add "$VAULT" "$BRANCH" ) >>"$LOG" 2>&1
+  if [ ! -d "$VAULT" ]; then
+    ( cd "$MAIN" && git worktree add -b "$BRANCH" "$VAULT" HEAD ) >>"$LOG" 2>&1 \
+      || ( cd "$MAIN" && git worktree add "$VAULT" "$BRANCH" ) >>"$LOG" 2>&1
+  fi
+  sync_from_main
+}
+
+# Резолюції автора пишуться в бібліотеку (main) з вікна застосунку, а конвеєр
+# живе на своїй гілці. Без цього підтягування варта бачить старий `status:
+# proposed` там, де автор уже натиснув «Прийняти», — і прийняте зависає
+# в черзі назавжди. Оплачено есеєм №5.
+sync_from_main() {
+  cd "$VAULT" || return 0
+  git stash --include-untracked --quiet 2>/dev/null || true
+  if git merge --no-edit main >>"$LOG" 2>&1; then
+    git stash pop --quiet 2>/dev/null || true
+    return 0
+  fi
+  # У картках черги авторитетна бібліотека: там слово автора, а тіло тексту
+  # в обох гілках однакове. Конфлікт поза чергою — не наша справа, відкат.
+  local left
+  git checkout --theirs -- "00-Inbox/" 2>/dev/null || true
+  git add "00-Inbox/" 2>/dev/null || true
+  left=$(git diff --name-only --diff-filter=U | wc -l | tr -d ' ')
+  if [ "$left" = "0" ]; then
+    git commit --no-edit -q >>"$LOG" 2>&1 || true
+    echo "   резолюції автора підтягнуто з main" >>"$LOG"
+  else
+    echo "!! конфлікт поза чергою ($left файлів) — розбирати руками" >>"$LOG"
+    git merge --abort 2>/dev/null || true
+  fi
+  git stash pop --quiet 2>/dev/null || true
+  return 0
 }
 
 one_run() {
