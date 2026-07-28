@@ -143,6 +143,36 @@ def create_map_router(root: Path, *, require_session: Callable[..., Any]) -> API
         found.sort(key=lambda x: x["from"])
         return found
 
+    @router.get("/map/story")
+    def map_story(title: str, _session=Depends(require_session)) -> dict[str, Any]:
+        """Текст самого сюжету — розділу книги, епізоду, есею чи MOC.
+
+        Сюжет у списку названо за `title` документа, тож шукаємо по ньому.
+        Апарат відрізаємо: у панелі читається авторський текст, а сутності
+        доступні через реперні точки поруч.
+        """
+        want = title.strip()
+        for candidate in sorted(root.rglob("*.md")):
+            if {".git", "graphify-out"} & set(candidate.relative_to(root).parts):
+                continue
+            head = candidate.read_text(encoding="utf-8", errors="ignore")[:900]
+            fm = _front(head)
+            if (_field(fm, "title") or candidate.stem) != want:
+                continue
+            text = candidate.read_text(encoding="utf-8", errors="ignore")
+            fmt = _front(text)
+            body = text[len(fmt) + 8:] if fmt else text
+            body = re.split(r"<!-- apparatus:start", body)[0].strip()
+            rel = str(candidate.relative_to(root))
+            return {
+                "title": want,
+                "kind": _field(fmt, "type"),
+                "body": body[:60_000],
+                "path": rel,
+                "document_id": _doc_id(rel),
+            }
+        return {"error": "not_found", "title": want}
+
     @router.get("/map/card")
     def map_card(name: str, _session=Depends(require_session)) -> dict[str, Any]:
         """Картка будь-якої сутності за назвою — для кліку по передумові.

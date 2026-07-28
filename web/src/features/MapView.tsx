@@ -69,6 +69,18 @@ function useNamedCard(name: string | null) {
   });
 }
 
+/** Текст самого сюжету — розділу, епізоду, есею. Клік по назві сюжету
+ *  відкриває його читання, а не лише список подій (Юрій). */
+function useStoryDoc(title: string | null) {
+  return useQuery({
+    queryKey: ["map", "story", title],
+    enabled: Boolean(title),
+    staleTime: 60_000,
+    queryFn: () => getJson<{ title: string; kind: string; body: string; path: string; document_id: string | null; error?: string }>(
+      `/api/v1/map/story?title=${encodeURIComponent(title ?? "")}`)
+  });
+}
+
 function useEventCard(path: string | null) {
   return useQuery({
     queryKey: ["map", "event", path],
@@ -165,6 +177,9 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
   const [spanByStory, setSpanByStory] = useState(false);
   const [openEvent, setOpenEvent] = useState<string | null>(null);
   const card = useEventCard(openEvent);
+  // Панель показує або текст сюжету, або картку події — що відкрив останнім.
+  const [openText, setOpenText] = useState<string | null>(null);
+  const story = useStoryDoc(openText);
   // Передумови розгортаються ВБУДОВАНО, у тому самому стовпці (Юрій: «щоб це
   // був один стовпчик, передумови відкривались як вбудовані»). Стек плаваючих
   // панелей прибрано: він перекривав те, з чого починався.
@@ -313,7 +328,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
 
   return (
     <div className="route route-map">
-      <div className={`map-split${openEvent && card.data ? " with-card" : ""}`}>
+      <div className={`map-split${(openEvent && card.data) || (openText && story.data && !story.data.error) ? " with-card" : ""}`}>
         <div className="map-stage" ref={attachStage}>
           <svg viewBox={`${view.x} ${view.y} ${W / view.k} ${H / view.k}`} className="map-svg"
                role="img" aria-label="Мапа сюжетів"
@@ -444,8 +459,8 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                   <li key={story.title} className={`${open ? "open " : ""}${active === story.title ? "active" : ""}`}>
                     <button type="button" className="map-story-head"
                             onClick={() => {
-                              if (open) { setOpenStory(null); setActive(null); setSpan(null); setSpanByStory(false); setOpenEvent(null); setView({ x: 0, y: 0, k: 1 }); }
-                              else { setOpenStory(story.title); setActive(story.title); showStory(story); }
+                              if (open) { setOpenStory(null); setActive(null); setSpan(null); setSpanByStory(false); setOpenEvent(null); setOpenText(null); setView({ x: 0, y: 0, k: 1 }); }
+                              else { setOpenStory(story.title); setActive(story.title); setOpenEvent(null); setOpenText(story.title); showStory(story); }
                             }}>
                       <ChevronRight size={14} className="chev" />
                       <span className="name">{story.title}</span>
@@ -457,7 +472,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                         {story.events.map((ev) => (
                           <li key={ev.path} className={ev.route.length ? "" : "unmapped"}>
                             <button type="button" className={openEvent === ev.path ? "on" : ""}
-                                    onClick={() => { if (ev.route[0]) focus(ev.route[0]); setOpened([]); setOpenEvent(openEvent === ev.path ? null : ev.path); }}>
+                                    onClick={() => { if (ev.route[0]) focus(ev.route[0]); setOpened([]); setOpenText(null); setOpenEvent(openEvent === ev.path ? null : ev.path); }}>
                               <b>{ev.year}{ev.year_end && ev.year_end !== ev.year ? `–${ev.year_end}` : ""}</b>
                               <span className="what">{ev.title}</span>
                               <span className="where">
@@ -475,6 +490,19 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
           </div>
           )}
         </aside>
+      {openText && story.data && !story.data.error ? (
+        <aside className={`map-card${sheet.on ? " sheet-light" : ""}`} data-sheet-tone={sheet.on ? sheet.tone : undefined}>
+          <header>
+            <span className="eyebrow">{story.data.kind === "essay" ? "ЕСЕЙ" : story.data.kind === "episode" ? "ЕПІЗОД" : "РОЗДІЛ"}</span>
+            <h2>{story.data.title}</h2>
+            {story.data.document_id ? (
+              <button type="button" className="map-card-open" onClick={() => onOpenDocument?.(story.data!.document_id!)}>відкрити документ</button>
+            ) : null}
+          </header>
+          <div className="safe-markdown"><SafeMarkdownView content={story.data.body} /></div>
+        </aside>
+      ) : null}
+
       {openEvent && card.data ? (
         <aside className={`map-card${sheet.on ? " sheet-light" : ""}`} data-sheet-tone={sheet.on ? sheet.tone : undefined}>
           <header>
