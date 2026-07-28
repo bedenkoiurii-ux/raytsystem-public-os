@@ -409,6 +409,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
   return (
     <div className="route route-map">
       <div className={`map-split${(openEvent && card.data) || (openText && story.data && !story.data.error) ? " with-card" : ""}`}>
+        <div className="map-left">
         <div className="map-stage" ref={attachStage}>
           <svg viewBox={`${view.x} ${view.y} ${W / view.k} ${H / view.k}`} className="map-svg"
                role="img" aria-label="Мапа сюжетів"
@@ -565,6 +566,8 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
               </div>
             ) : year !== null ? <span className="map-realms-head">Завантажуємо зріз…</span> : null}
           </div>
+
+        </div>
 
         <aside className="map-side">
           <div className="map-period">
