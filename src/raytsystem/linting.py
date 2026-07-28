@@ -15,7 +15,12 @@ from raytsystem.security.sensitivity import SecretScanner, SensitivityDecision
 from raytsystem.storage import IntegrityError, read_current_generation
 
 _WIKILINK = re.compile(r"\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]")
-_MARKDOWN_LINK = re.compile(r"(?<!!)\[[^\]]*\]\(([^)]+)\)")
+# Екрановані дужки в підписі — не кінець підпису. Текст твердження стає
+# заголовком посилання в індексі знань, і якщо він сам містить markdown-лінк,
+# генератор екранує його дужки (`\]`, `\)`) — це коректний літерал. Наївний
+# `[^\]]*` спинявся на такій дужці, брав чужий URL за ціль і оголошував
+# сторінку сиротою: 19 помилок на рівному місці.
+_MARKDOWN_LINK = re.compile(r"(?<!!)\[(?:\\.|[^\]\\])*\]\(((?:\\.|[^)\\])+)\)")
 _FRONTMATTER_ID = re.compile(r"^([a-z][a-z0-9_]*_id):\s*([^\s]+)\s*$")
 _SEVERITY_ORDER = {"critical": 0, "high": 1, "error": 2, "warning": 3, "info": 4}
 

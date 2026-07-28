@@ -48,6 +48,26 @@ PERIOD_HINTS = ("хронік", "дослідж", "макроподі", "пер�
 MIN_NAME = 4          # коротші назви ловлять випадкові підрядки
 
 
+def _clip(text: str, limit: int) -> str:
+    """Обрізати так, щоб уривався не текст, а думка.
+
+    Тверда межа різала посеред слова й посеред розмітки: врізка Сильвестра
+    Косова кінчалася на «застосували те саме [[Втрата суб'єктнос» — читач
+    бачив обрубок і сирий вікілінк. Стеля тепер покриває всі наявні секції
+    (найдовша — 2 703 знаки), а коли документ таки довший, ріжемо по межі
+    абзацу, тоді речення: врізка має закінчуватися крапкою.
+    """
+    text = text.strip()
+    if len(text) <= limit:
+        return text
+    head = text[:limit]
+    for boundary in ("\n\n", ". ", "! ", "? ", "\n"):
+        cut = head.rfind(boundary)
+        if cut > limit // 2:
+            return head[: cut + (1 if boundary != "\n\n" and boundary != "\n" else 0)].strip() + " …"
+    return head.rsplit(" ", 1)[0].strip() + " …"
+
+
 def _front(text: str) -> str:
     m = re.match(r"^---\n(.*?)\n---\n", text, re.S)
     return m.group(1) if m else ""
@@ -344,8 +364,9 @@ def create_map_router(root: Path, *, require_session: Callable[..., Any]) -> API
         return {
             "title": _field(fm, "title") or target.stem,
             "kind": _field(fm, "type"),
-            "lead": lead[:900],
-            "value": section("Цінність для розповіді", "Значення для розповіді", "Чому важить", "Чим важить")[:1200],
+            "lead": _clip(lead, 1400),
+            "value": _clip(section("Цінність для розповіді", "Значення для розповіді",
+                                   "Чому важить", "Чим важить"), 3000),
             "year": _field(fm, "time_start"),
             "year_end": _field(fm, "time_end"),
             "place": _field(fm, "place"),
@@ -353,9 +374,10 @@ def create_map_router(root: Path, *, require_session: Callable[..., Any]) -> API
             # «Що тут відбувалося», людина — «Життя», поняття — «Що це».
             # Для документів поза 30-Research беремо початок тіла: у наказу чи
             # есею немає «Що сталося», але перший абзац і є відповіддю «що це».
-            "what": (section("Що сталося", "Що тут відбувалося", "Що це", "Життя", "Хто це")
-                     or re.sub(r"^#[^\n]*\n+", "", body.strip()).strip())[:1500],
-            "consequences": section("Наслідки", "Цінність для розповіді", "Реперні події", "Чому важить")[:1500],
+            "what": _clip(section("Що сталося", "Що тут відбувалося", "Що це", "Життя", "Хто це")
+                          or re.sub(r"^#[^\n]*\n+", "", body.strip()).strip(), 3000),
+            "consequences": _clip(section("Наслідки", "Цінність для розповіді",
+                                          "Реперні події", "Чому важить"), 3000),
             "related": [x.strip() for x in re.findall(r"\[\[([^\]|#]+)", section("Пов'язане"))][:8],
             "path": rel,
             "document_id": _doc_id(rel),
@@ -386,8 +408,8 @@ def create_map_router(root: Path, *, require_session: Callable[..., Any]) -> API
             "year": _field(fm, "time_start"),
             "year_end": _field(fm, "time_end"),
             "place": _field(fm, "place"),
-            "what": section("Що сталося")[:1800],
-            "consequences": section("Наслідки")[:1800],
+            "what": _clip(section("Що сталося"), 3000),
+            "consequences": _clip(section("Наслідки"), 3000),
             "related": [x.strip() for x in re.findall(r"\[\[([^\]|#]+)", section("Пов'язане"))][:8],
             "sides": section("Учасники й сторони")[:600],
             "path": path,
