@@ -274,9 +274,17 @@ def create_map_router(root: Path, *, require_session: Callable[..., Any]) -> API
                     if not ({".git", "graphify-out"} & set(c.parts)) and safe.lower() in c.stem.lower()]
             return hits[0] if len(hits) == 1 else None
 
-        # Спершу індекс: він знає відмінкові форми й тримається за uid, а не
-        # за назву, тож переживає перейменування картки.
-        target, choices = _by_index(safe)
+        # Пряме звернення за вічним ключем: так фронт відкриває обраний варіант
+        # неоднозначного імені, не покладаючись на назву.
+        if safe.startswith("uid:"):
+            card = _entity_index().get("cards", {}).get(safe[4:])
+            if not card:
+                return {"error": "not_found", "name": safe}
+            target, choices = root / card["path"], []
+        else:
+            # Індекс знає відмінкові форми й тримається за uid, а не за назву,
+            # тож переживає перейменування картки.
+            target, choices = _by_index(safe)
         if choices:
             return {"error": "ambiguous", "name": safe, "choices": choices}
         target = target or scan(root / "30-Research") or scan(root) or loose(root / "30-Research")
