@@ -117,6 +117,12 @@ function Entity({ name, opened, setOpened, onOpenDocument, depth = 0 }: {
   const isOpen = opened.includes(name);
   const card = useNamedCard(isOpen ? name : null);
   const toggle = () => setOpened((s) => (s.includes(name) ? s.filter((x) => x !== name) : [...s, name]));
+  // Вікілінки в тілі передумови теж живі: клік розкриває наступну сутність
+  // тим самим механізмом. Без цього кліки в розкритій картці були німі.
+  const follow = (link: WikilinkTarget) => {
+    const next = link.target.trim();
+    if (next) setOpened((s) => (s.includes(next) ? s : [...s, next]));
+  };
   return (
     <div className={`entity${isOpen ? " open" : ""}`} data-depth={depth}>
       <button type="button" className="entity-name" onClick={toggle}>
@@ -126,7 +132,7 @@ function Entity({ name, opened, setOpened, onOpenDocument, depth = 0 }: {
         <div className="entity-body">
           {card.data.year ? <p className="when">{card.data.year}{card.data.year_end && card.data.year_end !== card.data.year ? `–${card.data.year_end}` : ""}</p> : null}
 
-          {card.data.consequences ? (<><span className="eyebrow">ЧИМ ВАЖИТЬ</span><div className="safe-markdown"><SafeMarkdownView content={card.data.consequences} /></div></>) : null}
+          {card.data.consequences ? (<><span className="eyebrow">ЧИМ ВАЖИТЬ</span><div className="safe-markdown"><SafeMarkdownView content={card.data.consequences} onOpenWikilink={follow} /></div></>) : null}
           {depth < 2 && card.data.related.length ? (
             <div className="entity-related">
               {card.data.related.map((n) => (
@@ -550,7 +556,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
           {card.data.consequences ? (
             <section className="map-card-block after">
               <span className="eyebrow">НАСЛІДКИ</span>
-              <div className="safe-markdown"><SafeMarkdownView content={card.data.consequences} /></div>
+              <div className="safe-markdown"><SafeMarkdownView content={card.data.consequences} onOpenWikilink={openInline} /></div>
             </section>
           ) : null}
         </aside>

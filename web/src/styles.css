@@ -1537,3 +1537,4 @@ li.open .chev { transform: rotate(90deg); }
 /* Inline-картка на світлому аркуші документа — межі за токенами скоупу */
 .document-content .map-inline { max-width: 860px; margin: 0 auto 40px; }
 .document-content.sheet-light .map-inline { padding: 0 60px; }
+.doc-peek .map-inline { margin: 0 14px 16px; }

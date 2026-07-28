@@ -2,7 +2,9 @@ import { ArrowLeft, ArrowRight, ExternalLink, X } from "lucide-react";
 import { EmptyState, ErrorState, LoadingState } from "../../components/StatePanel";
 import { useDocumentDetail, useDocumentLinks } from "./documentHooks";
 import { matchingDocumentLink } from "./Documents";
+import { useState } from "react";
 import { SafeMarkdownView, type WikilinkTarget } from "./SafeMarkdownView";
+import { InlineStack } from "../InlineEntity";
 
 interface DocumentPeekProps {
   documentId: string;
@@ -31,11 +33,15 @@ export function DocumentPeek({ documentId, heading, index, snapshotId, showNav =
   const links = useDocumentLinks(documentId, snapshotId);
   const doc = detail.data;
 
+  // Той самий принцип, що в Мапі й Документах: клік розгортає сутність тут же.
+  // Каскад карток лишається — з inline-картки є кнопка «у панель». Раніше при
+  // ненайденій цілі resolve мовчав, і клік просто нічого не робив.
+  const [inline, setInline] = useState<string[]>([]);
   const resolve = (target: WikilinkTarget) => {
-    const match = matchingDocumentLink(target, links.data?.items ?? []);
-    const id = match?.target_document_id ?? (match?.candidates?.length === 1 ? match.candidates[0].document_id : null);
-    if (id) onOpenLink(index, id, target.heading ?? match?.heading ?? undefined);
+    const name = target.target.trim();
+    if (name) setInline((s) => (s.includes(name) ? s : [...s, name]));
   };
+  const toPanel = (id: string) => onOpenLink(index, id, undefined);
 
   return (
     <aside className={`doc-peek${sheetLight ? " sheet-light" : ""}`} data-sheet-tone={sheetLight ? sheetTone : undefined} aria-label={`Картка ${index + 1}`}>
@@ -69,6 +75,7 @@ export function DocumentPeek({ documentId, heading, index, snapshotId, showNav =
             resolveImage={(target) => { const asset = doc.assets?.[target]; return typeof asset === "string" ? asset : asset?.url ?? null; }}
           />
         )}
+        <InlineStack names={inline} setNames={setInline} onOpenPanel={toPanel} />
       </div>
     </aside>
   );
