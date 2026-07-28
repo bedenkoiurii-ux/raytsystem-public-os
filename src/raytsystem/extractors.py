@@ -4,11 +4,13 @@ import csv
 import io
 import json
 import os
+import re
 import resource
 import subprocess
 import sys
 import tempfile
 import unicodedata
+from collections.abc import Iterator
 from contextlib import suppress
 from dataclasses import dataclass
 from html.parser import HTMLParser
@@ -63,33 +65,75 @@ def _normalized_text(data: bytes) -> str:
     return unicodedata.normalize("NFC", decoded.replace("\r\n", "\n").replace("\r", "\n"))
 
 
+_HORIZONTAL_RULE = re.compile(r"^\s*(-{3,}|\*{3,}|_{3,})\s*$")
+_HEADING = re.compile(r"^\s{0,3}#{1,6}\s")
+_TABLE_RULE = re.compile(r"^\s*\|?[\s:|-]*\|[\s:|-]*$")
+_FENCE = re.compile(r"^\s{0,3}(```|~~~)")
+
+
+def _prose_lines(text: str, *, headings: bool = False) -> Iterator[tuple[int, str, int]]:
+    """Рядки, які справді щось стверджують: (номер, рядок з переносом, зсув).
+
+    Доказом може бути тільки проза. Рядок `---` — роздільник frontmatter, а не
+    твердження; саме він став першим і єдиним claim'ом на першому справжньому
+    документі. Так само не твердження: службовий блок frontmatter, заголовки
+    (назви, не судження), огорожі коду з умістом, розмітка таблиць.
+
+    Фільтр, не перетворення: excerpt лишається дослівним, локатори — точними,
+    бо доказ, який не збігається з джерелом посимвольно, доказом не є.
+    """
+    offset = 0
+    lines = text.splitlines(keepends=True)
+    start = 0
+    if lines and lines[0].rstrip("\n").strip() == "---":       # службовий frontmatter
+        closing = next(
+            (i for i, line in enumerate(lines[1:], 1) if line.rstrip("\n").strip() == "---"),
+            None,
+        )
+        if closing is not None:
+            start = closing + 1
+            offset = sum(len(line) for line in lines[:start])
+    in_code = False
+    for number, line_with_ending in enumerate(lines[start:], start + 1):
+        excerpt = line_with_ending.rstrip("\n")
+        if _FENCE.match(excerpt):
+            in_code = not in_code
+        elif not in_code and excerpt.strip() and not (
+            _HORIZONTAL_RULE.match(excerpt)
+            or _TABLE_RULE.match(excerpt)
+            or (_HEADING.match(excerpt) and not headings)
+        ):
+            yield number, excerpt, offset
+        offset += len(line_with_ending)
+
+
 class NativeTextExtractor:
     name = "native_text"
-    version = "1.0.0"
+    version = "1.1.0"
     media_type = "text/markdown"
 
     def extract(self, data: bytes, *, source_path: str) -> Extraction:
         del source_path
         text = _normalized_text(data)
         spans: list[ExtractedSpan] = []
-        character_offset = 0
-        for line_number, line_with_ending in enumerate(text.splitlines(keepends=True), 1):
-            excerpt = line_with_ending.rstrip("\n")
-            if excerpt.strip():
-                spans.append(
-                    ExtractedSpan(
-                        excerpt=excerpt,
-                        locator=TextLocator(
-                            line_start=line_number,
-                            line_end=line_number,
-                            char_start=character_offset,
-                            char_end=character_offset + len(excerpt),
-                        ),
-                    )
+        # Документ із самих заголовків (коротка нотатка, назва без тіла) не має
+        # прози — тоді доказом стає заголовок. Службова розмітка не повертається
+        # ніколи: краще заголовок як доказ, ніж роздільник frontmatter.
+        lines = list(_prose_lines(text)) or list(_prose_lines(text, headings=True))
+        for line_number, excerpt, character_offset in lines:
+            spans.append(
+                ExtractedSpan(
+                    excerpt=excerpt,
+                    locator=TextLocator(
+                        line_start=line_number,
+                        line_end=line_number,
+                        char_start=character_offset,
+                        char_end=character_offset + len(excerpt),
+                    ),
                 )
-            character_offset += len(line_with_ending)
+            )
         if not spans:
-            raise ExtractionError("Cannot extract evidence from an empty text source")
+            raise ExtractionError("Cannot extract evidence from a source without prose")
         return Extraction(document=text, spans=tuple(spans))
 
 
