@@ -302,10 +302,22 @@ def create_map_router(root: Path, *, require_session: Callable[..., Any]) -> API
                     return m.group(1).strip()
             return ""
 
+        # Лід — перший абзац картки: «хто це» одним реченням. Саме він, а не
+        # перелік дат, робить врізку оповіддю (Юрій, 2026-07-28: «потрібна
+        # коротка характеристика й стисла оповідь про цінність, щоб було
+        # зрозуміло, чому ми цю людину, місце чи подію тут згадуємо»).
+        lead = re.sub(r"^#[^\n]*\n", "", body.strip()).split("\n## ")[0].strip()
+        # Лід часто починається з назви («Флорентійська унія — акт зʼєднання…»),
+        # а назва вже стоїть у шапці врізки. Прибираємо повтор, лишаючи речення.
+        card_title = _field(fm, "title") or target.stem
+        lead = re.sub(rf"^\*{{0,2}}{re.escape(card_title)}\*{{0,2}}\s*[—–-]\s*", "", lead)
+
         rel = str(target.relative_to(root))
         return {
             "title": _field(fm, "title") or target.stem,
             "kind": _field(fm, "type"),
+            "lead": lead[:900],
+            "value": section("Цінність для розповіді", "Значення для розповіді", "Чому важить", "Чим важить")[:1200],
             "year": _field(fm, "time_start"),
             "year_end": _field(fm, "time_end"),
             "place": _field(fm, "place"),

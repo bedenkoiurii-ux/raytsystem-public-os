@@ -1567,3 +1567,6 @@ li.open .chev { transform: rotate(90deg); }
 .document-content .map-inline { max-width: 860px; margin: 0 auto 32px; display: grid; gap: 8px; }
 .document-content.sheet-light .map-inline { padding: 0 60px; }
 .doc-peek .map-inline { margin: 0 14px 16px; display: grid; gap: 8px; }
+/* Цінність — друга частина врізки: не хроніка, а «чому воно тут». */
+.inline-aside .aside-value { display: block; margin-top: .45em; padding-top: .35em; border-top: 1px solid color-mix(in srgb, var(--cyan) 22%, transparent); }
+.inline-card .aside-body.value { margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--line-soft); }

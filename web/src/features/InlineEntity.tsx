@@ -17,6 +17,10 @@ import { SafeMarkdownView, type WikilinkTarget } from "./documents/SafeMarkdownV
  *  апарату й знімає сентинел, щоб той прокинувся сам. */
 export interface EntityCard {
   title: string; kind: string; year: string; year_end: string; place: string;
+  /** Хто це — перший абзац картки. Оповідь, а не хроніка. */
+  lead: string;
+  /** Чому ми це тут згадуємо — «Цінність для розповіді». */
+  value: string;
   what: string; consequences: string; related: string[];
   path: string; document_id: string | null;
   error?: string;
@@ -97,7 +101,9 @@ export function InlineCard({ name, onClose, onOpen, onOpenDocument, onOpenPanel 
         {data.year ? <span className="when">{data.year}{data.year_end && data.year_end !== data.year ? `–${data.year_end}` : ""}</span> : null}
         <button type="button" className="close" onClick={onClose} aria-label="Згорнути">×</button>
       </header>
-      {data.what ? <div className="aside-body"><SafeMarkdownView content={data.what} onOpenWikilink={onOpen} /></div> : null}
+      {data.lead ? <div className="aside-body"><SafeMarkdownView content={data.lead} onOpenWikilink={onOpen} /></div> : null}
+      {data.value ? <div className="aside-body value"><SafeMarkdownView content={data.value} onOpenWikilink={onOpen} /></div> : null}
+      {!data.lead && !data.value && data.what ? <div className="aside-body"><SafeMarkdownView content={data.what} onOpenWikilink={onOpen} /></div> : null}
       <div className="inline-actions">
         {data.document_id && onOpenPanel ? (
           <button type="button" className="map-card-open" onClick={() => onOpenPanel(data.document_id!)}>у панель</button>
@@ -230,7 +236,13 @@ function Aside({ entry, onClose, onOpen, onPick, onOpenDocument, onOpenPanel }: 
       <b className="aside-name">
         {data.title}{data.year ? ` · ${data.year}${data.year_end && data.year_end !== data.year ? `–${data.year_end}` : ""}` : ""} —{" "}
       </b>
-      {data.what ? <SafeMarkdownView content={data.what} onOpenWikilink={onOpen} /> : null}
+      {data.lead ? <SafeMarkdownView content={data.lead} onOpenWikilink={onOpen} /> : null}
+      {data.value ? (
+        <span className="aside-value">
+          <SafeMarkdownView content={data.value} onOpenWikilink={onOpen} />
+        </span>
+      ) : null}
+      {!data.lead && !data.value && data.what ? <SafeMarkdownView content={data.what} onOpenWikilink={onOpen} /> : null}
       <span className="aside-tail">
         {data.document_id && onOpenPanel ? <button type="button" onClick={() => onOpenPanel(data.document_id!)}>у панель</button> : null}
         {data.document_id ? <button type="button" onClick={() => onOpenDocument?.(data.document_id!)}>відкрити картку</button> : null}
