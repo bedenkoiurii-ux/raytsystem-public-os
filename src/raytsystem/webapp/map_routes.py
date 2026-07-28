@@ -129,6 +129,38 @@ def create_map_router(root: Path, *, require_session: Callable[..., Any]) -> API
         found.sort(key=lambda x: x["from"])
         return found
 
+    @router.get("/map/event")
+    def map_event(path: str, _session=Depends(require_session)) -> dict[str, Any]:
+        """Картка події для панелі: що сталося, наслідки, передумови.
+
+        Передумов як окремої секції в картках немає, і вигадувати її не будемо.
+        Чесна відповідь на «що було до цього» складається з двох частин:
+        попередня подія того самого сюжету (структурна передумова, рахується
+        тут) і секція «Пов'язане» самої картки (авторські зв'язки).
+        """
+        target = (root / path).resolve()
+        if not str(target).startswith(str((root / EVENTS).resolve())) or not target.is_file():
+            return {"error": "not_found"}
+        text = target.read_text(encoding="utf-8", errors="ignore")
+        fm = _front(text)
+        body = text[len(fm) + 8:] if fm else text
+
+        def section(name: str) -> str:
+            m = re.search(rf"^## {name}\s*\n(.*?)(?=\n## |\Z)", body, re.S | re.M)
+            return m.group(1).strip() if m else ""
+
+        return {
+            "title": _field(fm, "title") or target.stem,
+            "year": _field(fm, "time_start"),
+            "year_end": _field(fm, "time_end"),
+            "place": _field(fm, "place"),
+            "what": section("Що сталося")[:1800],
+            "consequences": section("Наслідки")[:1800],
+            "related": [x.strip() for x in re.findall(r"\[\[([^\]|#]+)", section("Пов'язане"))][:8],
+            "sides": section("Учасники й сторони")[:600],
+            "path": path,
+        }
+
     @router.get("/map")
     def map_data(_session=Depends(require_session)) -> dict[str, Any]:
         canon, alias = _places()

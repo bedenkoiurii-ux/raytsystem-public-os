@@ -28,6 +28,10 @@ interface StoryEvent { title: string; year: number; year_end: number | null; pla
 interface Story { title: string; from: number; to: number; events: StoryEvent[]; mapped: number }
 interface Period { title: string; from: number; to: number; path: string }
 interface MapData { places: Place[]; periods: Period[]; stories: Story[]; loose: StoryEvent[] }
+interface EventCard {
+  title: string; year: string; year_end: string; place: string;
+  what: string; consequences: string; related: string[]; sides: string; path: string;
+}
 
 const projectY = (lat: number) => Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360));
 const yTop = projectY(BOX.latMax);
@@ -42,6 +46,15 @@ function useMapData() {
     queryKey: ["map", "data"],
     queryFn: () => getJson<MapData>("/api/v1/map"),
     staleTime: 30_000
+  });
+}
+
+function useEventCard(path: string | null) {
+  return useQuery({
+    queryKey: ["map", "event", path],
+    enabled: Boolean(path),
+    staleTime: 60_000,
+    queryFn: () => getJson<EventCard>(`/api/v1/map/event?path=${encodeURIComponent(path ?? "")}`)
   });
 }
 
@@ -80,6 +93,12 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
   const [openStory, setOpenStory] = useState<string | null>(null);
   const [active, setActive] = useState<string | null>(null);       // підсвічений сюжет
   const [span, setSpan] = useState<[number, number] | null>(null);  // обраний період
+  // Період, виставлений вибором сюжету, НЕ ховає інші сюжети зі списку —
+  // Юрій: «при виборі одного решта не зникають». Фільтрує лише період,
+  // заданий руками (поля або повзунок).
+  const [spanByStory, setSpanByStory] = useState(false);
+  const [openEvent, setOpenEvent] = useState<string | null>(null);
+  const card = useEventCard(openEvent);
   const [hover, setHover] = useState<Place | null>(null);
   const [view, setView] = useState({ x: 0, y: 0, k: 1 });
   const drag = useRef<{ px: number; py: number; x: number; y: number } | null>(null);
@@ -127,7 +146,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
     return out;
   }, [places, focused, view.k]);
 
-  const shown = stories.filter((s) => !span || (s.to >= span[0] && s.from <= span[1]));
+  const shown = stories.filter((s) => !span || spanByStory || (s.to >= span[0] && s.from <= span[1]));
   const periods = data.data?.periods ?? [];
   const drawn = active ? shown.filter((s) => s.title === active) : shown;
 
@@ -163,6 +182,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
    *  Вибір сюжету звужує все одразу — час, зум і підписи. */
   const showStory = useCallback((story: Story) => {
     setSpan([story.from, story.to]);
+    setSpanByStory(true);
     const pts = story.events.flatMap((e) => e.route).map((n) => places.get(n)).filter(Boolean) as (Place & { x: number; y: number })[];
     if (!pts.length) { setView({ x: 0, y: 0, k: 1 }); return; }
     const pad = 90;
@@ -196,7 +216,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
 
   return (
     <div className="route route-map">
-      <div className="map-split">
+      <div className={`map-split${openEvent && card.data ? " with-card" : ""}`}>
         <div className="map-stage" ref={stage}>
           <svg viewBox={`${view.x} ${view.y} ${W / view.k} ${H / view.k}`} className="map-svg"
                role="img" aria-label="Мапа сюжетів"
@@ -273,9 +293,9 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                    }} />
             </div>
             <input type="range" min={bounds[0]} max={bounds[1]} value={lo} aria-label="Від року"
-                   onChange={(e) => setSpan([Math.min(Number(e.target.value), hi), hi])} />
+                   onChange={(e) => { setSpanByStory(false); setSpan([Math.min(Number(e.target.value), hi), hi]); }} />
             <input type="range" min={bounds[0]} max={bounds[1]} value={hi} aria-label="До року"
-                   onChange={(e) => setSpan([lo, Math.max(Number(e.target.value), lo)])} />
+                   onChange={(e) => { setSpanByStory(false); setSpan([lo, Math.max(Number(e.target.value), lo)]); }} />
             <span className="map-range-lo">{lo}</span>
             <span className="map-range-hi">{hi}</span>
           </div>
@@ -285,11 +305,11 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
           <div className="map-period">
             <div className="map-period-row">
               <input type="number" value={lo} min={bounds[0]} max={bounds[1]}
-                     onChange={(e) => setSpan([Number(e.target.value), hi])} aria-label="Від року" />
+                     onChange={(e) => { setSpanByStory(false); setSpan([Number(e.target.value), hi]); }} aria-label="Від року" />
               <span className="dash">—</span>
               <input type="number" value={hi} min={bounds[0]} max={bounds[1]}
-                     onChange={(e) => setSpan([lo, Number(e.target.value)])} aria-label="До року" />
-              {span ? <button type="button" className="map-clear" onClick={() => setSpan(null)}>увесь час</button> : null}
+                     onChange={(e) => { setSpanByStory(false); setSpan([lo, Number(e.target.value)]); }} aria-label="До року" />
+              {span ? <button type="button" className="map-clear" onClick={() => { setSpan(null); setSpanByStory(false); }}>увесь час</button> : null}
             </div>
           </div>
 
@@ -327,7 +347,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                   <li key={story.title} className={`${open ? "open " : ""}${active === story.title ? "active" : ""}`}>
                     <button type="button" className="map-story-head"
                             onClick={() => {
-                              if (open) { setOpenStory(null); setActive(null); setSpan(null); setView({ x: 0, y: 0, k: 1 }); }
+                              if (open) { setOpenStory(null); setActive(null); setSpan(null); setSpanByStory(false); setOpenEvent(null); setView({ x: 0, y: 0, k: 1 }); }
                               else { setOpenStory(story.title); setActive(story.title); showStory(story); }
                             }}>
                       <ChevronRight size={14} className="chev" />
@@ -339,8 +359,8 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                       <ul className="map-beats">
                         {story.events.map((ev) => (
                           <li key={ev.path} className={ev.route.length ? "" : "unmapped"}>
-                            <button type="button"
-                                    onClick={() => { if (ev.route[0]) focus(ev.route[0]); onOpenDocument?.(ev.path); }}>
+                            <button type="button" className={openEvent === ev.path ? "on" : ""}
+                                    onClick={() => { if (ev.route[0]) focus(ev.route[0]); setOpenEvent(openEvent === ev.path ? null : ev.path); }}>
                               <b>{ev.year}{ev.year_end && ev.year_end !== ev.year ? `–${ev.year_end}` : ""}</b>
                               <span className="what">{ev.title}</span>
                               <span className="where">
@@ -358,6 +378,56 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
           </div>
           )}
         </aside>
+      {openEvent && card.data ? (
+        <aside className="map-card">
+          <header>
+            <span className="eyebrow">ПОДІЯ</span>
+            <h2>{card.data.title}</h2>
+            <p className="when">
+              {card.data.year}{card.data.year_end && card.data.year_end !== card.data.year ? `–${card.data.year_end}` : ""}
+              {card.data.place ? ` · ${card.data.place.slice(0, 90)}` : ""}
+            </p>
+            <button type="button" className="map-card-open" onClick={() => onOpenDocument?.(card.data!.path)}>відкрити картку</button>
+          </header>
+
+          {/* Передумови чесно складені з двох частин: попереднє в цьому сюжеті
+              (структурно) і авторські звʼязки з секції «Повʼязане». Окремої
+              секції «Передумови» в картках немає, і вигадувати її не будемо. */}
+          {(() => {
+            const story = stories.find((s) => s.title === active);
+            const idx = story?.events.findIndex((e) => e.path === openEvent) ?? -1;
+            const before = idx > 0 ? story!.events[idx - 1] : null;
+            return (before || card.data!.related.length) ? (
+              <section className="map-card-block before">
+                <span className="eyebrow">ПЕРЕДУМОВИ</span>
+                {before ? (
+                  <button type="button" className="prev" onClick={() => setOpenEvent(before.path)}>
+                    <b>{before.year}</b> {before.title}
+                    <em>попереднє в цьому сюжеті</em>
+                  </button>
+                ) : null}
+                {card.data!.related.length ? (
+                  <p className="related">{card.data!.related.join(" · ")}</p>
+                ) : null}
+              </section>
+            ) : null;
+          })()}
+
+          {card.data.what ? (
+            <section className="map-card-block">
+              <span className="eyebrow">ЩО СТАЛОСЯ</span>
+              <pre>{card.data.what}</pre>
+            </section>
+          ) : null}
+
+          {card.data.consequences ? (
+            <section className="map-card-block after">
+              <span className="eyebrow">НАСЛІДКИ</span>
+              <pre>{card.data.consequences}</pre>
+            </section>
+          ) : null}
+        </aside>
+      ) : null}
       </div>
 
       {hover ? (
