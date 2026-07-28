@@ -13,6 +13,7 @@
 #   opponent  — контраргументи з власного масиву   (НАКАЗ-опонента.md)
 #   inbox     — варта вхідних: розбір нових текстів (НАКАЗ-інбоксу.md)
 #   sensy     — ланцюги повторень наскрізних мотивів (НАКАЗ-сенсів.md)
+#   sources   — джерельна опора під тези без опори   (НАКАЗ-джерел.md)
 #
 # МЕЖІ спільні: acceptEdits, Bash/фетч/Agent дозволені; push/rm/rmdir/sudo/
 # security/launchctl заборонені. Коміти локальні; назовні — ніколи.
@@ -22,8 +23,8 @@ cd "$(dirname "$0")"
 
 TASK="${1:-}"; shift || true
 case "$TASK" in
-  apparat|geo|opponent|inbox|sensy) ;;
-  *) echo "вживання: $0 {apparat|geo|opponent|inbox|sensy} {старт|стоп|стан|лог|раз|злити}"; exit 1 ;;
+  apparat|geo|opponent|inbox|sensy|sources) ;;
+  *) echo "вживання: $0 {apparat|geo|opponent|inbox|sensy|sources} {старт|стоп|стан|лог|раз|злити}"; exit 1 ;;
 esac
 
 # Кожна задача — свій worktree й гілка, щоб задачі не заважали одна одній
@@ -45,6 +46,7 @@ case "$TASK" in
   opponent) NAKAZ="НАКАЗ-опонента.md"; UNIT="одну тезу на перевірку" ;;
   sensy)    NAKAZ="НАКАЗ-сенсів.md";    UNIT="ланцюг повторень" ;;
   inbox)    NAKAZ="НАКАЗ-інбоксу.md";  UNIT="партію вхідних файлів" ;;
+  sources)  NAKAZ="НАКАЗ-джерел.md";   UNIT="одну тезу без опори" ;;
 esac
 PROMPT="працюй за $NAKAZ. Безголовий прогін: зроби $UNIT, закомить локально й заверши відповідь — шелл-цикл стартує наступний прогін начисто. Стан бери з git і файлів, не з памʼяті. Коли робота вичерпана — \`touch \"$DONE\"\` і напиши, що готово."
 
