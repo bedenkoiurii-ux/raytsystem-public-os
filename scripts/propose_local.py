@@ -50,7 +50,7 @@ from raytsystem.contracts.proposals import (  # noqa: E402
 
 HOST = "http://127.0.0.1:11434"
 MODEL = "qwen2.5:32b"
-BATCH = 6
+BATCH = 3
 SKIP = "ПРОПУСК"
 
 PROMPT = f"""Ти працюєш із текстом української книги про історію. Для кожного
@@ -77,7 +77,9 @@ def ask(fragments: list[tuple[int, str]]) -> dict[int, str]:
         "prompt": f"{PROMPT}\n\nФрагменти:\n\n{body}\n\nВідповідь:\n",
         "stream": False,
         # Детермінізм — вимога контуру, не побажання.
-        "options": {"temperature": 0, "seed": 42, "num_ctx": 32768},
+        # num_predict тримає відповідь короткою — нам потрібні речення, не есе;
+        # без нього 32B може молоти хвилинами й вибити таймаут.
+        "options": {"temperature": 0, "seed": 42, "num_ctx": 8192, "num_predict": 400},
     }
     request = urllib.request.Request(
         f"{HOST}/api/generate",
@@ -116,9 +118,11 @@ def main() -> int:
         numbered = [(i + 1, item["excerpt"]) for i, item in enumerate(chunk)]
         try:
             answers = ask(numbered)
-        except (urllib.error.URLError, TimeoutError) as error:
-            print(f"Ollama недоступна: {error}")
-            return 1
+        except (urllib.error.URLError, TimeoutError, OSError) as error:
+            # Один затятий батч не має з’їдати всю роботу: пропускаємо його
+            # сегменти й ідемо далі — вони просто не дадуть тверджень.
+            print(f"  батч {start // BATCH + 1} пропущено: {error}", flush=True)
+            continue
         for i, item in enumerate(chunk):
             text = answers.get(i + 1, "")
             if text and SKIP not in text.upper():
