@@ -1382,7 +1382,10 @@ button.table-row:hover { background: var(--surface-2); color: var(--bone); }
 /* Мапа бере всю доступну площу. Раніше тут стояла жорстка пропорція
    1000/620 — на широкому моніторі вона тримала мапу вузькою, а простір
    лишався порожнім. SVG вписується сам (preserveAspectRatio). */
-.map-stage { position: relative; height: min(calc(100vh - 178px), 58vw); min-height: 380px; width: 100%; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--carbon-soft); overflow: hidden; }
+/* Пропорція, а не вільна висота: на широкому вікні stage розтягувався до
+   майже квадрата, H рахувалася з реальної форми — і мапа витягувалась по
+   вертикалі так, що суша йшла за нижній край. Тримаємо 1000×620. */
+.map-stage { position: relative; aspect-ratio: 1000 / 620; height: auto; max-height: calc(100vh - 260px); min-height: 260px; width: 100%; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--carbon-soft); overflow: hidden; }
 .map-svg { width: 100%; height: 100%; display: block; cursor: grab; }
 .map-svg:active { cursor: grabbing; }
 .map-land path { fill: color-mix(in srgb, var(--bone) 5%, transparent); stroke: var(--line); }
