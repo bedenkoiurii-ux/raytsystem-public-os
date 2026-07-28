@@ -143,6 +143,58 @@ def create_map_router(root: Path, *, require_session: Callable[..., Any]) -> API
         found.sort(key=lambda x: x["from"])
         return found
 
+    @router.get("/map/card")
+    def map_card(name: str, _session=Depends(require_session)) -> dict[str, Any]:
+        """Картка будь-якої сутності за назвою — для кліку по передумові.
+
+        Передумови ведуть не лише на події: «Флоренція» — місце, «Ісидор» —
+        людина. Шукаємо по всьому 30-Research, а секції беремо ті, що є: у
+        події це «Що сталося»/«Наслідки», у людини — «Значення для розповіді».
+        """
+        safe = name.strip().replace("/", "").replace("\\", "")
+        if not safe:
+            return {"error": "not_found"}
+        target = None
+        for candidate in (root / "30-Research").rglob("*.md"):
+            if candidate.stem == safe:
+                target = candidate
+                break
+        if target is None:                                  # шукаємо за title/aliases
+            for candidate in (root / "30-Research").rglob("*.md"):
+                fm = _front(candidate.read_text(encoding="utf-8", errors="ignore")[:900])
+                if safe in [_field(fm, "title"), *_list_field(fm, "aliases")]:
+                    target = candidate
+                    break
+        if target is None:
+            return {"error": "not_found", "name": safe}
+
+        text = target.read_text(encoding="utf-8", errors="ignore")
+        fm = _front(text)
+        body = text[len(fm) + 8:] if fm else text
+
+        def section(*names: str) -> str:
+            for n in names:
+                m = re.search(rf"^## {n}\s*\n(.*?)(?=\n## |\Z)", body, re.S | re.M)
+                if m and m.group(1).strip():
+                    return m.group(1).strip()
+            return ""
+
+        rel = str(target.relative_to(root))
+        return {
+            "title": _field(fm, "title") or target.stem,
+            "kind": _field(fm, "type"),
+            "year": _field(fm, "time_start"),
+            "year_end": _field(fm, "time_end"),
+            "place": _field(fm, "place"),
+            # Заголовки різняться за типом картки: подія — «Що сталося», місце —
+            # «Що тут відбувалося», людина — «Життя», поняття — «Що це».
+            "what": section("Що сталося", "Що тут відбувалося", "Що це", "Життя", "Хто це")[:1500],
+            "consequences": section("Наслідки", "Цінність для розповіді", "Реперні події", "Чому важить")[:1500],
+            "related": [x.strip() for x in re.findall(r"\[\[([^\]|#]+)", section("Пов'язане"))][:8],
+            "path": rel,
+            "document_id": _doc_id(rel),
+        }
+
     @router.get("/map/event")
     def map_event(path: str, _session=Depends(require_session)) -> dict[str, Any]:
         """Картка події для панелі: що сталося, наслідки, передумови.
