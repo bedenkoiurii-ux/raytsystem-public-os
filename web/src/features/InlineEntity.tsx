@@ -17,7 +17,10 @@ import { SafeMarkdownView, type WikilinkTarget } from "./documents/SafeMarkdownV
 export interface EntityCard {
   title: string; kind: string; year: string; year_end: string; place: string;
   what: string; consequences: string; related: string[];
-  path: string; document_id: string | null; error?: string;
+  path: string; document_id: string | null;
+  error?: string;
+  /** Коли форма імені веде до кількох сутностей — вибір, а не вгадування. */
+  choices?: { uid: string; title: string; path: string }[];
 }
 
 export function useNamedCard(name: string | null) {
@@ -63,6 +66,27 @@ export function InlineCard({ name, onClose, onOpen, onOpenDocument, onOpenPanel 
 }) {
   const card = useNamedCard(name);
   if (card.isLoading) return <div className="inline-card loading">{name}…</div>;
+  if (card.data?.error === "ambiguous" && card.data.choices?.length) {
+    // Індекс знає кілька сутностей під цим іменем — «Катинь» це і місце,
+    // і розстріл. Вгадати тут гірше, ніж спитати.
+    return (
+      <div className="inline-card choose">
+        <header>
+          <strong>{name}</strong>
+          <button type="button" className="close" onClick={onClose} aria-label="Згорнути">×</button>
+        </header>
+        <p>Це ім'я має кілька сутностей — котру відкрити?</p>
+        <div className="inline-actions">
+          {card.data.choices.map((c) => (
+            <button key={c.uid} type="button" className="order"
+                    onClick={() => onOpen({ target: c.title, label: c.title, heading: null, embed: false })}>
+              {c.title}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
   if (!card.data || card.data.error) return <MissingCard name={name} onClose={onClose} />;
   const data = card.data;
   return (

@@ -26,7 +26,9 @@ MOC. Окремого поля не заводимо — розділ уже є 
 """
 from __future__ import annotations
 
+import json
 import re
+import unicodedata
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Callable
@@ -36,6 +38,7 @@ from fastapi import APIRouter, Depends
 from raytsystem.documents.index import DocumentIndex
 from raytsystem.documents import load_document_config
 
+ENTITY_INDEX = "90-Meta/entity-index.json"
 PLACES = "30-Research/Places"
 EVENTS = "30-Research/Events"
 # Періоди не вигадуємо — беремо ті, що вже виписані в бібліотеці: хроніки й
@@ -80,6 +83,41 @@ def create_map_router(root: Path, *, require_session: Callable[..., Any]) -> API
         except Exception:
             return None
         return str(row["document_id"]) if row else None
+
+    _index_cache: dict[str, Any] = {"mtime": 0.0, "data": None}
+
+    def _entity_index() -> dict[str, Any]:
+        """Індекс імен → uid. Перечитуємо лише коли файл змінився.
+
+        Побудований `entity_index.py` із трьох джерел: title, aliases і форм
+        з посилань `[[Ціль|як стоїть у реченні]]` — 1 855 таких по бібліотеці.
+        Це словник відмінків, який автор писав роками, ніколи не збираючи.
+        """
+        path = root / ENTITY_INDEX
+        if not path.is_file():
+            return {"cards": {}, "forms": {}}
+        stamp = path.stat().st_mtime
+        if _index_cache["data"] is None or stamp != _index_cache["mtime"]:
+            try:
+                _index_cache["data"] = json.loads(path.read_text(encoding="utf-8"))
+                _index_cache["mtime"] = stamp
+            except (OSError, ValueError):
+                return {"cards": {}, "forms": {}}
+        return _index_cache["data"]
+
+    def _by_index(name: str) -> tuple[Path | None, list[dict[str, str]]]:
+        """Шлях за будь-якою формою імені. Неоднозначність не вгадуємо —
+        повертаємо варіанти, хай обирає читач."""
+        index = _entity_index()
+        key = re.sub(r"\s+", " ", unicodedata.normalize("NFC", name)).strip().lower()
+        uids = index.get("forms", {}).get(key) or []
+        cards = index.get("cards", {})
+        if len(uids) == 1 and uids[0] in cards:
+            return root / cards[uids[0]]["path"], []
+        if len(uids) > 1:
+            return None, [{"uid": u, "title": cards[u]["title"], "path": cards[u]["path"]}
+                          for u in uids if u in cards]
+        return None, []
 
     def _places() -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
         """Канонічні місця з координатами + індекс «будь-яка назва → канон»."""
@@ -236,7 +274,12 @@ def create_map_router(root: Path, *, require_session: Callable[..., Any]) -> API
                     if not ({".git", "graphify-out"} & set(c.parts)) and safe.lower() in c.stem.lower()]
             return hits[0] if len(hits) == 1 else None
 
-        target = scan(root / "30-Research") or scan(root) or loose(root / "30-Research")
+        # Спершу індекс: він знає відмінкові форми й тримається за uid, а не
+        # за назву, тож переживає перейменування картки.
+        target, choices = _by_index(safe)
+        if choices:
+            return {"error": "ambiguous", "name": safe, "choices": choices}
+        target = target or scan(root / "30-Research") or scan(root) or loose(root / "30-Research")
         if target is None:
             return {"error": "not_found", "name": safe}
 
