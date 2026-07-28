@@ -66,9 +66,32 @@ def _normalized_text(data: bytes) -> str:
 
 
 _HORIZONTAL_RULE = re.compile(r"^\s*(-{3,}|\*{3,}|_{3,})\s*$")
-_HEADING = re.compile(r"^\s{0,3}#{1,6}\s")
+_HEADING = re.compile(r"^\s{0,3}(#{1,6})\s+(.*)$")
 _TABLE_RULE = re.compile(r"^\s*\|?[\s:|-]*\|[\s:|-]*$")
 _FENCE = re.compile(r"^\s{0,3}(```|~~~)")
+_COMMENT = re.compile(r"^\s*<!--")
+
+# Апарат — наш власний службовий шар: перелік джерел, зворотні посилання,
+# прогалини. Це не текст автора, а розмітка навколо нього, і твердженням він
+# бути не може: рядок «- [Pope Gregory I — Wikipedia](…)» — бібліографія, а не
+# судження про світ. Ріжемо посекційно, за заголовком: у 55 файлах з 1058
+# апарат стоїть не суцільним хвостом, тож «усе після першого службового
+# заголовка» з'їло б живий текст.
+_APPARATUS = (
+    "джерела",
+    "пов'язане",
+    "повʼязане",
+    "згадується в",
+    "технічний апарат",
+    "прогалини",
+    "сутності",
+    "бібліограф",
+    "посилання",
+)
+
+
+def _is_apparatus(title: str) -> bool:
+    return any(title.strip().strip("*_ ").casefold().startswith(name) for name in _APPARATUS)
 
 
 def _prose_lines(text: str, *, headings: bool = False) -> Iterator[tuple[int, str, int]]:
@@ -94,14 +117,37 @@ def _prose_lines(text: str, *, headings: bool = False) -> Iterator[tuple[int, st
             start = closing + 1
             offset = sum(len(line) for line in lines[:start])
     in_code = False
+    apparatus_depth = 0          # 0 — ми в тілі; інакше рівень заголовка апарату
     for number, line_with_ending in enumerate(lines[start:], start + 1):
         excerpt = line_with_ending.rstrip("\n")
+        # Явна межа, поставлена автором, сильніша за здогад по заголовку.
+        if "apparatus:start" in excerpt:
+            return
+        if _COMMENT.match(excerpt):
+            offset += len(line_with_ending)
+            continue
         if _FENCE.match(excerpt):
             in_code = not in_code
-        elif not in_code and excerpt.strip() and not (
-            _HORIZONTAL_RULE.match(excerpt)
-            or _TABLE_RULE.match(excerpt)
-            or (_HEADING.match(excerpt) and not headings)
+            offset += len(line_with_ending)
+            continue
+        heading = None if in_code else _HEADING.match(excerpt)
+        if heading is not None:
+            depth = len(heading.group(1))
+            # Вкладені підзаголовки апарату лишаються апаратом; заголовок того
+            # самого або вищого рівня повертає нас у тіло автора.
+            if apparatus_depth and depth <= apparatus_depth:
+                apparatus_depth = 0
+            if not apparatus_depth and _is_apparatus(heading.group(2)):
+                apparatus_depth = depth
+        if (
+            not in_code
+            and not apparatus_depth
+            and excerpt.strip()
+            and not (
+                _HORIZONTAL_RULE.match(excerpt)
+                or _TABLE_RULE.match(excerpt)
+                or (heading is not None and not headings)
+            )
         ):
             yield number, excerpt, offset
         offset += len(line_with_ending)

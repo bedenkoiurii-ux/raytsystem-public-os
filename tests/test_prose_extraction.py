@@ -22,6 +22,16 @@ print("не твердження")
 ---
 
 Він пережив її як розлад.
+
+## Технічний апарат розділу
+
+### Джерела — 16 (перевірені)
+
+- [Pope Gregory I — Wikipedia](https://en.wikipedia.org/wiki/Pope_Gregory_I)
+
+## Пов'язане
+
+- [[Августин]] — інтуїція «людина поранена»
 """
 
 
@@ -35,6 +45,8 @@ def test_prose_only() -> None:
     assert not any(e.startswith("#") for e in excerpts)           # заголовки — назви, не судження
     assert not any("print(" in e for e in excerpts)               # уміст огорожі коду
     assert not any(set(e) <= set(" |-:") for e in excerpts)       # розмітка таблиці
+    assert not any("wikipedia" in e.lower() for e in excerpts)    # бібліографія апарату
+    assert not any("Августин" in e for e in excerpts)             # зворотні посилання
 
     # Локатори лишаються дослівними: доказ має збігатися з джерелом посимвольно.
     for span in spans:
