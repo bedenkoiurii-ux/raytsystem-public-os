@@ -41,6 +41,10 @@ const projectY = (lat: number) => Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI
 const SCALE = W / (BOX.lonMax - BOX.lonMin);        // пікселів на градус довготи
 const yMid = projectY(BOX.latCenter);
 /** Меркатор зі спільним масштабом по обох осях — інакше контур спотворився б. */
+/** Затискач, що не пропускає NaN: будь-яке нечисло дає межу, а не зламаний viewBox. */
+const clamp = (value: number, low: number, high: number) =>
+  Number.isFinite(value) ? Math.min(Math.max(value, low), high) : low;
+
 const toScreen = (lat: number, lon: number, height: number): [number, number] => [
   (lon - BOX.lonMin) * SCALE,
   height / 2 - (projectY(lat) - yMid) * SCALE * DEG
@@ -249,21 +253,24 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
       const py = v.y + fy * (H / v.k);
       return {
         k,
-        x: Math.min(Math.max(0, px - fx * (W / k)), W - W / k),
-        y: Math.min(Math.max(0, py - fy * (H / k)), H - H / k)
+        x: clamp(px - fx * (W / k), 0, Math.max(0, W - W / k)),
+        y: clamp(py - fy * (H / k), 0, Math.max(0, H - H / k))
       };
     });
   };
   const onMove = (e: React.MouseEvent) => {
-    if (!drag.current) return;
+    const start = drag.current;                 // знімок ДО setView
     const box = stage.current?.getBoundingClientRect();
-    if (!box) return;
-    const dx = ((e.clientX - drag.current.px) / box.width) * (W / view.k);
-    const dy = ((e.clientY - drag.current.py) / box.height) * (H / view.k);
+    if (!start || !box || !box.width || !box.height) return;
+    const dx = ((e.clientX - start.px) / box.width) * (W / view.k);
+    const dy = ((e.clientY - start.py) / box.height) * (H / view.k);
+    // Оновлювач стану виконується асинхронно: читати drag.current усередині
+    // не можна — до того моменту миша вже відпущена й там null. Саме на цьому
+    // мапа падала після зуму з панорамою.
     setView((v) => ({
       ...v,
-      x: Math.min(Math.max(0, drag.current!.x - dx), W - W / v.k),
-      y: Math.min(Math.max(0, drag.current!.y - dy), H - H / v.k)
+      x: clamp(start.x - dx, 0, Math.max(0, W - W / v.k)),
+      y: clamp(start.y - dy, 0, Math.max(0, H - H / v.k))
     }));
   };
 
@@ -283,8 +290,8 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
     const k = Math.min(8, Math.max(1, Math.min(W / Math.max(1, maxX - minX), H / Math.max(1, maxY - minY))));
     setView({
       k,
-      x: Math.min(Math.max(0, (minX + maxX) / 2 - W / k / 2), W - W / k),
-      y: Math.min(Math.max(0, (minY + maxY) / 2 - H / k / 2), H - H / k)
+      x: clamp((minX + maxX) / 2 - W / k / 2, 0, Math.max(0, W - W / k)),
+      y: clamp((minY + maxY) / 2 - H / k / 2, 0, Math.max(0, H - H / k))
     });
   }, [places, H]);
 
@@ -295,8 +302,8 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
     const k = 5;
     setView({
       k,
-      x: Math.min(Math.max(0, p.x - W / k / 2), W - W / k),
-      y: Math.min(Math.max(0, p.y - H / k / 2), H - H / k)
+      x: clamp(p.x - W / k / 2, 0, Math.max(0, W - W / k)),
+      y: clamp(p.y - H / k / 2, 0, Math.max(0, H - H / k))
     });
   }, [places, H]);
 

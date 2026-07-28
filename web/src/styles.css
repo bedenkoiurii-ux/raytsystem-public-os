@@ -1361,13 +1361,13 @@ button.table-row:hover { background: var(--surface-2); color: var(--bone); }
 .route-map { display: flex; flex-direction: column; min-height: 0; max-width: none; width: 100%; }
 /* Третя колонка зʼявляється лише коли відкрито подію — Юрій: картка події
    праворуч ВІД мапи і списку, а не поверх них. */
-/* Мапа ніколи не ширша за половину — решта простору читанню (Юрій).
+/* Мапа ніколи не ширша за 40% — решта простору читанню (Юрій).
    Порядок: мапа · картка · хронологічний список крайній праворуч. */
-.map-split { display: grid; grid-template-columns: minmax(0, 50%) clamp(280px, 24vw, 420px); gap: 14px; min-height: 0; align-items: start; justify-content: start; }
+.map-split { display: grid; grid-template-columns: minmax(0, 40%) clamp(280px, 24vw, 420px); gap: 14px; min-height: 0; align-items: start; justify-content: start; }
 /* Колонки ростуть із монітором: список і картка мають межі, решта — мапі. */
 /* Третя колонка зʼявляється з карткою; список іде крайнім праворуч через
    order — у розмітці він стоїть раніше, бо це основний навігатор. */
-.map-split.with-card { grid-template-columns: minmax(0, 50%) minmax(360px, 1fr) clamp(240px, 15vw, 330px); }
+.map-split.with-card { grid-template-columns: minmax(0, 40%) minmax(380px, 1fr) clamp(240px, 15vw, 330px); }
 .map-split.with-card .map-card { order: 2; }
 .map-split.with-card .map-side { order: 3; }
 @media (max-width: 1260px) { .map-split, .map-split.with-card { grid-template-columns: minmax(0, 1fr); } .map-split.with-card .map-card { max-height: 460px; } }
