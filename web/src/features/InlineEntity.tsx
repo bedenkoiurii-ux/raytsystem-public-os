@@ -202,8 +202,11 @@ export function Prose({ content, autoLink = true, onOpenWikilinkOverride, onOpen
     // порядок у розмітці збігається з порядком у тексті.
     let nth = 0;
     if (event?.node && host.current) {
-      const same = [...host.current.querySelectorAll(".doc-wikilink")]
-        .filter((b) => b.textContent === event.node!.textContent);
+      // Рахуємо за ЦІЛЛЮ, не за текстом кнопки: «Київську» і «Києва» — різні
+      // написання одного [[Київ]], і рахунок за написанням давав хибу (клік
+      // у пʼятому абзаці відкривав довідку біля першого «Києва»).
+      const same = [...host.current.querySelectorAll<HTMLElement>(".doc-wikilink")]
+        .filter((b) => b.dataset.target === event.node!.dataset.target);
       nth = Math.max(0, same.indexOf(event.node));
     }
     const key = `${name}\u0000\u0000${nth}`;

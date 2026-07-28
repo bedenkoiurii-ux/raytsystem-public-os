@@ -106,7 +106,7 @@ function inlineNodes(
         nodes.push(<img key={key} src={resolved} alt={target.label} loading="lazy" decoding="async" />);
       } else {
         nodes.push(
-          <button key={key} type="button" className={embed ? "doc-wikilink doc-embed" : "doc-wikilink"} onClick={(event) => props.onOpenWikilink?.(target, { altKey: event.altKey, node: event.currentTarget as HTMLElement })}>
+          <button key={key} type="button" data-target={target.target} className={embed ? "doc-wikilink doc-embed" : "doc-wikilink"} onClick={(event) => props.onOpenWikilink?.(target, { altKey: event.altKey, node: event.currentTarget as HTMLElement })}>
             {embed ? "Вкладення: " : ""}{target.label}{target.heading ? ` · ${target.heading}` : ""}
           </button>
         );
