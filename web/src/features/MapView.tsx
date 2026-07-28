@@ -132,7 +132,7 @@ function Entity({ name, opened, setOpened, onOpenDocument, depth = 0 }: {
         <div className="entity-body">
           {card.data.year ? <p className="when">{card.data.year}{card.data.year_end && card.data.year_end !== card.data.year ? `–${card.data.year_end}` : ""}</p> : null}
 
-          {card.data.consequences ? (<><span className="eyebrow">ЧИМ ВАЖИТЬ</span><Prose content={card.data.consequences} open={opened} setOpen={setOpened} onOpenDocument={onOpenDocument} /></>) : null}
+          {card.data.consequences ? (<><span className="eyebrow">ЧИМ ВАЖИТЬ</span><Prose content={card.data.consequences} onOpenDocument={onOpenDocument} /></>) : null}
           {depth < 2 && card.data.related.length ? (
             <div className="entity-related">
               {card.data.related.map((n) => (
@@ -175,13 +175,6 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
   const card = useEventCard(openEvent);
   // Панель показує або текст сюжету, або картку події — що відкрив останнім.
   const [openText, setOpenText] = useState<string | null>(null);
-  // Вікілінки прямо в тексті розгортаються так само, як передумови: клік по
-  // «Острозький» відкриває його картку тут же, не покидаючи читання (Юрій).
-  const [inline, setInline] = useState<string[]>([]);
-  const openInline = useCallback((link: WikilinkTarget) => {
-    const name = link.target.trim();
-    setInline((s) => (s.includes(name) ? s : [...s, name]));
-  }, []);
   const story = useStoryDoc(openText);
   // Передумови розгортаються ВБУДОВАНО, у тому самому стовпці (Юрій: «щоб це
   // був один стовпчик, передумови відкривались як вбудовані»). Стек плаваючих
@@ -463,7 +456,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                     <button type="button" className="map-story-head"
                             onClick={() => {
                               if (open) { setOpenStory(null); setActive(null); setSpan(null); setSpanByStory(false); setOpenEvent(null); setOpenText(null); setView({ x: 0, y: 0, k: 1 }); }
-                              else { setOpenStory(story.title); setActive(story.title); setOpenEvent(null); setInline([]); setOpenText(story.title); showStory(story); }
+                              else { setOpenStory(story.title); setActive(story.title); setOpenEvent(null); setOpenText(story.title); showStory(story); }
                             }}>
                       <ChevronRight size={14} className="chev" />
                       <span className="name">{story.title}</span>
@@ -475,7 +468,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                         {story.events.map((ev) => (
                           <li key={ev.path} className={ev.route.length ? "" : "unmapped"}>
                             <button type="button" className={openEvent === ev.path ? "on" : ""}
-                                    onClick={() => { if (ev.route[0]) focus(ev.route[0]); setOpened([]); setInline([]); setOpenText(null); setOpenEvent(openEvent === ev.path ? null : ev.path); }}>
+                                    onClick={() => { if (ev.route[0]) focus(ev.route[0]); setOpened([]); setOpenText(null); setOpenEvent(openEvent === ev.path ? null : ev.path); }}>
                               <b>{ev.year}{ev.year_end && ev.year_end !== ev.year ? `–${ev.year_end}` : ""}</b>
                               <span className="what">{ev.title}</span>
                               <span className="where">
@@ -502,7 +495,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
               <button type="button" className="map-card-open" onClick={() => onOpenDocument?.(story.data!.document_id!)}>відкрити документ</button>
             ) : null}
           </header>
-          <Prose content={story.data.body} open={inline} setOpen={setInline} onOpenDocument={onOpenDocument} />
+          <Prose content={story.data.body} onOpenDocument={onOpenDocument} />
         </aside>
       ) : null}
 
@@ -548,14 +541,14 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
           {card.data.what ? (
             <section className="map-card-block">
               <span className="eyebrow">ЩО СТАЛОСЯ</span>
-              <Prose content={card.data.what} open={inline} setOpen={setInline} onOpenDocument={onOpenDocument} />
+              <Prose content={card.data.what} onOpenDocument={onOpenDocument} />
             </section>
           ) : null}
 
           {card.data.consequences ? (
             <section className="map-card-block after">
               <span className="eyebrow">НАСЛІДКИ</span>
-              <Prose content={card.data.consequences} open={inline} setOpen={setInline} onOpenDocument={onOpenDocument} />
+              <Prose content={card.data.consequences} onOpenDocument={onOpenDocument} />
             </section>
           ) : null}
 

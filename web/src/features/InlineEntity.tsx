@@ -119,16 +119,19 @@ export function InlineCard({ name, onClose, onOpen, onOpenDocument, onOpenPanel 
  *  Механіка проста навмисно: розбиваємо прозу на абзаци й рендеримо кожен
  *  окремо; картка йде після того абзацу, де посилання трапилось уперше.
  *  Без порталів і вимірювань DOM — вставка живе в самій розмітці тексту. */
-export function Prose({ content, open, setOpen, onOpenDocument, onOpenPanel, onOpenSource, onOpenRelativeLink, resolveImage }: {
+export function Prose({ content, onOpenDocument, onOpenPanel, onOpenSource, onOpenRelativeLink, resolveImage }: {
   content: string;
-  open: string[];
-  setOpen: (fn: (s: string[]) => string[]) => void;
   onOpenDocument?: (id: string) => void;
   onOpenPanel?: (id: string) => void;
   onOpenSource?: () => void;
   onOpenRelativeLink?: (target: string) => void;
   resolveImage?: (target: string) => string | null;
 }) {
+  // Стан ВЛАСНИЙ у кожного шматка тексту: спільний на всі секції відкривав
+  // врізку в кожному місці, де трапилось те саме слово («йосифлян» і в «Що
+  // сталося», і в «Наслідках»). Розкривається там, де клікнув, — і тільки там.
+  const [open, setOpen] = useState<string[]>([]);
+
   // Запис у списку відкритих: «слово_в_тексті\u0000uid». Слово потрібне, щоб
   // знайти МІСЦЕ врізки в абзаці; uid — щоб показати саме ту сутність, коли
   // ім'я неоднозначне. Друга частина зʼявляється лише після вибору.
@@ -204,43 +207,45 @@ function Aside({ entry, onClose, onOpen, onPick, onOpenDocument, onOpenPanel }: 
   const [word, uid] = entry.split("\u0000");
   const name = uid ? `uid:${uid}` : word;
   const card = useNamedCard(name);
-  if (card.isLoading) return <div className="inline-aside loading">{word}…</div>;
+  if (card.isLoading) return <span className="inline-aside loading">{word}…</span>;
   if (card.data?.error === "ambiguous" && card.data.choices?.length) {
     return (
-      <div className="inline-aside choose">
-        <span className="aside-name">{word}</span>
-        <span className="aside-q">котру сутність відкрити?</span>
+      <span className="inline-aside choose">
+        <b className="aside-name">{word} — </b>
+        <span className="aside-q">котру сутність?</span>
         {card.data.choices.map((c) => (
           <button key={c.uid} type="button" onClick={() => onPick(word, c.uid)}>{c.title}</button>
         ))}
-        <button type="button" className="close" onClick={onClose} aria-label="Згорнути">×</button>
-      </div>
+        <button type="button" onClick={onClose}>згорнути</button>
+      </span>
     );
   }
   if (!card.data || card.data.error) return <MissingAside name={word} onClose={onClose} />;
   const data = card.data;
+  // Не картка, а продовження тексту: назва інлайном на початку, дії — дрібним
+  // текстом у кінці. Юрій: «зроби це як продовження тексту, а не як картка
+  // всередині тексту».
   return (
-    <div className="inline-aside">
-      <button type="button" className="close" onClick={onClose} aria-label="Згорнути">×</button>
-      <span className="aside-name">
-        {data.title}{data.year ? ` · ${data.year}${data.year_end && data.year_end !== data.year ? `–${data.year_end}` : ""}` : ""}
-      </span>
-      {data.what ? <div className="aside-body"><SafeMarkdownView content={data.what} onOpenWikilink={onOpen} /></div> : null}
-      <div className="aside-actions">
+    <span className="inline-aside">
+      <b className="aside-name">
+        {data.title}{data.year ? ` · ${data.year}${data.year_end && data.year_end !== data.year ? `–${data.year_end}` : ""}` : ""} —{" "}
+      </b>
+      {data.what ? <SafeMarkdownView content={data.what} onOpenWikilink={onOpen} /> : null}
+      <span className="aside-tail">
         {data.document_id && onOpenPanel ? <button type="button" onClick={() => onOpenPanel(data.document_id!)}>у панель</button> : null}
         {data.document_id ? <button type="button" onClick={() => onOpenDocument?.(data.document_id!)}>відкрити картку</button> : null}
-      </div>
-    </div>
+        <button type="button" onClick={onClose}>згорнути</button>
+      </span>
+    </span>
   );
 }
 
 function MissingAside({ name, onClose }: { name: string; onClose: () => void }) {
   const [state, setState] = useState<"idle" | "sending" | "queued" | "already">("idle");
   return (
-    <div className="inline-aside missing">
-      <button type="button" className="close" onClick={onClose} aria-label="Згорнути">×</button>
-      <span className="aside-name">{name}</span>
-      <span className="aside-q">картки в бібліотеці немає</span>
+    <span className="inline-aside missing">
+      <b className="aside-name">{name} — </b>
+      <span className="aside-q">картки в бібліотеці немає.</span>
       {state === "queued" ? <span className="done">замовлено — конвеєр візьме в роботу</span>
         : state === "already" ? <span className="done">уже в черзі</span>
         : <button type="button" disabled={state === "sending"} onClick={() => {
@@ -248,7 +253,8 @@ function MissingAside({ name, onClose }: { name: string; onClose: () => void }) 
             postJson<{ ok: boolean; already: boolean }>("/api/v1/map/request", { name })
               .then((r) => setState(r.already ? "already" : "queued")).catch(() => setState("idle"));
           }}>{state === "sending" ? "…" : "замовити картку"}</button>}
-    </div>
+      <button type="button" onClick={onClose}>згорнути</button>
+    </span>
   );
 }
 

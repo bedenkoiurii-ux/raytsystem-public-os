@@ -71,8 +71,6 @@ export function DocumentPeek({ documentId, heading, index, snapshotId, showNav =
         ) : (
           <Prose
             content={doc.content}
-            open={inline}
-            setOpen={setInline}
             onOpenPanel={toPanel}
             resolveImage={(target) => { const asset = doc.assets?.[target]; return typeof asset === "string" ? asset : asset?.url ?? null; }}
           />
