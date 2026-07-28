@@ -1519,3 +1519,13 @@ li.open .chev { transform: rotate(90deg); }
 .entity-body .safe-markdown p { margin: 0 0 .6em; }
 .entity-related { display: flex; flex-wrap: wrap; gap: 0; margin-top: 4px; }
 .entity[data-depth="1"] .entity-body { border-left-color: color-mix(in srgb, var(--muted-2) 40%, transparent); }
+/* Картка, розгорнута з вікілінка в тексті */
+.map-inline { display: grid; gap: 8px; margin-top: 12px; }
+.inline-card { border: 1px solid color-mix(in srgb, var(--cyan) 40%, transparent); border-radius: var(--radius-sm); padding: 10px 12px; background: color-mix(in srgb, var(--cyan) 5%, transparent); display: grid; gap: 6px; }
+.inline-card header { display: flex; align-items: baseline; gap: 8px; }
+.inline-card strong { font: 500 13.5px var(--sans); color: var(--bone); }
+.inline-card .when { font: 10.5px var(--mono); color: var(--muted-2); }
+.inline-card .close { margin-left: auto; border: 0; background: transparent; color: var(--muted-2); font-size: 16px; line-height: 1; cursor: pointer; padding: 0 2px; }
+.inline-card .close:hover { color: var(--bone); }
+.inline-card .safe-markdown { font-size: 13px; line-height: 1.62; background: none; box-shadow: none; border: 0; margin: 0; padding: 0; max-width: none; }
+.inline-card.loading, .inline-card.missing { font: 11.5px var(--mono); color: var(--muted-2); border-style: dashed; }

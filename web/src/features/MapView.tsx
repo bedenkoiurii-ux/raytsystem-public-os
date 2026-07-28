@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { EmptyState, ErrorState, LoadingState } from "../components/StatePanel";
 import { getJson } from "../api";
-import { SafeMarkdownView } from "./documents/SafeMarkdownView";
+import { SafeMarkdownView, type WikilinkTarget } from "./documents/SafeMarkdownView";
 
 /** Мапа сюжетів — географія розповіді.
  *
@@ -118,6 +118,30 @@ function useLand(height: number) {
   });
 }
 
+/** Картка, розгорнута з вікілінка в тексті. Показується одразу розкритою —
+ *  її відкрили свідомо, кліком по імені. Всередині неї вікілінки працюють так
+ *  само, тож ланцюг розкручується далі, не покидаючи панелі. */
+function InlineCard({ name, onClose, onOpen, onOpenDocument }: {
+  name: string; onClose: () => void; onOpen: (l: WikilinkTarget) => void; onOpenDocument?: (id: string) => void;
+}) {
+  const card = useNamedCard(name);
+  if (card.isLoading) return <div className="inline-card loading">{name}…</div>;
+  if (!card.data || card.data.error) return <div className="inline-card missing">{name} — картки в бібліотеці немає</div>;
+  return (
+    <div className="inline-card">
+      <header>
+        <strong>{card.data.title}</strong>
+        {card.data.year ? <span className="when">{card.data.year}{card.data.year_end && card.data.year_end !== card.data.year ? `–${card.data.year_end}` : ""}</span> : null}
+        <button type="button" className="close" onClick={onClose} aria-label="Згорнути">×</button>
+      </header>
+      {card.data.what ? <div className="safe-markdown"><SafeMarkdownView content={card.data.what} onOpenWikilink={onOpen} /></div> : null}
+      {card.data.document_id ? (
+        <button type="button" className="map-card-open" onClick={() => onOpenDocument?.(card.data!.document_id!)}>відкрити картку</button>
+      ) : null}
+    </div>
+  );
+}
+
 /** Передумова, що розкривається на місці. Всередині — така сама, тож ланцюг
  *  розкручується вглиб, не покидаючи стовпця й нічого не перекриваючи. */
 function Entity({ name, opened, setOpened, onOpenDocument, depth = 0 }: {
@@ -179,6 +203,13 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
   const card = useEventCard(openEvent);
   // Панель показує або текст сюжету, або картку події — що відкрив останнім.
   const [openText, setOpenText] = useState<string | null>(null);
+  // Вікілінки прямо в тексті розгортаються так само, як передумови: клік по
+  // «Острозький» відкриває його картку тут же, не покидаючи читання (Юрій).
+  const [inline, setInline] = useState<string[]>([]);
+  const openInline = useCallback((link: WikilinkTarget) => {
+    const name = link.target.trim();
+    setInline((s) => (s.includes(name) ? s : [...s, name]));
+  }, []);
   const story = useStoryDoc(openText);
   // Передумови розгортаються ВБУДОВАНО, у тому самому стовпці (Юрій: «щоб це
   // був один стовпчик, передумови відкривались як вбудовані»). Стек плаваючих
@@ -460,7 +491,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                     <button type="button" className="map-story-head"
                             onClick={() => {
                               if (open) { setOpenStory(null); setActive(null); setSpan(null); setSpanByStory(false); setOpenEvent(null); setOpenText(null); setView({ x: 0, y: 0, k: 1 }); }
-                              else { setOpenStory(story.title); setActive(story.title); setOpenEvent(null); setOpenText(story.title); showStory(story); }
+                              else { setOpenStory(story.title); setActive(story.title); setOpenEvent(null); setInline([]); setOpenText(story.title); showStory(story); }
                             }}>
                       <ChevronRight size={14} className="chev" />
                       <span className="name">{story.title}</span>
@@ -472,7 +503,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                         {story.events.map((ev) => (
                           <li key={ev.path} className={ev.route.length ? "" : "unmapped"}>
                             <button type="button" className={openEvent === ev.path ? "on" : ""}
-                                    onClick={() => { if (ev.route[0]) focus(ev.route[0]); setOpened([]); setOpenText(null); setOpenEvent(openEvent === ev.path ? null : ev.path); }}>
+                                    onClick={() => { if (ev.route[0]) focus(ev.route[0]); setOpened([]); setInline([]); setOpenText(null); setOpenEvent(openEvent === ev.path ? null : ev.path); }}>
                               <b>{ev.year}{ev.year_end && ev.year_end !== ev.year ? `–${ev.year_end}` : ""}</b>
                               <span className="what">{ev.title}</span>
                               <span className="where">
@@ -499,7 +530,15 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
               <button type="button" className="map-card-open" onClick={() => onOpenDocument?.(story.data!.document_id!)}>відкрити документ</button>
             ) : null}
           </header>
-          <div className="safe-markdown"><SafeMarkdownView content={story.data.body} /></div>
+          <div className="safe-markdown"><SafeMarkdownView content={story.data.body} onOpenWikilink={openInline} /></div>
+          {inline.length ? (
+            <div className="map-inline">
+              {inline.map((name) => (
+                <InlineCard key={name} name={name} onClose={() => setInline((s) => s.filter((x) => x !== name))}
+                            onOpen={openInline} onOpenDocument={onOpenDocument} />
+              ))}
+            </div>
+          ) : null}
         </aside>
       ) : null}
 
@@ -545,7 +584,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
           {card.data.what ? (
             <section className="map-card-block">
               <span className="eyebrow">ЩО СТАЛОСЯ</span>
-              <div className="safe-markdown"><SafeMarkdownView content={card.data.what} /></div>
+              <div className="safe-markdown"><SafeMarkdownView content={card.data.what} onOpenWikilink={openInline} /></div>
             </section>
           ) : null}
 
