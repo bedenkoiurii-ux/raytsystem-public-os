@@ -133,6 +133,18 @@ function Entity({ name, opened, setOpened, onOpenDocument, depth = 0 }: {
 }
 
 export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => void }) {
+  // Аркуш — той самий, що в Документах: клас і тон читаються з того ж
+  // localStorage, тож перемикач лишається в одному місці (Юрій: «стиль аркуша
+  // такий самий, як у документах, він міняється тільки там»). Власних кольорів
+  // мапа не тримає — інакше з'явився б другий, розсинхронізований аркуш.
+  const sheet = (() => {
+    try {
+      return {
+        on: window.localStorage.getItem("wl_sheet_light") !== "0",
+        tone: window.localStorage.getItem("wl_sheet_tone") ?? "sepia"
+      };
+    } catch { return { on: true, tone: "sepia" }; }
+  })();
   const data = useMapData();
   const land = useLand();
   const [tab, setTab] = useState<"stories" | "periods">("stories");
@@ -429,7 +441,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
           )}
         </aside>
       {openEvent && card.data ? (
-        <aside className="map-card">
+        <aside className={`map-card${sheet.on ? " sheet-light" : ""}`} data-sheet-tone={sheet.on ? sheet.tone : undefined}>
           <header>
             <span className="eyebrow">ПОДІЯ</span>
             <h2>{card.data.title}</h2>
