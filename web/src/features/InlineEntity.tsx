@@ -109,6 +109,67 @@ export function InlineCard({ name, onClose, onOpen, onOpenDocument, onOpenPanel 
   );
 }
 
+/** Текст, у якому картка розкривається ПІД СВОЇМ АБЗАЦОМ.
+ *
+ *  Юрій (2026-07-28): «додатковий текст відкривається одразу після слова-
+ *  посилання прямо в тілі основного, а згортається повторним натисканням
+ *  на посилання або хрестиком».
+ *
+ *  Механіка проста навмисно: розбиваємо прозу на абзаци й рендеримо кожен
+ *  окремо; картка йде після того абзацу, де посилання трапилось уперше.
+ *  Без порталів і вимірювань DOM — вставка живе в самій розмітці тексту. */
+export function Prose({ content, open, setOpen, onOpenDocument, onOpenPanel, onOpenSource, onOpenRelativeLink, resolveImage }: {
+  content: string;
+  open: string[];
+  setOpen: (fn: (s: string[]) => string[]) => void;
+  onOpenDocument?: (id: string) => void;
+  onOpenPanel?: (id: string) => void;
+  /** Прокидаємо решту можливостей рендерера — у документі є зображення,
+   *  відносні посилання й перехід у Source. */
+  onOpenSource?: () => void;
+  onOpenRelativeLink?: (target: string) => void;
+  resolveImage?: (target: string) => string | null;
+}) {
+  const toggle = (link: WikilinkTarget) => {
+    const name = link.target.trim();
+    if (!name) return;
+    // Повторний клік по тому самому посиланню згортає — як і хрестик.
+    setOpen((s) => (s.includes(name) ? s.filter((x) => x !== name) : [...s, name]));
+  };
+  const blocks = content.split(/\n{2,}/);
+  const shown = new Set<string>();
+  return (
+    <>
+      {blocks.map((block, i) => {
+        const here = open.filter((name) => !shown.has(name) && block.includes(`[[${name}`));
+        here.forEach((name) => shown.add(name));
+        return (
+          <div key={i} className="prose-block">
+            <div className="safe-markdown"><SafeMarkdownView content={block} onOpenWikilink={toggle} onOpenSource={i === 0 ? onOpenSource : undefined} onOpenRelativeLink={onOpenRelativeLink} resolveImage={resolveImage} /></div>
+            {here.length ? (
+              <div className="map-inline">
+                {here.map((name) => (
+                  <InlineCard key={name} name={name} onOpen={toggle} onOpenDocument={onOpenDocument} onOpenPanel={onOpenPanel}
+                              onClose={() => setOpen((s) => s.filter((x) => x !== name))} />
+                ))}
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+      {/* Те, що відкрили не з цього тексту (вибір із неоднозначності) — у кінці. */}
+      {open.some((name) => !shown.has(name)) ? (
+        <div className="map-inline">
+          {open.filter((name) => !shown.has(name)).map((name) => (
+            <InlineCard key={name} name={name} onOpen={toggle} onOpenDocument={onOpenDocument} onOpenPanel={onOpenPanel}
+                        onClose={() => setOpen((s) => s.filter((x) => x !== name))} />
+          ))}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 /** Стек розгорнутих сутностей під текстом. Порядок — як відкривали. */
 export function InlineStack({ names, setNames, onOpenDocument, onOpenPanel }: {
   names: string[];

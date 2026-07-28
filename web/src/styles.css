@@ -1540,3 +1540,5 @@ li.open .chev { transform: rotate(90deg); }
 .doc-peek .map-inline { margin: 0 14px 16px; }
 .inline-card.choose { border-style: solid; border-color: color-mix(in srgb, var(--gold) 55%, transparent); background: color-mix(in srgb, var(--gold) 6%, transparent); }
 .inline-card.choose p { margin: 0; font-size: 12px; color: var(--muted); }
+.prose-block > .map-inline { margin: 10px 0 14px; }
+.document-content .prose-block > .map-inline { max-width: 860px; margin: 12px auto 18px; }

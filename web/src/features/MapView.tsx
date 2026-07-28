@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { EmptyState, ErrorState, LoadingState } from "../components/StatePanel";
 import { getJson } from "../api";
 import { SafeMarkdownView, type WikilinkTarget } from "./documents/SafeMarkdownView";
-import { InlineStack, useNamedCard } from "./InlineEntity";
+import { Prose, useNamedCard } from "./InlineEntity";
 
 /** Мапа сюжетів — географія розповіді.
  *
@@ -132,7 +132,7 @@ function Entity({ name, opened, setOpened, onOpenDocument, depth = 0 }: {
         <div className="entity-body">
           {card.data.year ? <p className="when">{card.data.year}{card.data.year_end && card.data.year_end !== card.data.year ? `–${card.data.year_end}` : ""}</p> : null}
 
-          {card.data.consequences ? (<><span className="eyebrow">ЧИМ ВАЖИТЬ</span><div className="safe-markdown"><SafeMarkdownView content={card.data.consequences} onOpenWikilink={follow} /></div></>) : null}
+          {card.data.consequences ? (<><span className="eyebrow">ЧИМ ВАЖИТЬ</span><Prose content={card.data.consequences} open={opened} setOpen={setOpened} onOpenDocument={onOpenDocument} /></>) : null}
           {depth < 2 && card.data.related.length ? (
             <div className="entity-related">
               {card.data.related.map((n) => (
@@ -502,8 +502,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
               <button type="button" className="map-card-open" onClick={() => onOpenDocument?.(story.data!.document_id!)}>відкрити документ</button>
             ) : null}
           </header>
-          <div className="safe-markdown"><SafeMarkdownView content={story.data.body} onOpenWikilink={openInline} /></div>
-          <InlineStack names={inline} setNames={setInline} onOpenDocument={onOpenDocument} />
+          <Prose content={story.data.body} open={inline} setOpen={setInline} onOpenDocument={onOpenDocument} />
         </aside>
       ) : null}
 
@@ -549,18 +548,17 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
           {card.data.what ? (
             <section className="map-card-block">
               <span className="eyebrow">ЩО СТАЛОСЯ</span>
-              <div className="safe-markdown"><SafeMarkdownView content={card.data.what} onOpenWikilink={openInline} /></div>
+              <Prose content={card.data.what} open={inline} setOpen={setInline} onOpenDocument={onOpenDocument} />
             </section>
           ) : null}
 
           {card.data.consequences ? (
             <section className="map-card-block after">
               <span className="eyebrow">НАСЛІДКИ</span>
-              <div className="safe-markdown"><SafeMarkdownView content={card.data.consequences} onOpenWikilink={openInline} /></div>
+              <Prose content={card.data.consequences} open={inline} setOpen={setInline} onOpenDocument={onOpenDocument} />
             </section>
           ) : null}
 
-          <InlineStack names={inline} setNames={setInline} onOpenDocument={onOpenDocument} />
         </aside>
       ) : null}
       </div>

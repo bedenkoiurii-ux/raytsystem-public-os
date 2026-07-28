@@ -4,7 +4,7 @@ import { useDocumentDetail, useDocumentLinks } from "./documentHooks";
 import { matchingDocumentLink } from "./Documents";
 import { useState } from "react";
 import { SafeMarkdownView, type WikilinkTarget } from "./SafeMarkdownView";
-import { InlineStack } from "../InlineEntity";
+import { Prose } from "../InlineEntity";
 
 interface DocumentPeekProps {
   documentId: string;
@@ -69,13 +69,14 @@ export function DocumentPeek({ documentId, heading, index, snapshotId, showNav =
         ) : doc.format !== "markdown" || doc.content == null ? (
           <EmptyState title="Перегляд недоступний">Цей формат показується лише при повному відкритті.</EmptyState>
         ) : (
-          <SafeMarkdownView
+          <Prose
             content={doc.content}
-            onOpenWikilink={resolve}
+            open={inline}
+            setOpen={setInline}
+            onOpenPanel={toPanel}
             resolveImage={(target) => { const asset = doc.assets?.[target]; return typeof asset === "string" ? asset : asset?.url ?? null; }}
           />
         )}
-        <InlineStack names={inline} setNames={setInline} onOpenPanel={toPanel} />
       </div>
     </aside>
   );
