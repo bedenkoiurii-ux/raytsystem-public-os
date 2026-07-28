@@ -1,5 +1,5 @@
 import type React from "react";
-import { useRef, useState } from "react";
+import { createContext, useContext, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getJson, postJson } from "../api";
 import { SafeMarkdownView, type WikilinkTarget } from "./documents/SafeMarkdownView";
@@ -21,6 +21,9 @@ export interface EntityCard {
   lead: string;
   /** Чому ми це тут згадуємо — «Цінність для розповіді». */
   value: string;
+  /** Чим сутність важить САМЕ в цьому документі — рядок із «Згадується в». */
+  why: string;
+  why_scope: string;
   what: string; consequences: string; related: string[];
   path: string; document_id: string | null;
   error?: string;
@@ -72,12 +75,21 @@ export function autolink(text: string, forms: Record<string, string>): string {
     .join("");
 }
 
+/** Документ, у якому стоїть посилання. Картка знає, чим вона важить у кожному
+ *  документі окремо — без цього врізка показує цінність узагалі, писану під
+ *  інший розділ. */
+const CardScopeContext = createContext<string>("");
+export const CardScope = CardScopeContext.Provider;
+
 export function useNamedCard(name: string | null) {
+  const scope = useContext(CardScopeContext);
   return useQuery({
-    queryKey: ["entity", "card", name],
+    queryKey: ["entity", "card", name, scope],
     enabled: Boolean(name),
     staleTime: 60_000,
-    queryFn: () => getJson<EntityCard>(`/api/v1/map/card?name=${encodeURIComponent(name ?? "")}`)
+    queryFn: () => getJson<EntityCard>(
+      `/api/v1/map/card?name=${encodeURIComponent(name ?? "")}`
+      + (scope ? `&context=${encodeURIComponent(scope)}` : ""))
   });
 }
 
@@ -325,9 +337,13 @@ function Aside({ entry, onClose, onOpen, onPick, onOpenDocument, onOpenPanel }: 
         {data.title}{data.year ? ` · ${data.year}${data.year_end && data.year_end !== data.year ? `–${data.year_end}` : ""}` : ""} —{" "}
       </b>
       {data.lead ? <SafeMarkdownView content={data.lead} onOpenWikilink={onOpen} /> : null}
-      {data.value ? (
+      {/* «Чому тут» сильніше за «цінність узагалі»: цінність написана під той
+          розділ, де сутність є вершиною, і в іншому місці читається як чуже
+          твердження. Коли прив'язки до цього документа нема — не підставляємо
+          чужу натомість, вистачить характеристики. */}
+      {data.why || data.value ? (
         <span className="aside-value">
-          <SafeMarkdownView content={data.value} onOpenWikilink={onOpen} />
+          <SafeMarkdownView content={data.why || data.value} onOpenWikilink={onOpen} />
         </span>
       ) : null}
       {!data.lead && !data.value && data.what ? <SafeMarkdownView content={data.what} onOpenWikilink={onOpen} /> : null}

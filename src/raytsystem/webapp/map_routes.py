@@ -286,7 +286,7 @@ def create_map_router(root: Path, *, require_session: Callable[..., Any]) -> API
         return {"forms": out, "count": len(out)}
 
     @router.get("/map/card")
-    def map_card(name: str, _session=Depends(require_session)) -> dict[str, Any]:
+    def map_card(name: str, context: str = "", _session=Depends(require_session)) -> dict[str, Any]:
         """Картка будь-якої сутності за назвою — для кліку по передумові.
 
         Передумови ведуть не лише на події: «Флоренція» — місце, «Ісидор» —
@@ -360,10 +360,27 @@ def create_map_router(root: Path, *, require_session: Callable[..., Any]) -> API
         card_title = _field(fm, "title") or target.stem
         lead = re.sub(rf"^\*{{0,2}}{re.escape(card_title)}\*{{0,2}}\s*[—–-]\s*", "", lead)
 
+        # Чому саме тут. Картка знає, чим вона важить у КОЖНОМУ документі —
+        # це секція «Згадується в», написана автором. Врізка без цього показує
+        # цінність узагалі: Могила у в'їзді Хмельницького 1648-го з'являвся як
+        # «вершина всієї дуги розділу», хоча то сказано про розділ 13, а тут він
+        # згаданий лише як тінь могилянської традиції (Юрій, 2026-07-28).
+        why, why_scope = "", ""
+        if context:
+            key = re.sub(r"\s+", " ", unicodedata.normalize("NFC", context)).strip().lower()
+            for item in re.findall(r"^-\s*(.+)$", section("Згадується в"), re.M):
+                targets = [t.strip().lower() for t in re.findall(r"\[\[([^\]|#]+)", item)]
+                if any(key == t or key in t or t in key for t in targets):
+                    why = re.sub(r"^\[\[[^\]]+\]\]\s*[—–-]\s*", "", item).strip()
+                    why_scope = context
+                    break
+
         rel = str(target.relative_to(root))
         return {
             "title": _field(fm, "title") or target.stem,
             "kind": _field(fm, "type"),
+            "why": _clip(why, 1200),
+            "why_scope": why_scope,
             "lead": _clip(lead, 1400),
             "value": _clip(section("Цінність для розповіді", "Значення для розповіді",
                                    "Чому важить", "Чим важить"), 3000),
