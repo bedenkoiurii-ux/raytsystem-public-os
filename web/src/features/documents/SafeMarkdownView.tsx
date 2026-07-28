@@ -9,7 +9,8 @@ export interface WikilinkTarget {
 
 interface SafeMarkdownViewProps {
   content: string;
-  onOpenWikilink?: (target: WikilinkTarget) => void;
+  /** Друга частина — подія кліку: ⌥/Alt означає «розгорнути тут», а не переходити. */
+  onOpenWikilink?: (target: WikilinkTarget, event?: { altKey: boolean }) => void;
   onOpenRelativeLink?: (target: string) => void;
   resolveImage?: (target: string) => string | null;
   onOpenSource?: () => void;
@@ -102,7 +103,7 @@ function inlineNodes(
         nodes.push(<img key={key} src={resolved} alt={target.label} loading="lazy" decoding="async" />);
       } else {
         nodes.push(
-          <button key={key} type="button" className={embed ? "doc-wikilink doc-embed" : "doc-wikilink"} onClick={() => props.onOpenWikilink?.(target)}>
+          <button key={key} type="button" className={embed ? "doc-wikilink doc-embed" : "doc-wikilink"} onClick={(event) => props.onOpenWikilink?.(target, { altKey: event.altKey })}>
             {embed ? "Вкладення: " : ""}{target.label}{target.heading ? ` · ${target.heading}` : ""}
           </button>
         );

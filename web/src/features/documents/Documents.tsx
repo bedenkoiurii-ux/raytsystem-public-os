@@ -75,7 +75,8 @@ import { DocumentRestoreDialog } from "./DocumentRestoreDialog";
 import { DocumentTabs } from "./DocumentTabs";
 import { DocumentTree } from "./DocumentTree";
 import { headingId, SafeMarkdownView, safeImageUrl, type WikilinkTarget } from "./SafeMarkdownView";
-import { Prose } from "../InlineEntity";
+import { InlineStack } from "../InlineEntity";
+
 import { DocumentPeek } from "./DocumentPeek";
 import "./documents.css";
 
@@ -586,20 +587,23 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
   };
 
   // Клік у документі → картка 1 (скидає картку 2).
-  // Клік по вікілінку розгортає картку сутності просто під текстом — той самий
-  // принцип, що в Мапі (Юрій, 2026-07-28: «прекрасний принцип, повторимо і в
-  // документах»). Peek-панель нікуди не поділась: із картки є кнопка «у панель».
+  // Каскад — основа (Юрій: «в документах картка більше ніж додаткова
+  // інформація»), врізка — плюс. Вони не конкурують за клік:
+  //   звичайний клік  → картка в панелі, каскадом
+  //   ⌥-клік          → врізка просто в тексті, не покидаючи рядка
+  //   ціль не знайдена → врізка теж (раніше клік просто мовчав)
   const [inline, setInline] = useState<string[]>([]);
   const openInline = (target: WikilinkTarget) => {
     const name = target.target.trim();
-    if (name) setInline((s) => (s.includes(name) ? s : [...s, name]));
+    if (name) setInline((s) => (s.includes(name) ? s.filter((x) => x !== name) : [...s, name]));
   };
 
-  const resolveWikilink = (target: WikilinkTarget) => {
+  const resolveWikilink = (target: WikilinkTarget, event?: { altKey: boolean }) => {
+    if (event?.altKey) { openInline(target); return; }
     const match = matchingDocumentLink(target, links.data?.items ?? []);
     const id = match?.target_document_id ?? (match?.candidates?.length === 1 ? match.candidates[0].document_id : null);
     if (id) { setCard1({ id, heading: target.heading ?? match?.heading ?? undefined }); setC2Hist([]); setC2Pos(-1); }
-    else setNotice(match?.ambiguous ? "Wikilink неоднозначний — виберіть ціль на панелі «Посилання»." : "Ціль wikilink не знайдена в дозволених roots.");
+    else openInline(target);          // каскад безсилий — принаймні покажемо довідку тут
   };
   // Клік у картці 1 → відкриває/замінює картку 2 (свіжа історія).
   const openFromCard1 = (id: string, heading?: string) => { setC2Hist([{ id, heading }]); setC2Pos(0); };
@@ -752,7 +756,8 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
               <div className={`document-content${sheetLight && (activeTab.mode === "read" || activeTab.mode === "visual") ? " sheet-light" : ""}`} data-sheet-tone={sheetLight ? sheetTone : undefined} data-sheet-format={sheetFormat}>
                 {activeIsImage && detail.data ? <DocumentImageView detail={detail.data} /> : null}
                 {activeUnsupported ? <div className="doc-visual-unavailable" role="status"><strong>Для цього формату немає безпечного viewer</strong><p>Файл видно в керованому workspace, але його вміст не передано браузеру.</p></div> : null}
-                {!activeIsImage && !activeUnsupported && activeTab.mode === "read" ? <Prose content={activeDraft.content} onOpenDocument={openById} onOpenPanel={(id) => { setCard1({ id }); setC2Hist([]); setC2Pos(-1); }} onOpenSource={() => dispatch({ type: "mode", documentId: activeId, mode: "source" })} onOpenRelativeLink={(target) => { const match = links.data?.items.find((link) => link.target === target); if (match?.target_document_id) openById(match.target_document_id, match.heading); else setNotice("Відносне посилання не дозволене або не знайдене."); }} resolveImage={(target) => { const asset = detail.data?.assets?.[target]; return typeof asset === "string" ? asset : asset?.url ?? (target.startsWith("/api/v1/documents/") ? target : null); }} /> : null}
+                {!activeIsImage && !activeUnsupported && activeTab.mode === "read" ? <SafeMarkdownView content={activeDraft.content} onOpenSource={() => dispatch({ type: "mode", documentId: activeId, mode: "source" })} onOpenWikilink={resolveWikilink} onOpenRelativeLink={(target) => { const match = links.data?.items.find((link) => link.target === target); if (match?.target_document_id) openById(match.target_document_id, match.heading); else setNotice("Відносне посилання не дозволене або не знайдене."); }} resolveImage={(target) => { const asset = detail.data?.assets?.[target]; return typeof asset === "string" ? asset : asset?.url ?? (target.startsWith("/api/v1/documents/") ? target : null); }} /> : null}
+                {!activeIsImage && !activeUnsupported && activeTab.mode === "read" && inline.length ? <InlineStack names={inline} setNames={setInline} onOpenDocument={openById} onOpenPanel={(id) => { setCard1({ id }); setC2Hist([]); setC2Pos(-1); }} /> : null}
                 
                 {!activeIsImage && !activeUnsupported && activeTab.mode === "source" ? <Suspense fallback={<LoadingState label="Завантажуємо Source editor…" />}><SourceEditor key={`${activeId}:${activeDraft.baseSha256}:${detail.data?.line_ending ?? "unknown"}`} value={activeDraft.content} readOnly={activeTab.readOnly} issues={inspectMarkdownForVisualEditing(activeDraft.content)} lineNumbers onChange={(content) => changeDraft(content)} onSave={() => saveContent()} onToggleVisual={() => dispatch({ type: "mode", documentId: activeId, mode: "visual" })} /></Suspense> : null}
                 {!activeIsImage && !activeUnsupported && activeTab.mode === "visual" ? visualBlockReason ? <div className="doc-visual-unavailable" role="alert"><strong>Візуальний редактор не відкрито</strong><p>{visualBlockReason}</p><button type="button" onClick={() => dispatch({ type: "mode", documentId: activeId, mode: "source" })}>Відкрити Source mode</button></div> : <Suspense fallback={<LoadingState label="Завантажуємо візуальний editor…" />}><VisualEditor key={`${activeId}:${activeDraft.baseSha256}`} value={activeDraft.content} readOnly={activeTab.readOnly} qualification={detail.data?.visual_qualification} onChange={changeDraft} onSave={() => saveContent()} onToggleSource={() => dispatch({ type: "mode", documentId: activeId, mode: "source" })} /></Suspense> : null}

@@ -4,7 +4,7 @@ import { useDocumentDetail, useDocumentLinks } from "./documentHooks";
 import { matchingDocumentLink } from "./Documents";
 import { useState } from "react";
 import { SafeMarkdownView, type WikilinkTarget } from "./SafeMarkdownView";
-import { Prose } from "../InlineEntity";
+import { InlineStack } from "../InlineEntity";
 
 interface DocumentPeekProps {
   documentId: string;
@@ -33,15 +33,17 @@ export function DocumentPeek({ documentId, heading, index, snapshotId, showNav =
   const links = useDocumentLinks(documentId, snapshotId);
   const doc = detail.data;
 
-  // Той самий принцип, що в Мапі й Документах: клік розгортає сутність тут же.
-  // Каскад карток лишається — з inline-картки є кнопка «у панель». Раніше при
-  // ненайденій цілі resolve мовчав, і клік просто нічого не робив.
+  // Каскад: клік у картці відкриває наступну картку панелі (Юрій — це і є
+  // двовіконний режим, заради якого peek існує).
   const [inline, setInline] = useState<string[]>([]);
-  const resolve = (target: WikilinkTarget) => {
+  const resolve = (target: WikilinkTarget, event?: { altKey: boolean }) => {
     const name = target.target.trim();
-    if (name) setInline((s) => (s.includes(name) ? s : [...s, name]));
+    if (event?.altKey) { setInline((s) => (s.includes(name) ? s.filter((x) => x !== name) : [...s, name])); return; }
+    const match = matchingDocumentLink(target, links.data?.items ?? []);
+    const id = match?.target_document_id ?? (match?.candidates?.length === 1 ? match.candidates[0].document_id : null);
+    if (id) onOpenLink(index, id, target.heading ?? match?.heading ?? undefined);
+    else setInline((s) => (s.includes(name) ? s : [...s, name]));
   };
-  const toPanel = (id: string) => onOpenLink(index, id, undefined);
 
   return (
     <aside className={`doc-peek${sheetLight ? " sheet-light" : ""}`} data-sheet-tone={sheetLight ? sheetTone : undefined} aria-label={`Картка ${index + 1}`}>
@@ -69,12 +71,13 @@ export function DocumentPeek({ documentId, heading, index, snapshotId, showNav =
         ) : doc.format !== "markdown" || doc.content == null ? (
           <EmptyState title="Перегляд недоступний">Цей формат показується лише при повному відкритті.</EmptyState>
         ) : (
-          <Prose
+          <SafeMarkdownView
             content={doc.content}
-            onOpenPanel={toPanel}
+            onOpenWikilink={resolve}
             resolveImage={(target) => { const asset = doc.assets?.[target]; return typeof asset === "string" ? asset : asset?.url ?? null; }}
           />
         )}
+        {inline.length ? <InlineStack names={inline} setNames={setInline} onOpenPanel={(id) => onOpenLink(index, id, undefined)} /> : null}
       </div>
     </aside>
   );

@@ -1563,3 +1563,7 @@ li.open .chev { transform: rotate(90deg); }
 .inline-aside.missing, .inline-aside.choose { background: color-mix(in srgb, var(--gold) 9%, transparent); box-shadow: 0 0 0 .35em color-mix(in srgb, var(--gold) 9%, transparent); }
 .inline-aside.missing .aside-name, .inline-aside.choose .aside-name { color: var(--gold); }
 .inline-aside .done { font: 10.5px var(--mono); color: var(--mint); margin-right: .9em; }
+/* Стек врізок у Документах (⌥-клік або ціль поза дозволеними roots) */
+.document-content .map-inline { max-width: 860px; margin: 0 auto 32px; display: grid; gap: 8px; }
+.document-content.sheet-light .map-inline { padding: 0 60px; }
+.doc-peek .map-inline { margin: 0 14px 16px; display: grid; gap: 8px; }
