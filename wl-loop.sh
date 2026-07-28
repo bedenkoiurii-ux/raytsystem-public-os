@@ -20,6 +20,9 @@
 
 set -euo pipefail
 cd "$(dirname "$0")"
+# Абсолютний шлях до себе: старт робить cd у worktree, і відносний "$0"
+# після цього вже нікуди не веде («No such file or directory»).
+SELF="$PWD/$(basename "$0")"
 
 TASK="${1:-}"; shift || true
 case "$TASK" in
@@ -116,7 +119,7 @@ case "${1:-}" in
   старт|start)
     if [ -f "$PIDF" ] && kill -0 "$(cat "$PIDF")" 2>/dev/null; then echo "[$TASK] вже працює (pid $(cat "$PIDF"))"; exit 0; fi
     mkdir -p "$S"; rm -f "$DONE"; ensure_worktree
-    nohup "$0" "$TASK" _run >>"$LOG" 2>&1 &
+    nohup "$SELF" "$TASK" _run >>"$LOG" 2>&1 &
     echo $! >"$PIDF"; sleep 1
     kill -0 "$(cat "$PIDF")" 2>/dev/null && echo "[$TASK] піднято (pid $(cat "$PIDF")) · лог: $LOG" || { echo "не піднявся"; tail -5 "$LOG"; exit 1; } ;;
   _run) loop ;;
