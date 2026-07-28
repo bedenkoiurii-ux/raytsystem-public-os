@@ -1,6 +1,6 @@
 import type React from "react";
 import { ChevronRight, Maximize2 } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { EmptyState, ErrorState, LoadingState } from "../components/StatePanel";
 import { getJson } from "../api";
@@ -20,9 +20,12 @@ import { SafeMarkdownView } from "./documents/SafeMarkdownView";
  *  Областей не малюємо — рішення Юрія: контурів історичних територій у
  *  бібліотеці немає, а домальовувати кордони на око означає видати вигадку
  *  за факт. Територія лишається точкою з підписом. */
-const BOX = { lonMin: -8, latMin: 34, lonMax: 52, latMax: 60 };
+// Вікно задаємо довготою й центром широти; висота — скільки влізе у форму
+// контейнера. Раніше H була сталою (620), і на високому вузькому вікні мапа
+// заповнювала простір ПОЛЯМИ, а не географією — «виглядає недолуго» (Юрій).
+const BOX = { lonMin: -8, lonMax: 52, latCenter: 47 };
 const W = 1000;
-const H = 620;
+const DEG = 180 / Math.PI;
 
 interface Place { title: string; lat: number; lon: number; path: string; document_id: string | null }
 interface StoryEvent { title: string; year: number; year_end: number | null; place_raw: string; route: string[]; path: string; document_id: string | null }
@@ -35,11 +38,12 @@ interface EventCard {
 }
 
 const projectY = (lat: number) => Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360));
-const yTop = projectY(BOX.latMax);
-const yBottom = projectY(BOX.latMin);
-const toScreen = (lat: number, lon: number): [number, number] => [
-  ((lon - BOX.lonMin) / (BOX.lonMax - BOX.lonMin)) * W,
-  ((yTop - projectY(lat)) / (yTop - yBottom)) * H
+const SCALE = W / (BOX.lonMax - BOX.lonMin);        // пікселів на градус довготи
+const yMid = projectY(BOX.latCenter);
+/** Меркатор зі спільним масштабом по обох осях — інакше контур спотворився б. */
+const toScreen = (lat: number, lon: number, height: number): [number, number] => [
+  (lon - BOX.lonMin) * SCALE,
+  height / 2 - (projectY(lat) - yMid) * SCALE * DEG
 ];
 
 function useMapData() {
@@ -70,9 +74,9 @@ function useEventCard(path: string | null) {
   });
 }
 
-function useLand() {
+function useLand(height: number) {
   return useQuery({
-    queryKey: ["map", "land"],
+    queryKey: ["map", "land", height],
     staleTime: Infinity,
     queryFn: async () => {
       // Контур у бандлі окремим чанком: CSP має connect-src 'self', зовнішні
@@ -87,7 +91,7 @@ function useLand() {
           if (!ring?.length) continue;
           let d = "";
           ring.forEach(([lon, lat], i) => {
-            const [x, y] = toScreen(lat, lon);
+            const [x, y] = toScreen(lat, lon, height);
             d += `${i ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`;
           });
           paths.push(`${d}Z`);
@@ -147,7 +151,6 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
     } catch { return { on: true, tone: "sepia" }; }
   })();
   const data = useMapData();
-  const land = useLand();
   const [tab, setTab] = useState<"stories" | "periods">("stories");
   const [openStory, setOpenStory] = useState<string | null>(null);
   const [active, setActive] = useState<string | null>(null);       // підсвічений сюжет
@@ -164,17 +167,36 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
   const [opened, setOpened] = useState<string[]>([]);
   const [hover, setHover] = useState<Place | null>(null);
   const [view, setView] = useState({ x: 0, y: 0, k: 1 });
+  // Висота полотна в одиницях viewBox — з реальної форми контейнера, щоб
+  // мапа показувала більше географії, а не порожні поля.
+  const [H, setH] = useState(620);
+  const land = useLand(H);
   const drag = useRef<{ px: number; py: number; x: number; y: number } | null>(null);
   const stage = useRef<HTMLDivElement | null>(null);
+  // callback-ref, а не useEffect: на момент монтування вікно ще показує
+  // LoadingState, вузла немає, і спостерігач нізащо не приєднається.
+  const observer = useRef<ResizeObserver | null>(null);
+  const attachStage = useCallback((node: HTMLDivElement | null) => {
+    stage.current = node;
+    observer.current?.disconnect();
+    if (!node) return;
+    const measure = () => {
+      const box = node.getBoundingClientRect();
+      if (box.width > 0) setH(Math.round((box.height / box.width) * W));
+    };
+    measure();
+    observer.current = new ResizeObserver(measure);
+    observer.current.observe(node);
+  }, []);
 
   const places = useMemo(() => {
     const map = new Map<string, Place & { x: number; y: number }>();
     for (const p of data.data?.places ?? []) {
-      const [x, y] = toScreen(p.lat, p.lon);
+      const [x, y] = toScreen(p.lat, p.lon, H);
       map.set(p.title, { ...p, x, y });
     }
     return map;
-  }, [data.data]);
+  }, [data.data, H]);
 
   const stories = data.data?.stories ?? [];
   const bounds = useMemo(() => {
@@ -259,7 +281,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
       x: Math.min(Math.max(0, (minX + maxX) / 2 - W / k / 2), W - W / k),
       y: Math.min(Math.max(0, (minY + maxY) / 2 - H / k / 2), H - H / k)
     });
-  }, [places]);
+  }, [places, H]);
 
   /** Наблизити до точки — коли клікаєш реперну точку в правій колонці. */
   const focus = useCallback((name: string) => {
@@ -271,7 +293,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
       x: Math.min(Math.max(0, p.x - W / k / 2), W - W / k),
       y: Math.min(Math.max(0, p.y - H / k / 2), H - H / k)
     });
-  }, [places]);
+  }, [places, H]);
 
   if (data.isError) return <ErrorState error={data.error as Error} onRetry={() => void data.refetch()} />;
   if (data.isLoading) return <LoadingState label="Збираємо сюжети й місця…" />;
@@ -280,7 +302,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
   return (
     <div className="route route-map">
       <div className={`map-split${openEvent && card.data ? " with-card" : ""}`}>
-        <div className="map-stage" ref={stage}>
+        <div className="map-stage" ref={attachStage}>
           <svg viewBox={`${view.x} ${view.y} ${W / view.k} ${H / view.k}`} className="map-svg"
                role="img" aria-label="Мапа сюжетів"
                onWheel={onWheel} onMouseMove={onMove}
