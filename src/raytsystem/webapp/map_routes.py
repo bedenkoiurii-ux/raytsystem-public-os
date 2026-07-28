@@ -33,6 +33,9 @@ from typing import Any, Callable
 
 from fastapi import APIRouter, Depends
 
+from raytsystem.documents.index import DocumentIndex
+from raytsystem.documents import load_document_config
+
 PLACES = "30-Research/Places"
 EVENTS = "30-Research/Events"
 # Періоди не вигадуємо — беремо ті, що вже виписані в бібліотеці: хроніки й
@@ -67,6 +70,16 @@ def _mentions(body: str) -> list[str]:
 
 def create_map_router(root: Path, *, require_session: Callable[..., Any]) -> APIRouter:
     router = APIRouter(prefix="/api/v1")
+    index = DocumentIndex(root, config=load_document_config(root))
+
+    def _doc_id(relative: str) -> str | None:
+        """Шлях → document_id. Маршрут /documents приймає ТІЛЬКИ id: без цього
+        клік «відкрити картку» веде в порожній екран (оплачено)."""
+        try:
+            row = index.row_for_path(relative)
+        except Exception:
+            return None
+        return str(row["document_id"]) if row else None
 
     def _places() -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
         """Канонічні місця з координатами + індекс «будь-яка назва → канон»."""
@@ -87,6 +100,7 @@ def create_map_router(root: Path, *, require_session: Callable[..., Any]) -> API
                 "lat": float(coords.group(1)),
                 "lon": float(coords.group(2)),
                 "path": str(path.relative_to(root)),
+                "document_id": _doc_id(str(path.relative_to(root))),
             }
             for variant in [name, path.stem, *_list_field(fm, "aliases")]:
                 if len(variant) >= MIN_NAME:
@@ -159,6 +173,7 @@ def create_map_router(root: Path, *, require_session: Callable[..., Any]) -> API
             "related": [x.strip() for x in re.findall(r"\[\[([^\]|#]+)", section("Пов'язане"))][:8],
             "sides": section("Учасники й сторони")[:600],
             "path": path,
+            "document_id": _doc_id(path),
         }
 
     @router.get("/map")
@@ -182,6 +197,7 @@ def create_map_router(root: Path, *, require_session: Callable[..., Any]) -> API
                 "place_raw": _field(fm, "place"),
                 "route": route,                       # 0, 1 або кілька точок
                 "path": str(path.relative_to(root)),
+                "document_id": _doc_id(str(path.relative_to(root))),
             }
             targets = _mentions(text)
             if targets:

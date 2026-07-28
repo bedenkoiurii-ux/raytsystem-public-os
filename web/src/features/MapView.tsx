@@ -23,14 +23,14 @@ const BOX = { lonMin: -8, latMin: 34, lonMax: 52, latMax: 60 };
 const W = 1000;
 const H = 620;
 
-interface Place { title: string; lat: number; lon: number; path: string }
-interface StoryEvent { title: string; year: number; year_end: number | null; place_raw: string; route: string[]; path: string }
+interface Place { title: string; lat: number; lon: number; path: string; document_id: string | null }
+interface StoryEvent { title: string; year: number; year_end: number | null; place_raw: string; route: string[]; path: string; document_id: string | null }
 interface Story { title: string; from: number; to: number; events: StoryEvent[]; mapped: number }
 interface Period { title: string; from: number; to: number; path: string }
 interface MapData { places: Place[]; periods: Period[]; stories: Story[]; loose: StoryEvent[] }
 interface EventCard {
   title: string; year: string; year_end: string; place: string;
-  what: string; consequences: string; related: string[]; sides: string; path: string;
+  what: string; consequences: string; related: string[]; sides: string; path: string; document_id: string | null;
 }
 
 const projectY = (lat: number) => Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360));
@@ -266,7 +266,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
               {[...places.values()].map((p) => (
                 <g key={p.title} className={`map-point${hover?.title === p.title ? " on" : ""}${focused && !focused.has(p.title) ? " dim" : ""}`}
                    onMouseEnter={() => setHover(p)} onMouseLeave={() => setHover(null)}
-                   onClick={() => onOpenDocument?.(p.path)} role="button" tabIndex={0}>
+                   onClick={() => p.document_id && onOpenDocument?.(p.document_id)} role="button" tabIndex={0}>
                   <circle cx={p.x} cy={p.y} r={(hover?.title === p.title ? 6 : 4) / view.k} />
                   {named.has(p.title) ? (
                     <text x={p.x + 9 / view.k} y={p.y + 4 / view.k} style={{ fontSize: `${10.5 / view.k}px` }}>{p.title}</text>
@@ -387,7 +387,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
               {card.data.year}{card.data.year_end && card.data.year_end !== card.data.year ? `–${card.data.year_end}` : ""}
               {card.data.place ? ` · ${card.data.place.slice(0, 90)}` : ""}
             </p>
-            <button type="button" className="map-card-open" onClick={() => onOpenDocument?.(card.data!.path)}>відкрити картку</button>
+            {card.data.document_id ? <button type="button" className="map-card-open" onClick={() => onOpenDocument?.(card.data!.document_id!)}>відкрити картку</button> : null}
           </header>
 
           {/* Передумови чесно складені з двох частин: попереднє в цьому сюжеті
