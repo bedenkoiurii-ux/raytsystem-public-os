@@ -18,9 +18,9 @@ import { Prose, useNamedCard } from "./InlineEntity";
  *  Сюжет = документ (розділ книги, епізод, MOC), до якого прив'язані події.
  *  Збирає `map_routes.py`; тут лише показ.
  *
- *  Областей не малюємо — рішення Юрія: контурів історичних територій у
- *  бібліотеці немає, а домальовувати кордони на око означає видати вигадку
- *  за факт. Територія лишається точкою з підписом. */
+ *  Території малюємо з історичного атласу (рішення Юрія 2026-07-28, що змінює
+ *  попереднє): джерело дає поле precision, і штрих показує саме певність межі —
+ *  приблизну малюємо пунктиром, визначену правом суцільною. */
 // Вікно задаємо довготою й центром широти; висота — скільки влізе у форму
 // контейнера. Раніше H була сталою (620), і на високому вузькому вікні мапа
 // заповнювала простір ПОЛЯМИ, а не географією — «виглядає недолуго» (Юрій).
@@ -108,6 +108,82 @@ function useLand(height: number) {
   });
 }
 
+/** Утворення атласу → наша картка. Атлас англомовний і світовий, бібліотека
+ *  українська: без цього містка територія на мапі й розповідь про неї лишаються
+ *  двома різними речима. Тільки те, що справді має картку, — решта чипів
+ *  просто не веде нікуди, і це чесніше за посилання в порожнечу. */
+const REALM_CARDS: Record<string, string> = {
+  "Khanate of the Golden Horde": "Золота Орда",
+  "Golden Horde": "Золота Орда",
+  "Grand Duchy of Moscow": "Москва",
+  "Muscovy": "Москва",
+  "Tsardom of Russia": "Москва",
+};
+
+/** Зрізи історичних кордонів, що є в бандлі. Порядок — за часом. */
+const SLICES = [-500, -323, -100, 100, 400, 700, 900, 1000, 1100, 1200, 1279,
+  1300, 1400, 1492, 1500, 1530, 1600, 1650, 1700, 1783, 1800];
+
+export interface Realm {
+  name: string;
+  partOf: string | null;
+  precision: number | null;   // 1 приблизний · 2 помірно точний · 3 за правом
+  paths: string[];
+}
+
+/** Найближчий доступний зріз до року — не інтерполюємо. Атлас знає стан на
+ *  свої дати, і вигадувати проміжні означало б підмінювати джерело. */
+export function sliceFor(year: number): number {
+  return SLICES.reduce((best, y) => (Math.abs(y - year) < Math.abs(best - year) ? y : best), SLICES[0]);
+}
+
+function useRealms(year: number | null, height: number) {
+  const slice = year === null ? null : sliceFor(year);
+  return useQuery({
+    queryKey: ["map", "realms", slice, height],
+    enabled: slice !== null,
+    staleTime: Infinity,
+    queryFn: async () => {
+      // Кожен зріз — окремий чанк (~200 КБ): вантажиться той, що дивляться.
+      const file = slice! < 0 ? `bc${-slice!}` : `${slice}`;
+      const data = (await import(`./historical/${file}.json`)).default as unknown as {
+        year: number;
+        features: {
+          geometry: { type: string; coordinates: number[][][] | number[][][][] };
+          properties: { name: string | null; part_of: string | null; precision: number | null };
+        }[];
+      };
+      const realms: Realm[] = [];
+      for (const feature of data.features ?? []) {
+        const polys = feature.geometry.type === "Polygon"
+          ? [feature.geometry.coordinates as number[][][]]
+          : (feature.geometry.coordinates as number[][][][]);
+        const paths: string[] = [];
+        for (const poly of polys) {
+          for (const ring of poly) {
+            if (!ring?.length) continue;
+            let d = "";
+            ring.forEach(([lon, lat], i) => {
+              const [x, y] = toScreen(lat, lon, height);
+              d += `${i ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`;
+            });
+            paths.push(`${d}Z`);
+          }
+        }
+        if (paths.length && feature.properties.name) {
+          realms.push({
+            name: feature.properties.name,
+            partOf: feature.properties.part_of,
+            precision: feature.properties.precision,
+            paths,
+          });
+        }
+      }
+      return { year: data.year, realms };
+    }
+  });
+}
+
 /** Передумова, що розкривається на місці. Всередині — така сама, тож ланцюг
  *  розкручується вглиб, не покидаючи стовпця й нічого не перекриваючи. */
 function Entity({ name, opened, setOpened, onOpenDocument, depth = 0 }: {
@@ -186,6 +262,14 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
   // мапа показувала більше географії, а не порожні поля.
   const [H, setH] = useState(620);
   const land = useLand(H);
+  // Рік, на який показуємо кордони. Типово вимкнено: territorії — окремий
+  // шар, а не тло, і читач вмикає його свідомо.
+  const [year, setYear] = useState<number | null>(null);
+  const [realm, setRealm] = useState<Realm | null>(null);
+  // Утворення, чиї картки читач розкрив просто в панелі кордонів: територія
+  // на мапі й розповідь про неї стають однією річчю, а не двома.
+  const [realmCards, setRealmCards] = useState<string[]>([]);
+  const realms = useRealms(year, H);
   const drag = useRef<{ px: number; py: number; x: number; y: number } | null>(null);
   const stage = useRef<HTMLDivElement | null>(null);
   // callback-ref, а не useEffect: на момент монтування вікно ще показує
@@ -342,6 +426,23 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
               {(land.data ?? []).map((d, i) => <path key={i} d={d} style={{ strokeWidth: 0.6 / view.k }} />)}
             </g>
 
+            {/* Історичні кордони. Штрих несе певність джерела, а не прикрашає:
+                precision 1 — атлас сам каже «приблизно», і межа розмита; 3 —
+                визначена правом, лінія суцільна. Так ілюстративність не стає
+                вигадкою: видно і де межа, і наскільки наука в ній певна. */}
+            {realms.data ? (
+              <g className="map-realms">
+                {realms.data.realms.map((realm) => (
+                  <g key={realm.name} className={`realm p${realm.precision && realm.precision >= 1 ? realm.precision : 1}`}
+                     onMouseEnter={() => setRealm(realm)} onMouseLeave={() => setRealm(null)}>
+                    {realm.paths.map((d, i) => (
+                      <path key={i} d={d} style={{ strokeWidth: 1.1 / view.k }} />
+                    ))}
+                  </g>
+                ))}
+              </g>
+            ) : null}
+
             {/* Пунктир — послідовність подій сюжету в часі. Суцільна зі стрілкою —
                 рух усередині однієї події (place: «Київ → Володимир → Москва»). */}
             <g className="map-chains">
@@ -389,6 +490,61 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
               <Maximize2 size={13} /> ×{view.k.toFixed(1)} · вся мапа
             </button>
           ) : null}
+
+          {/* Простір під мапою, де живуть самі кордони: рік зрізу, що на ньому
+              видно, і звідки це взято. Юрій: «під картою може бути простір, де
+              зберігається вся ця інформація по роках, по об'єктах». */}
+          <div className="map-realms-bar">
+            <div className="map-realms-years">
+              <button type="button" className={year === null ? "on" : ""}
+                      onClick={() => { setYear(null); setRealm(null); }}>без кордонів</button>
+              {SLICES.map((y) => (
+                <button key={y} type="button" className={year === y ? "on" : ""}
+                        onClick={() => setYear(y)}>
+                  {y < 0 ? `${-y} до н.е.` : y}
+                </button>
+              ))}
+            </div>
+            {realms.data ? (
+              <div className="map-realms-list">
+                <span className="map-realms-head">
+                  Кордони станом на {realms.data.year < 0 ? `${-realms.data.year} до н.е.` : realms.data.year}
+                  {" · "}{realms.data.realms.length} утворень
+                </span>
+                {realms.data.realms
+                  .slice()
+                  .sort((a, b) => a.name.localeCompare(b.name, "uk-UA"))
+                  .map((r) => (
+                    <button key={r.name} type="button"
+                            className={`realm-chip p${r.precision && r.precision >= 1 ? r.precision : 1}`
+                                       + (realm?.name === r.name ? " on" : "")
+                                       + (REALM_CARDS[r.name] ? " has-card" : "")}
+                            title={REALM_CARDS[r.name] ? `Відкрити картку «${REALM_CARDS[r.name]}»` : undefined}
+                            onMouseEnter={() => setRealm(r)} onMouseLeave={() => setRealm(null)}
+                            onClick={() => {
+                              const card = REALM_CARDS[r.name];
+                              if (card) setRealmCards((s) => (s.includes(card) ? s.filter((x) => x !== card) : [...s, card]));
+                            }}>
+                      {r.name}
+                      {REALM_CARDS[r.name] ? <span className="chip-card"> · {REALM_CARDS[r.name]}</span> : null}
+                    </button>
+                  ))}
+                {realmCards.length ? (
+                  <div className="map-realms-cards">
+                    {realmCards.map((name) => (
+                      <Entity key={name} name={name} opened={opened} setOpened={setOpened}
+                              onOpenDocument={onOpenDocument} />
+                    ))}
+                  </div>
+                ) : null}
+                <span className="map-realms-note">
+                  Штрих — певність межі за джерелом: суцільна лінія означає кордон,
+                  визначений правом, розмита — приблизний. Дані:{" "}
+                  <code>aourednik/historical-basemaps</code> (GPL-3.0).
+                </span>
+              </div>
+            ) : year !== null ? <span className="map-realms-head">Завантажуємо зріз…</span> : null}
+          </div>
 
           {/* Дві ручки на одній шкалі: «від» і «до». Той самий стан, що й поля
               років праворуч, — рухаєш тут, змінюється там, і навпаки. */}

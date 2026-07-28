@@ -52,6 +52,7 @@ HOST = "http://127.0.0.1:11434"
 MODEL = "qwen2.5:32b"
 BATCH = 3
 SKIP = "ПРОПУСК"
+DEBUG = False
 
 PROMPT = f"""Ти працюєш із текстом української книги про історію. Для кожного
 фрагмента визнач, ЩО він стверджує про світ, і сформулюй це одним реченням
@@ -89,6 +90,8 @@ def ask(fragments: list[tuple[int, str]]) -> dict[int, str]:
     with urllib.request.urlopen(request, timeout=600) as response:
         answer = json.loads(response.read())["response"]
     out: dict[int, str] = {}
+    if DEBUG:
+        print(f"    ─ сира відповідь ─\n{answer[:600]}\n    ─", flush=True)
     for line in answer.splitlines():
         m = re.match(r"\s*(\d+)[.)]\s*(.+)$", line.strip())
         if m:
@@ -102,7 +105,9 @@ def main() -> int:
     ap.add_argument("--root", default=".", type=Path)
     ap.add_argument("--limit", type=int, default=0, help="скільки сегментів узяти")
     ap.add_argument("--dry", action="store_true")
+    ap.add_argument("--debug", action="store_true", help="показати сиру відповідь моделі")
     args = ap.parse_args()
+    globals()["DEBUG"] = args.debug
 
     staging = args.root.resolve() / "ops" / "staging" / args.run_id
     pack = json.loads((staging / "evidence_pack.json").read_text(encoding="utf-8"))

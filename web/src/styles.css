@@ -1591,3 +1591,30 @@ li.open .chev { transform: rotate(90deg); }
 /* Цінність — друга частина врізки: не хроніка, а «чому воно тут». */
 .inline-aside .aside-value { display: block; margin-top: .45em; padding-top: .35em; border-top: 1px solid color-mix(in srgb, var(--cyan) 22%, transparent); }
 .inline-card .aside-body.value { margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--line-soft); }
+
+/* Історичні кордони на Мапі. Штрих несе певність джерела: BORDERPRECISION 1 —
+   атлас сам каже «приблизно», і межа розмита пунктиром; 3 — визначена правом,
+   лінія суцільна. Заливка ледь помітна: територія — контекст під розповіддю,
+   а не її замінник. */
+.map-realms .realm path { fill: color-mix(in srgb, var(--cyan) 7%, transparent); stroke: color-mix(in srgb, var(--cyan) 45%, transparent); vector-effect: non-scaling-stroke; }
+.map-realms .realm.p1 path { stroke-dasharray: 5 4; stroke: color-mix(in srgb, var(--cyan) 28%, transparent); fill: color-mix(in srgb, var(--cyan) 4%, transparent); }
+.map-realms .realm.p2 path { stroke-dasharray: 9 3; }
+.map-realms .realm.p3 path { stroke-dasharray: none; }
+.map-realms .realm:hover path { fill: color-mix(in srgb, var(--gold) 14%, transparent); stroke: var(--gold); }
+
+.map-realms-bar { display: grid; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--line-soft); }
+.map-realms-years { display: flex; flex-wrap: wrap; gap: 4px; }
+.map-realms-years button { font: 11px var(--mono); padding: 3px 7px; border-radius: var(--radius-xs); border: 1px solid var(--line); background: transparent; color: var(--muted-2); cursor: pointer; }
+.map-realms-years button:hover { color: var(--bone); border-color: var(--cyan); }
+.map-realms-years button.on { background: color-mix(in srgb, var(--cyan) 16%, transparent); color: var(--cyan); border-color: var(--cyan); }
+.map-realms-list { display: flex; flex-wrap: wrap; gap: 5px; align-items: baseline; }
+.map-realms-head { font: 11px var(--mono); color: var(--muted-2); width: 100%; }
+.map-realms-note { font-size: 11px; color: var(--muted-2); width: 100%; margin-top: 4px; line-height: 1.5; }
+.map-realms-note code { font: 10.5px var(--mono); }
+/* Чип утворення повторює штрих своєї межі — легенда й мапа читаються разом. */
+.realm-chip { font-size: 11.5px; padding: 2px 8px; border-radius: 999px; background: transparent; color: var(--muted); cursor: pointer; border: 1px dashed color-mix(in srgb, var(--cyan) 40%, transparent); }
+.realm-chip.p3 { border-style: solid; }
+.realm-chip:hover, .realm-chip.on { color: var(--gold); border-color: var(--gold); background: color-mix(in srgb, var(--gold) 8%, transparent); }
+.realm-chip.has-card { border-color: color-mix(in srgb, var(--gold) 45%, transparent); }
+.realm-chip .chip-card { color: var(--gold); font-size: 10.5px; }
+.map-realms-cards { width: 100%; display: grid; gap: 6px; margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--line-soft); }
