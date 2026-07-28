@@ -97,7 +97,7 @@ export function InlineCard({ name, onClose, onOpen, onOpenDocument, onOpenPanel 
         {data.year ? <span className="when">{data.year}{data.year_end && data.year_end !== data.year ? `–${data.year_end}` : ""}</span> : null}
         <button type="button" className="close" onClick={onClose} aria-label="Згорнути">×</button>
       </header>
-      {data.what ? <div className="safe-markdown"><SafeMarkdownView content={data.what} onOpenWikilink={onOpen} /></div> : null}
+      {data.what ? <div className="aside-body"><SafeMarkdownView content={data.what} onOpenWikilink={onOpen} /></div> : null}
       <div className="inline-actions">
         {data.document_id && onOpenPanel ? (
           <button type="button" className="map-card-open" onClick={() => onOpenPanel(data.document_id!)}>у панель</button>
@@ -164,9 +164,8 @@ export function Prose({ content, open, setOpen, onOpenDocument, onOpenPanel, onO
       rest = rest.slice(close + 2);
       shown.add(hit.name);
       pieces.push(
-        <div key={`${bi}-h-${hit.name}`} className="safe-markdown">
-          <SafeMarkdownView content={head} onOpenWikilink={toggle} onOpenSource={bi === 0 ? onOpenSource : undefined} {...props} />
-        </div>
+        <SafeMarkdownView key={`${bi}-h-${hit.name}`} content={head} onOpenWikilink={toggle}
+                          onOpenSource={bi === 0 ? onOpenSource : undefined} {...props} />
       );
       pieces.push(<Aside key={`${bi}-a-${hit.name}`} entry={hit.name} onOpen={toggle} onPick={pick}
                          onOpenDocument={onOpenDocument} onOpenPanel={onOpenPanel}
@@ -174,22 +173,24 @@ export function Prose({ content, open, setOpen, onOpenDocument, onOpenPanel, onO
     }
     if (rest.trim()) {
       pieces.push(
-        <div key={`${bi}-t`} className="safe-markdown">
-          <SafeMarkdownView content={rest} onOpenWikilink={toggle} onOpenSource={bi === 0 && !pieces.length ? onOpenSource : undefined} {...props} />
-        </div>
+        <SafeMarkdownView key={`${bi}-t`} content={rest} onOpenWikilink={toggle}
+                          onOpenSource={bi === 0 && !pieces.length ? onOpenSource : undefined} {...props} />
       );
     }
   });
 
   const orphans = open.filter((name) => !shown.has(name));
+  // Один контейнер на весь текст: обгортка на кожен фрагмент подвоювала
+  // відступи, і текст розсипався на купу абзаців (Юрій: «текст повинен
+  // залишатись текстом»).
   return (
-    <>
+    <div className="safe-markdown prose">
       {pieces}
       {orphans.map((entry) => (
         <Aside key={`o-${entry}`} entry={entry} onOpen={toggle} onPick={pick} onOpenDocument={onOpenDocument} onOpenPanel={onOpenPanel}
                onClose={() => setOpen((s) => s.filter((x) => x !== entry))} />
       ))}
-    </>
+    </div>
   );
 }
 
@@ -224,7 +225,7 @@ function Aside({ entry, onClose, onOpen, onPick, onOpenDocument, onOpenPanel }: 
       <span className="aside-name">
         {data.title}{data.year ? ` · ${data.year}${data.year_end && data.year_end !== data.year ? `–${data.year_end}` : ""}` : ""}
       </span>
-      {data.what ? <div className="safe-markdown"><SafeMarkdownView content={data.what} onOpenWikilink={onOpen} /></div> : null}
+      {data.what ? <div className="aside-body"><SafeMarkdownView content={data.what} onOpenWikilink={onOpen} /></div> : null}
       <div className="aside-actions">
         {data.document_id && onOpenPanel ? <button type="button" onClick={() => onOpenPanel(data.document_id!)}>у панель</button> : null}
         {data.document_id ? <button type="button" onClick={() => onOpenDocument?.(data.document_id!)}>відкрити картку</button> : null}

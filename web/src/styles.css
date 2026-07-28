@@ -1530,17 +1530,16 @@ li.open .chev { transform: rotate(90deg); }
 .doc-peek .map-inline { margin: 0 14px 16px; }
 .inline-card.choose { border-style: solid; border-color: color-mix(in srgb, var(--gold) 55%, transparent); background: color-mix(in srgb, var(--gold) 6%, transparent); }
 .inline-card.choose p { margin: 0; font-size: 12px; color: var(--muted); }
-.prose-block > .map-inline { margin: 10px 0 14px; }
-.document-content .prose-block > .map-inline { max-width: 860px; margin: 12px auto 18px; }
 /* Врізка одразу за словом: довідка в потоці читання, не окремий обʼєкт.
    Юрій: «просто текст на фоні іншого кольору». */
-.inline-aside { position: relative; margin: 6px 0 10px; padding: 10px 34px 10px 14px;
+.inline-aside { position: relative; margin: .55em 0; padding: 10px 34px 10px 14px;
   border-left: 2px solid color-mix(in srgb, var(--cyan) 55%, transparent);
   background: color-mix(in srgb, var(--cyan) 7%, transparent); border-radius: 0 var(--radius-xs) var(--radius-xs) 0; }
 .inline-aside .aside-name { display: block; font: 500 11px var(--mono); color: var(--cyan); letter-spacing: .02em; margin-bottom: 4px; }
 .inline-aside .aside-q { font: 11px var(--mono); color: var(--muted-2); margin-right: 8px; }
-.inline-aside .safe-markdown { font-size: 13.5px; line-height: 1.62; color: var(--muted); background: none; box-shadow: none; border: 0; margin: 0; padding: 0; max-width: none; }
-.inline-aside .safe-markdown p:last-child { margin-bottom: 0; }
+.inline-aside .aside-body { font-size: .93em; line-height: 1.6; color: var(--muted); }
+.inline-aside .aside-body p:first-child { margin-top: 0; }
+.inline-aside .aside-body p:last-child { margin-bottom: 0; }
 .inline-aside .close { position: absolute; right: 8px; top: 7px; border: 0; background: transparent; color: var(--muted-2); font-size: 15px; line-height: 1; cursor: pointer; }
 .inline-aside .close:hover { color: var(--bone); }
 .inline-aside button:not(.close) { border: 1px solid color-mix(in srgb, var(--cyan) 40%, transparent); border-radius: var(--radius-xs); background: transparent; color: var(--cyan); font: 10.5px var(--mono); padding: 2px 8px; margin: 0 4px 0 0; cursor: pointer; }
@@ -1549,3 +1548,16 @@ li.open .chev { transform: rotate(90deg); }
 .inline-aside.missing, .inline-aside.choose { border-left-color: color-mix(in srgb, var(--gold) 55%, transparent); background: color-mix(in srgb, var(--gold) 6%, transparent); }
 .inline-aside.missing .aside-name, .inline-aside.choose .aside-name { color: var(--gold); }
 .inline-aside .done { font: 10.5px var(--mono); color: var(--mint); }
+/* Текст лишається текстом: розрив абзацу під врізку не додає порожнечі —
+   продовження підхоплює абзац, а не починає новий (Юрій). */
+/* Селектор «>» крізь display:contents не працює — обгортка лишається в дереві,
+   зникає лише з потоку. Тому відступи задаємо нащадкам. */
+.prose p, .prose ul, .prose ol, .prose blockquote { margin: 0 0 .85em; }
+.prose .doc-markdown:last-child p:last-child { margin-bottom: 0; }
+/* Кожен виклик рендерера дає свій .doc-markdown; при розриві абзацу їх стає
+   кілька, і відступи подвоювались. display:contents прибирає обгортку
+   з потоку — абзаци стають прямими дітьми .prose і поводяться як один текст. */
+.prose > .doc-markdown { display: contents; }
+.prose > .doc-markdown:has(+ .inline-aside) p:last-child { margin-bottom: .35em; }
+.prose > .inline-aside + .doc-markdown p:first-child { margin-top: 0; }
+.prose > .doc-markdown + .inline-aside { margin-top: .35em; }
