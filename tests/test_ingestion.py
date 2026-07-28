@@ -184,9 +184,9 @@ def test_tampered_staging_cannot_be_promoted(project_root: Path) -> None:
             source,
             fixture=True,
         )
-    claim_path = next((project_root / "ops" / "staging").glob("*/claim.json"))
+    claim_path = next((project_root / "ops" / "staging").glob("*/claims.json"))
     payload = json.loads(claim_path.read_text())
-    payload["statement"] = "tampered claim"
+    payload["claims"][0]["statement"] = "tampered claim"
     claim_path.write_text(json.dumps(payload), encoding="utf-8")
 
     with pytest.raises(IntegrityError, match=r"bundle hash|Staged claim hash"):
@@ -1048,19 +1048,25 @@ def test_rebase_merges_same_proposition_evidence_from_concurrent_parent(
             project_root / "ledger" / "generations" / f"{second_result.generation_id}.json"
         ).read_text()
     )
-    entry = next(iter(active["records"].values()))
-    claim = json.loads(
-        (
-            project_root
-            / "ledger"
-            / "objects"
-            / "sha256"
-            / entry["object_sha256"][:2]
-            / f"{entry['object_sha256']}.json"
-        ).read_text()
-    )
+    # Тепер твердження на кожен рядок, тож у генерації їх кілька: спільне
+    # й по одному унікальному з кожного файлу. Злиття доказів перевіряємо
+    # саме на спільному.
+    claims = [
+        json.loads(
+            (
+                project_root
+                / "ledger"
+                / "objects"
+                / "sha256"
+                / entry["object_sha256"][:2]
+                / f"{entry['object_sha256']}.json"
+            ).read_text()
+        )
+        for entry in active["records"].values()
+    ]
+    shared = next(claim for claim in claims if claim["statement"] == "Shared proposition.")
 
-    assert set(claim["evidence_ids"]) == {
+    assert set(shared["evidence_ids"]) == {
         first_result.segment_id,
         second_result.segment_id,
     }

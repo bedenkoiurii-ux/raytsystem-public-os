@@ -154,14 +154,23 @@ class IngestResult:
 
 
 @dataclass(frozen=True)
+class _StagedClaim:
+    claim: Claim
+    object_sha256: str
+
+
+@dataclass(frozen=True)
 class _Prepared:
     result: IngestResult
-    claim: Claim
-    claim_object_sha256: str
+    claims: tuple[_StagedClaim, ...]
     generation: LedgerGeneration
     txn: PromotionTxn
     event: PromotionEvent
     run_created_at: datetime
+
+    @property
+    def output_hashes(self) -> dict[str, str]:
+        return {f"claim:{s.claim.claim_id}": s.object_sha256 for s in self.claims}
 
 
 class IngestPipeline:
@@ -872,20 +881,22 @@ class IngestPipeline:
             or response.allowed_evidence_ids != request.allowed_evidence_ids
         ):
             raise IntegrityError("Imported proposal does not bind the prepared request")
-        claim, claim_sha256 = self._claim_from_response(response, request, pack)
+        staged_claims = self._claim_from_response(response, request, pack)
         self._classify_derived_payloads_or_quarantine(
             raw=response_read.data,
             relative_path=response_read.relative_path,
-            payloads=(canonical_json_bytes(response), canonical_json_bytes(claim)),
+            payloads=(
+                canonical_json_bytes(response),
+                *(canonical_json_bytes(s.claim) for s in staged_claims),
+            ),
             blocked_message="Decoded proposal content was classified restricted",
         )
         old = self._load_prepared(run_id)
         if old is None:
             raise IntegrityError("Imported proposal requires its prepared staging bundle")
         candidate = _Prepared(
-            result=replace(prepared, segment_id=claim.evidence_ids[0]),
-            claim=claim,
-            claim_object_sha256=claim_sha256,
+            result=replace(prepared, segment_id=staged_claims[0].claim.evidence_ids[0]),
+            claims=staged_claims,
             generation=old.generation,
             txn=old.txn,
             event=old.event,
@@ -1136,7 +1147,7 @@ class IngestPipeline:
             normalized_path=normalized_path,
         )
 
-        claim, claim_object_sha256 = self._create_and_validate_proposal(
+        staged_claims = self._create_and_validate_proposal(
             run_id=run_id,
             operation_key=operation_key,
             revision=revision,
@@ -1150,23 +1161,24 @@ class IngestPipeline:
         )
         if not parent.verify_id():
             raise IntegrityError("Parent generation ID does not match its manifest")
-        claim, claim_object_sha256 = self._merge_claim_with_generation(parent, claim)
+        staged_claims = self._merge_claims_with_generation(parent, staged_claims)
 
         txn_id = derive_id(
             "ptxn",
             {
                 "operation_key": operation_key,
                 "parent_generation_id": parent_generation_id,
-                "claim_object_sha256": claim_object_sha256,
+                "claim_object_sha256s": [s.object_sha256 for s in staged_claims],
             },
         )
         event_id = derive_id("evt", {"txn_id": txn_id})
         records = dict(parent.records)
-        records[f"claim:{claim.claim_id}"] = GenerationEntry(
-            kind="claim",
-            logical_id=claim.claim_id,
-            object_sha256=claim_object_sha256,
-        )
+        for staged in staged_claims:
+            records[f"claim:{staged.claim.claim_id}"] = GenerationEntry(
+                kind="claim",
+                logical_id=staged.claim.claim_id,
+                object_sha256=staged.object_sha256,
+            )
         generation_seed = LedgerGeneration(
             generation_id="gen_pending",
             parent_generation_id=parent_generation_id,
@@ -1210,7 +1222,7 @@ class IngestPipeline:
             event_id=event_id,
             partition_fencing_token=1,
             global_fencing_token=1,
-            output_hashes={f"claim:{claim.claim_id}": claim_object_sha256},
+            output_hashes={f"claim:{s.claim.claim_id}": s.object_sha256 for s in staged_claims},
             state=PromotionState.PREPARED,
             created_at=run_created_at,
             updated_at=run_created_at,
@@ -1219,7 +1231,7 @@ class IngestPipeline:
         staging = self.root / "ops" / "staging" / run_id
         self._write_staging_bundle(
             staging,
-            claim=claim,
+            claims=staged_claims,
             generation=generation,
             txn=txn,
             event=event,
@@ -1235,8 +1247,7 @@ class IngestPipeline:
         )
         return _Prepared(
             result=result,
-            claim=claim,
-            claim_object_sha256=claim_object_sha256,
+            claims=staged_claims,
             generation=generation,
             txn=txn,
             event=event,
@@ -1247,7 +1258,7 @@ class IngestPipeline:
         staging = self.root / "ops" / "staging" / run_id
         marker_path = staging / "bundle.json"
         required = {
-            "claim": staging / "claim.json",
+            "claims": staging / "claims.json",
             "generation": staging / "generation.json",
             "txn": staging / "promotion_txn.json",
             "event": staging / "event.json",
@@ -1278,7 +1289,10 @@ class IngestPipeline:
         if marker.get("bundle_id") != expected_bundle_id:
             raise IntegrityError("Staged transaction bundle identity mismatch")
         manifest = read_json(self.root / "ops" / "runs" / run_id / "manifest.json")
-        claim = Claim.model_validate(read_json(required["claim"]))
+        staged_payload = read_json(required["claims"]).get("claims")
+        if not isinstance(staged_payload, list) or not staged_payload:
+            raise IntegrityError("Staged claim bundle is empty or malformed")
+        claims = tuple(Claim.model_validate(entry) for entry in staged_payload)
         generation = LedgerGeneration.model_validate(read_json(required["generation"]))
         txn = PromotionTxn.model_validate(read_json(required["txn"]))
         event = PromotionEvent.model_validate(read_json(required["event"]))
@@ -1286,9 +1300,12 @@ class IngestPipeline:
             raise IntegrityError("Staged transaction ownership mismatch")
         if generation.generation_id != txn.next_generation_id:
             raise IntegrityError("Staged generation does not match transaction")
-        expected_claim_sha256 = txn.output_hashes.get(f"claim:{claim.claim_id}")
-        if expected_claim_sha256 is None:
-            raise IntegrityError("Staged transaction does not bind its claim")
+        staged_claims: list[_StagedClaim] = []
+        for claim in claims:
+            expected_claim_sha256 = txn.output_hashes.get(f"claim:{claim.claim_id}")
+            if expected_claim_sha256 is None:
+                raise IntegrityError("Staged transaction does not bind its claim")
+            staged_claims.append(_StagedClaim(claim, expected_claim_sha256))
         result = IngestResult(
             status="prepared",
             noop=False,
@@ -1299,14 +1316,13 @@ class IngestPipeline:
             raw_path=str(manifest["raw_path"]),
             normalization_id=str(manifest["normalization_id"]),
             normalized_path=str(manifest["normalized_path"]),
-            segment_id=str(manifest.get("segment_id") or claim.evidence_ids[0]),
+            segment_id=str(manifest.get("segment_id") or claims[0].evidence_ids[0]),
             generation_id=generation.generation_id,
         )
         created_at = datetime.fromisoformat(str(manifest["created_at"]).replace("Z", "+00:00"))
         return _Prepared(
             result=result,
-            claim=claim,
-            claim_object_sha256=expected_claim_sha256,
+            claims=tuple(staged_claims),
             generation=generation,
             txn=txn,
             event=event,
@@ -1317,7 +1333,7 @@ class IngestPipeline:
         self,
         staging: Path,
         *,
-        claim: Claim,
+        claims: tuple[_StagedClaim, ...],
         generation: LedgerGeneration,
         txn: PromotionTxn,
         event: PromotionEvent,
@@ -1327,18 +1343,18 @@ class IngestPipeline:
             raise IntegrityError("Staged transaction marker cannot be a symlink")
         marker_path.unlink(missing_ok=True)
         payloads = {
-            "claim": canonical_json_bytes(claim),
+            "claims": canonical_json_bytes({"claims": [s.claim for s in claims]}),
             "generation": canonical_json_bytes(generation),
             "txn": canonical_json_bytes(txn),
             "event": canonical_json_bytes(event),
         }
         filenames = {
-            "claim": "claim.json",
+            "claims": "claims.json",
             "generation": "generation.json",
             "txn": "promotion_txn.json",
             "event": "event.json",
         }
-        for index, name in enumerate(("claim", "generation", "txn", "event")):
+        for index, name in enumerate(("claims", "generation", "txn", "event")):
             write_bytes_atomic(staging / filenames[name], payloads[name])
             if index == 0:
                 self._fault("after_staging_bundle_first_file")
@@ -1380,18 +1396,23 @@ class IngestPipeline:
             for logical_id, object_hash in txn.output_hashes.items()
             if logical_id.startswith("claim:")
         ]
-        if len(claim_outputs) != 1:
-            raise IntegrityError("M1 promotion WAL must reference exactly one claim")
-        _, claim_sha256 = claim_outputs[0]
-        claim = Claim.model_validate(
-            read_json(
-                self.root
-                / "ledger"
-                / "objects"
-                / "sha256"
-                / claim_sha256[:2]
-                / f"{claim_sha256}.json"
+        if not claim_outputs:
+            raise IntegrityError("Promotion WAL references no claim")
+        staged_claims = tuple(
+            _StagedClaim(
+                Claim.model_validate(
+                    read_json(
+                        self.root
+                        / "ledger"
+                        / "objects"
+                        / "sha256"
+                        / claim_sha256[:2]
+                        / f"{claim_sha256}.json"
+                    )
+                ),
+                claim_sha256,
             )
+            for _, claim_sha256 in sorted(claim_outputs)
         )
         snapshot = txn.extensions.get("raytsystem.result") or txn.extensions.get("agentos.result")
         if isinstance(snapshot, dict):
@@ -1421,8 +1442,7 @@ class IngestPipeline:
             created_at = datetime.fromisoformat(str(manifest["created_at"]).replace("Z", "+00:00"))
         return _Prepared(
             result=result,
-            claim=claim,
-            claim_object_sha256=claim_sha256,
+            claims=staged_claims,
             generation=generation,
             txn=txn,
             event=event,
@@ -1431,7 +1451,6 @@ class IngestPipeline:
 
     def _validate_prepared(self, prepared: _Prepared) -> None:
         result = prepared.result
-        claim = prepared.claim
         generation = prepared.generation
         txn = prepared.txn
         event = prepared.event
@@ -1460,41 +1479,50 @@ class IngestPipeline:
             "revision": result.source_revision_id,
             "normalization": result.normalization_id,
             "segment": result.segment_id,
-            "claim": claim.claim_id,
             "transaction": txn.txn_id,
             "event": event.event_id,
         }
         for kind, value in identifiers.items():
             if re.fullmatch(identifier_patterns[kind], value) is None:
                 raise IntegrityError(f"Malformed {kind} identifier")
+        for staged in prepared.claims:
+            if re.fullmatch(identifier_patterns["claim"], staged.claim.claim_id) is None:
+                raise IntegrityError("Malformed claim identifier")
         validate_generation_id(generation.generation_id, allow_genesis=False)
         validate_generation_id(txn.parent_generation_id)
 
-        claim_bytes = canonical_json_bytes(claim)
-        self._classify_derived_payloads_or_quarantine(
-            raw=claim_bytes,
-            relative_path=f"ops/staging/{result.run_id}/claim.json",
-            payloads=(claim_bytes,),
-            blocked_message="Canonical claim candidate was classified restricted before promotion",
-        )
-        claim_sha256 = sha256_hex(claim_bytes)
-        if claim_sha256 != prepared.claim_object_sha256:
-            raise IntegrityError("Staged claim hash mismatch")
-        expected_claim_id = derive_id(
-            "clm",
-            {"statement": claim.statement, "language": claim.language, "scope": {}},
-        )
-        if claim.claim_id != expected_claim_id:
-            raise IntegrityError("Staged claim logical ID mismatch")
-        claim_key = f"claim:{claim.claim_id}"
-        entry = generation.records.get(claim_key)
-        if (
-            entry is None
-            or entry.kind != "claim"
-            or entry.logical_id != claim.claim_id
-            or entry.object_sha256 != claim_sha256
-            or txn.output_hashes != {claim_key: claim_sha256}
-        ):
+        staged_entries: dict[str, GenerationEntry] = {}
+        for staged in prepared.claims:
+            claim = staged.claim
+            claim_bytes = canonical_json_bytes(claim)
+            self._classify_derived_payloads_or_quarantine(
+                raw=claim_bytes,
+                relative_path=f"ops/staging/{result.run_id}/claims.json",
+                payloads=(claim_bytes,),
+                blocked_message=(
+                    "Canonical claim candidate was classified restricted before promotion"
+                ),
+            )
+            claim_sha256 = sha256_hex(claim_bytes)
+            if claim_sha256 != staged.object_sha256:
+                raise IntegrityError("Staged claim hash mismatch")
+            expected_claim_id = derive_id(
+                "clm",
+                {"statement": claim.statement, "language": claim.language, "scope": {}},
+            )
+            if claim.claim_id != expected_claim_id:
+                raise IntegrityError("Staged claim logical ID mismatch")
+            claim_key = f"claim:{claim.claim_id}"
+            entry = generation.records.get(claim_key)
+            if (
+                entry is None
+                or entry.kind != "claim"
+                or entry.logical_id != claim.claim_id
+                or entry.object_sha256 != claim_sha256
+            ):
+                raise IntegrityError("Staged claim is not closed by generation and transaction")
+            staged_entries[claim_key] = entry
+        if txn.output_hashes != prepared.output_hashes:
             raise IntegrityError("Staged claim is not closed by generation and transaction")
 
         if not generation.verify_id() or generation.generation_id != txn.next_generation_id:
@@ -1507,12 +1535,12 @@ class IngestPipeline:
         if not parent.verify_id():
             raise IntegrityError("Candidate parent generation is invalid")
         expected_records = dict(parent.records)
-        expected_records[claim_key] = entry
+        expected_records.update(staged_entries)
         if generation.records != expected_records:
             raise IntegrityError("Candidate generation does not exactly extend its parent")
         self._validate_generation_objects(
             generation,
-            staged_claim=claim,
+            staged_claims={s.claim.claim_id: s.claim for s in prepared.claims},
             reextract_normalization_id=result.normalization_id,
         )
         generation_sha256 = sha256_hex(canonical_json_bytes(generation))
@@ -1523,7 +1551,7 @@ class IngestPipeline:
             {
                 "operation_key": result.operation_key,
                 "parent_generation_id": txn.parent_generation_id,
-                "claim_object_sha256": claim_sha256,
+                "claim_object_sha256s": [s.object_sha256 for s in prepared.claims],
             },
         )
         if txn.txn_id != expected_txn_id:
@@ -1654,7 +1682,7 @@ class IngestPipeline:
             raise IntegrityError("Normalization segment count mismatch")
         if result.segment_id not in segments:
             raise IntegrityError("Result references unresolved segment")
-        if result.segment_id not in claim.evidence_ids:
+        if not any(result.segment_id in s.claim.evidence_ids for s in prepared.claims):
             raise IntegrityError("Claim lost the current proposal evidence during merge")
         excerpts = self._load_excerpts(normalization)
         if set(excerpts) != set(segments):
@@ -1721,7 +1749,7 @@ class IngestPipeline:
         self,
         generation: LedgerGeneration,
         *,
-        staged_claim: Claim,
+        staged_claims: dict[str, Claim],
         reextract_normalization_id: str | None,
     ) -> None:
         for key, entry in generation.records.items():
@@ -1731,8 +1759,9 @@ class IngestPipeline:
                 raise IntegrityError("M1 generation contains an unsupported record entry")
             if re.fullmatch(r"clm_[0-9a-f]{64}", entry.logical_id) is None:
                 raise IntegrityError("Generation contains a malformed claim ID")
-            if entry.logical_id == staged_claim.claim_id:
-                data = canonical_json_bytes(staged_claim)
+            staged = staged_claims.get(entry.logical_id)
+            if staged is not None:
+                data = canonical_json_bytes(staged)
             else:
                 relative = (
                     PurePosixPath("ledger")
@@ -2292,21 +2321,26 @@ class IngestPipeline:
             policy_constraints=("proposal_only", "evidence_subset"),
             created_at=created_at,
         )
-        first = evidence_items[0]
-        item = ProposalItem(
-            proposal_item_id=derive_id(
-                "pitem",
-                {"request_id": request.proposal_request_id, "segment_id": first.segment_id},
-            ),
-            kind="claim",
-            payload={"statement": first.excerpt, "language": "und"},
-            evidence_ids=(first.segment_id,),
+        # Твердження на кожен сегмент, а не одне на документ. Апстрім брав
+        # evidence_items[0] — з розділу на сорок абзаців виходило одне
+        # твердження, і решта доказів лежала мертвим вантажем.
+        items = tuple(
+            ProposalItem(
+                proposal_item_id=derive_id(
+                    "pitem",
+                    {"request_id": request.proposal_request_id, "segment_id": evidence.segment_id},
+                ),
+                kind="claim",
+                payload={"statement": evidence.excerpt, "language": "und"},
+                evidence_ids=(evidence.segment_id,),
+            )
+            for evidence in evidence_items
         )
         request_sha = sha256_hex(canonical_json_bytes(request))
         response = ProposalResponse(
             proposal_response_id=derive_id(
                 "pres",
-                {"request_sha256": request_sha, "items": [item]},
+                {"request_sha256": request_sha, "items": list(items)},
             ),
             request_ref=RecordRef(
                 kind="proposal_request",
@@ -2315,7 +2349,7 @@ class IngestPipeline:
             ),
             producer=ProducerRef(kind=ProducerKind.KERNEL, component=component),
             allowed_evidence_ids=request.allowed_evidence_ids,
-            proposed_items=(item,),
+            proposed_items=items,
             created_at=revision.captured_at,
         )
         staging = self.root / "ops" / "staging" / run_id
@@ -2330,7 +2364,7 @@ class IngestPipeline:
         response: ProposalResponse,
         request: ProposalRequest,
         pack: EvidencePack,
-    ) -> tuple[Claim, str]:
+    ) -> tuple[_StagedClaim, ...]:
         expected_response_id = derive_id(
             "pres",
             {
@@ -2340,43 +2374,51 @@ class IngestPipeline:
         )
         if response.proposal_response_id != expected_response_id:
             raise IntegrityError("Proposal response identity mismatch")
-        if len(response.proposed_items) != 1:
-            raise UnsupportedInput("M1 accepts exactly one claim proposal per response")
+        if not response.proposed_items:
+            raise UnsupportedInput("Proposal response carries no claim")
         if response.allowed_evidence_ids != request.allowed_evidence_ids:
             raise UnsupportedInput("Proposal response evidence allowlist changed")
         pack_ids = {evidence.segment_id for evidence in pack.items}
         if set(request.allowed_evidence_ids) != pack_ids:
             raise IntegrityError("Proposal request evidence pack binding is incomplete")
-        item = response.proposed_items[0]
-        if not item.evidence_ids:
-            raise UnsupportedInput("Claim proposal requires evidence")
-        if not set(item.evidence_ids).issubset(pack_ids):
-            raise UnsupportedInput("Claim proposal references evidence outside its pack")
-        if item.kind != "claim":
-            raise UnsupportedInput(f"Unsupported proposal item kind: {item.kind}")
-        statement = item.payload.get("statement")
-        if not isinstance(statement, str) or not statement.strip():
-            raise UnsupportedInput("Claim proposal requires a statement")
-        language = item.payload.get("language", "und")
-        if not isinstance(language, str):
-            raise UnsupportedInput("Claim language must be a string")
-        claim_id = derive_id(
-            "clm",
-            {"statement": statement, "language": language, "scope": {}},
-        )
-        claim = Claim(
-            claim_id=claim_id,
-            proposition_key=sha256_hex(
-                canonical_json_bytes({"statement": statement, "language": language, "scope": {}})
-            ),
-            statement=statement,
-            language=language,
-            evidence_ids=item.evidence_ids,
-            status=ClaimStatus.SUPPORTED,
-            recorded_at=response.created_at,
-        )
-        claim_object_sha256 = sha256_hex(canonical_json_bytes(claim))
-        return claim, claim_object_sha256
+        staged: dict[str, _StagedClaim] = {}
+        for item in response.proposed_items:
+            if not item.evidence_ids:
+                raise UnsupportedInput("Claim proposal requires evidence")
+            if not set(item.evidence_ids).issubset(pack_ids):
+                raise UnsupportedInput("Claim proposal references evidence outside its pack")
+            if item.kind != "claim":
+                raise UnsupportedInput(f"Unsupported proposal item kind: {item.kind}")
+            statement = item.payload.get("statement")
+            if not isinstance(statement, str) or not statement.strip():
+                raise UnsupportedInput("Claim proposal requires a statement")
+            language = item.payload.get("language", "und")
+            if not isinstance(language, str):
+                raise UnsupportedInput("Claim language must be a string")
+            identity = {"statement": statement, "language": language, "scope": {}}
+            claim_id = derive_id("clm", identity)
+            claim = Claim(
+                claim_id=claim_id,
+                proposition_key=sha256_hex(canonical_json_bytes(identity)),
+                statement=statement,
+                language=language,
+                evidence_ids=item.evidence_ids,
+                status=ClaimStatus.SUPPORTED,
+                recorded_at=response.created_at,
+            )
+            # Один і той самий рядок у двох місцях документа дає той самий
+            # claim_id — зливаємо докази, а не заводимо запис-двійник.
+            prior = staged.get(claim_id)
+            if prior is not None:
+                claim = claim.model_copy(
+                    update={
+                        "evidence_ids": tuple(
+                            sorted(set(prior.claim.evidence_ids) | set(claim.evidence_ids))
+                        )
+                    }
+                )
+            staged[claim_id] = _StagedClaim(claim, sha256_hex(canonical_json_bytes(claim)))
+        return tuple(staged[key] for key in sorted(staged))
 
     def _load_excerpts(self, normalization: Normalization) -> dict[str, str]:
         binding = normalization.extensions.get(
@@ -2448,8 +2490,15 @@ class IngestPipeline:
             active_manifest = LedgerGeneration.model_validate(
                 read_json(self.root / "ledger" / "generations" / f"{active_generation}.json")
             )
-            claim_key = f"claim:{prepared.claim.claim_id}"
-            active_entry = active_manifest.records.get(claim_key)
+            # Семантичний noop: усі твердження цього прогону вже стоять в
+            # активній генерації тими самими об'єктами. Досить одного нового —
+            # і промоушен іде звичайним шляхом.
+            already_active = all(
+                (entry := active_manifest.records.get(f"claim:{s.claim.claim_id}")) is not None
+                and not entry.tombstone
+                and entry.object_sha256 == s.object_sha256
+                for s in prepared.claims
+            )
             existing_wal = self.control.promotion_for_operation(operation_key)
             own_committed_recovery = bool(
                 existing_wal is not None
@@ -2459,12 +2508,7 @@ class IngestPipeline:
             if not own_committed_recovery:
                 self._assert_active_generation_reconciled(active_manifest)
             superseded_wal_txn_id: str | None = None
-            if (
-                existing_wal is None
-                and active_entry is not None
-                and not active_entry.tombstone
-                and active_entry.object_sha256 == prepared.claim_object_sha256
-            ):
+            if existing_wal is None and already_active:
                 final = replace(
                     prepared.result,
                     status="succeeded",
@@ -2573,16 +2617,16 @@ class IngestPipeline:
                     self.root / "ops" / "approvals" / "supersessions" / f"{refresh_id}.json",
                     canonical_json_bytes(refresh),
                 )
-            claim_bytes = canonical_json_bytes(prepared.claim)
-            claim_path = (
-                self.root
-                / "ledger"
-                / "objects"
-                / "sha256"
-                / prepared.claim_object_sha256[:2]
-                / f"{prepared.claim_object_sha256}.json"
-            )
-            publish_immutable(claim_path, claim_bytes)
+            for staged in prepared.claims:
+                publish_immutable(
+                    self.root
+                    / "ledger"
+                    / "objects"
+                    / "sha256"
+                    / staged.object_sha256[:2]
+                    / f"{staged.object_sha256}.json",
+                    canonical_json_bytes(staged.claim),
+                )
             generation_path = (
                 self.root / "ledger" / "generations" / f"{prepared.generation.generation_id}.json"
             )
@@ -2885,34 +2929,35 @@ class IngestPipeline:
         txn = prepared.txn
         generation = prepared.generation
         event = prepared.event
-        claim = prepared.claim
         if read_current_generation(self.root) != generation.generation_id:
             raise IntegrityError("Committed recovery does not own ledger/CURRENT")
         generation_path = self.root / "ledger" / "generations" / f"{generation.generation_id}.json"
         generation_bytes = generation_path.read_bytes()
-        claim_path = (
-            self.root
-            / "ledger"
-            / "objects"
-            / "sha256"
-            / prepared.claim_object_sha256[:2]
-            / f"{prepared.claim_object_sha256}.json"
-        )
-        claim_bytes = claim_path.read_bytes()
         if (
             generation_bytes != canonical_json_bytes(generation)
             or not generation.verify_id()
             or sha256_hex(generation_bytes) != txn.candidate_manifest_sha256
-            or claim_bytes != canonical_json_bytes(claim)
-            or sha256_hex(claim_bytes) != prepared.claim_object_sha256
         ):
             raise IntegrityError("Committed generation or claim object failed hash closure")
-        claim_key = f"claim:{claim.claim_id}"
-        entry = generation.records.get(claim_key)
+        for staged in prepared.claims:
+            claim_bytes = (
+                self.root
+                / "ledger"
+                / "objects"
+                / "sha256"
+                / staged.object_sha256[:2]
+                / f"{staged.object_sha256}.json"
+            ).read_bytes()
+            if (
+                claim_bytes != canonical_json_bytes(staged.claim)
+                or sha256_hex(claim_bytes) != staged.object_sha256
+            ):
+                raise IntegrityError("Committed generation or claim object failed hash closure")
+            entry = generation.records.get(f"claim:{staged.claim.claim_id}")
+            if entry is None or entry.object_sha256 != staged.object_sha256:
+                raise IntegrityError("Committed generation does not bind its claim")
         if (
-            entry is None
-            or entry.object_sha256 != prepared.claim_object_sha256
-            or txn.output_hashes != {claim_key: prepared.claim_object_sha256}
+            txn.output_hashes != prepared.output_hashes
             or generation.promotion_txn_id != txn.txn_id
             or generation.promotion_event_id != event.event_id
             or generation.parent_generation_id != txn.parent_generation_id
@@ -2920,7 +2965,7 @@ class IngestPipeline:
             raise IntegrityError("Committed generation transaction closure failed")
         self._validate_generation_objects(
             generation,
-            staged_claim=claim,
+            staged_claims={s.claim.claim_id: s.claim for s in prepared.claims},
             reextract_normalization_id=None,
         )
 
@@ -3028,6 +3073,17 @@ class IngestPipeline:
         else:
             raise IntegrityError("Committed authority kind is unsupported")
 
+    def _merge_claims_with_generation(
+        self,
+        generation: LedgerGeneration,
+        staged: tuple[_StagedClaim, ...],
+    ) -> tuple[_StagedClaim, ...]:
+        merged = [
+            _StagedClaim(*self._merge_claim_with_generation(generation, item.claim))
+            for item in staged
+        ]
+        return tuple(sorted(merged, key=lambda item: item.claim.claim_id))
+
     def _merge_claim_with_generation(
         self,
         generation: LedgerGeneration,
@@ -3075,22 +3131,23 @@ class IngestPipeline:
         )
         if not parent.verify_id():
             raise IntegrityError("Cannot rebase onto an invalid generation")
-        claim, claim_sha256 = self._merge_claim_with_generation(parent, prepared.claim)
+        staged_claims = self._merge_claims_with_generation(parent, prepared.claims)
         txn_id = derive_id(
             "ptxn",
             {
                 "operation_key": prepared.result.operation_key,
                 "parent_generation_id": parent_generation_id,
-                "claim_object_sha256": claim_sha256,
+                "claim_object_sha256s": [s.object_sha256 for s in staged_claims],
             },
         )
         event_id = derive_id("evt", {"txn_id": txn_id})
         records = dict(parent.records)
-        records[f"claim:{claim.claim_id}"] = GenerationEntry(
-            kind="claim",
-            logical_id=claim.claim_id,
-            object_sha256=claim_sha256,
-        )
+        for staged in staged_claims:
+            records[f"claim:{staged.claim.claim_id}"] = GenerationEntry(
+                kind="claim",
+                logical_id=staged.claim.claim_id,
+                object_sha256=staged.object_sha256,
+            )
         seed = LedgerGeneration(
             generation_id="gen_pending",
             parent_generation_id=parent_generation_id,
@@ -3114,7 +3171,7 @@ class IngestPipeline:
             event_id=event_id,
             partition_fencing_token=prepared.txn.partition_fencing_token,
             global_fencing_token=prepared.txn.global_fencing_token,
-            output_hashes={f"claim:{claim.claim_id}": claim_sha256},
+            output_hashes={f"claim:{s.claim.claim_id}": s.object_sha256 for s in staged_claims},
             state=PromotionState.PREPARED,
             created_at=prepared.run_created_at,
             updated_at=datetime.now(UTC),
@@ -3132,7 +3189,7 @@ class IngestPipeline:
         staging = self.root / "ops" / "staging" / prepared.result.run_id
         self._write_staging_bundle(
             staging,
-            claim=claim,
+            claims=staged_claims,
             generation=generation,
             txn=txn,
             event=event,
@@ -3146,8 +3203,7 @@ class IngestPipeline:
         )
         return _Prepared(
             result=result,
-            claim=claim,
-            claim_object_sha256=claim_sha256,
+            claims=staged_claims,
             generation=generation,
             txn=txn,
             event=event,
