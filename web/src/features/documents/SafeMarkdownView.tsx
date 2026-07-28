@@ -3,6 +3,9 @@ import { Fragment, type ReactNode } from "react";
 export interface WikilinkTarget {
   target: string;
   label: string;
+  /** Порядковий номер цього посилання в межах рендера — щоб врізка стала
+   *  саме там, де клікнули, а не на першому входженні того самого слова. */
+  ordinal?: number;
   heading: string | null;
   embed: boolean;
 }
@@ -10,7 +13,7 @@ export interface WikilinkTarget {
 interface SafeMarkdownViewProps {
   content: string;
   /** Друга частина — подія кліку: ⌥/Alt означає «розгорнути тут», а не переходити. */
-  onOpenWikilink?: (target: WikilinkTarget, event?: { altKey: boolean }) => void;
+  onOpenWikilink?: (target: WikilinkTarget, event?: { altKey: boolean; node?: HTMLElement }) => void;
   onOpenRelativeLink?: (target: string) => void;
   resolveImage?: (target: string) => string | null;
   onOpenSource?: () => void;
@@ -103,7 +106,7 @@ function inlineNodes(
         nodes.push(<img key={key} src={resolved} alt={target.label} loading="lazy" decoding="async" />);
       } else {
         nodes.push(
-          <button key={key} type="button" className={embed ? "doc-wikilink doc-embed" : "doc-wikilink"} onClick={(event) => props.onOpenWikilink?.(target, { altKey: event.altKey })}>
+          <button key={key} type="button" className={embed ? "doc-wikilink doc-embed" : "doc-wikilink"} onClick={(event) => props.onOpenWikilink?.(target, { altKey: event.altKey, node: event.currentTarget as HTMLElement })}>
             {embed ? "Вкладення: " : ""}{target.label}{target.heading ? ` · ${target.heading}` : ""}
           </button>
         );

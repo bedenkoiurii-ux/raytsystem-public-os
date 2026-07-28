@@ -1,5 +1,5 @@
 import type React from "react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getJson, postJson } from "../api";
 import { SafeMarkdownView, type WikilinkTarget } from "./documents/SafeMarkdownView";
@@ -136,17 +136,30 @@ export function Prose({ content, onOpenDocument, onOpenPanel, onOpenSource, onOp
   // Стан ВЛАСНИЙ у кожного шматка тексту: спільний на всі секції відкривав
   // врізку в кожному місці, де трапилось те саме слово («йосифлян» і в «Що
   // сталося», і в «Наслідках»). Розкривається там, де клікнув, — і тільки там.
+  // Запис відкритого: «слово\u0000uid\u0000n», де n — ЯКЕ САМЕ входження слова
+  // клікнули. Без нього врізка ставала на першому входженні: клік по «Острог»
+  // у третьому абзаці відкривав довідку вгорі тексту (скарга Юрія).
   const [open, setOpen] = useState<string[]>([]);
+  const host = useRef<HTMLDivElement | null>(null);
 
   // Запис у списку відкритих: «слово_в_тексті\u0000uid». Слово потрібне, щоб
   // знайти МІСЦЕ врізки в абзаці; uid — щоб показати саме ту сутність, коли
   // ім'я неоднозначне. Друга частина зʼявляється лише після вибору.
-  const toggle = (link: WikilinkTarget) => {
+  const toggle = (link: WikilinkTarget, event?: { node?: HTMLElement }) => {
     const name = link.target.trim();
     if (!name) return;
-    setOpen((s) => (s.some((x) => x.split("\u0000")[0] === name) ? s.filter((x) => x.split("\u0000")[0] !== name) : [...s, name]));
+    // Котре це входження: рахуємо серед посилань на ту саму ціль у DOM —
+    // порядок у розмітці збігається з порядком у тексті.
+    let nth = 0;
+    if (event?.node && host.current) {
+      const same = [...host.current.querySelectorAll(".doc-wikilink")]
+        .filter((b) => b.textContent === event.node!.textContent);
+      nth = Math.max(0, same.indexOf(event.node));
+    }
+    const key = `${name}\u0000\u0000${nth}`;
+    setOpen((s) => (s.some((x) => x.split("\u0000")[0] === name) ? s.filter((x) => x.split("\u0000")[0] !== name) : [...s, key]));
   };
-  const pick = (word: string, uid: string) => setOpen((s) => s.map((x) => (x.split("\u0000")[0] === word ? `${word}\u0000${uid}` : x)));
+  const pick = (word: string, uid: string) => setOpen((s) => s.map((x) => { const [w, , n] = x.split("\u0000"); return w === word ? `${w}\u0000${uid}\u0000${n ?? 0}` : x; }));
   const props = { onOpenRelativeLink, resolveImage };
 
   // Абзац розривається В МІСЦІ ПОСИЛАННЯ: текст до нього (разом зі словом),
@@ -156,29 +169,49 @@ export function Prose({ content, onOpenDocument, onOpenPanel, onOpenSource, onOp
   const blocks = content.split(/\n{2,}/);
   const shown = new Set<string>();
   const pieces: React.ReactNode[] = [];
+  // Лічильник входжень НАСКРІЗНИЙ по всьому тексту: у межах абзацу він давав
+  // хибу — клік по другому «Острог» у третьому абзаці ставив врізку вгорі,
+  // бо кожен абзац рахував із нуля.
+  const seenCount = new Map<string, number>();
 
   blocks.forEach((block, bi) => {
     let rest = block;
     let guard = 0;
-    while (guard++ < 8) {
-      const hit = open
+    while (guard++ < 12) {
+      // Найближче входження будь-якого відкритого слова в залишку абзацу.
+      const candidates = open
         .filter((entry) => !shown.has(entry))
-        .map((entry) => ({ entry, word: entry.split("\u0000")[0] }))
-        .map(({ entry, word }) => ({ name: entry, at: rest.search(new RegExp(`\\[\\[${word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\||\\]\\])`)) }))
+        .map((entry) => {
+          const word = entry.split("\u0000")[0];
+          const at = rest.search(new RegExp(`\\[\\[${word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\||\\]\\])`));
+          return { entry, word, at };
+        })
         .filter((x) => x.at >= 0)
-        .sort((a, b) => a.at - b.at)[0];
-      if (!hit) break;
+        .sort((a, b) => a.at - b.at);
+      if (!candidates.length) break;
+      const hit = candidates[0];
+      const wanted = Number(hit.entry.split("\u0000")[2] ?? 0);
+      const passed = seenCount.get(hit.word) ?? 0;
       const close = rest.indexOf("]]", hit.at);
       const head = rest.slice(0, close + 2);
+      seenCount.set(hit.word, passed + 1);
+
+      if (passed < wanted) {
+        // Це не те входження, яке клікнули — просто відрендерити й іти далі.
+        rest = rest.slice(close + 2);
+        pieces.push(<SafeMarkdownView key={`${bi}-s-${passed}-${hit.word}`} content={head} onOpenWikilink={toggle}
+                                      onOpenSource={bi === 0 && !pieces.length ? onOpenSource : undefined} {...props} />);
+        continue;
+      }
       rest = rest.slice(close + 2);
-      shown.add(hit.name);
+      shown.add(hit.entry);
       pieces.push(
-        <SafeMarkdownView key={`${bi}-h-${hit.name}`} content={head} onOpenWikilink={toggle}
-                          onOpenSource={bi === 0 ? onOpenSource : undefined} {...props} />
+        <SafeMarkdownView key={`${bi}-h-${hit.entry}`} content={head} onOpenWikilink={toggle}
+                          onOpenSource={bi === 0 && !pieces.length ? onOpenSource : undefined} {...props} />
       );
-      pieces.push(<Aside key={`${bi}-a-${hit.name}`} entry={hit.name} onOpen={toggle} onPick={pick}
+      pieces.push(<Aside key={`${bi}-a-${hit.entry}`} entry={hit.entry} onOpen={toggle} onPick={pick}
                          onOpenDocument={onOpenDocument} onOpenPanel={onOpenPanel}
-                         onClose={() => setOpen((s) => s.filter((x) => x !== hit.name))} />);
+                         onClose={() => setOpen((s) => s.filter((x) => x !== hit.entry))} />);
     }
     if (rest.trim()) {
       pieces.push(
@@ -193,7 +226,7 @@ export function Prose({ content, onOpenDocument, onOpenPanel, onOpenSource, onOp
   // відступи, і текст розсипався на купу абзаців (Юрій: «текст повинен
   // залишатись текстом»).
   return (
-    <div className="safe-markdown prose">
+    <div className="safe-markdown prose" ref={host}>
       {pieces}
       {orphans.map((entry) => (
         <Aside key={`o-${entry}`} entry={entry} onOpen={toggle} onPick={pick} onOpenDocument={onOpenDocument} onOpenPanel={onOpenPanel}
