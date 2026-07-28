@@ -238,14 +238,19 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
   const onWheel = (e: React.WheelEvent<SVGSVGElement>) => {
     const box = stage.current?.getBoundingClientRect();
     if (!box) return;
-    const cx = ((e.clientX - box.left) / box.width) * W;
-    const cy = ((e.clientY - box.top) / box.height) * H;
+    // Частка курсора в полотні — від неї рахуємо ТОЧКУ В ПОТОЧНОМУ КАДРІ.
+    // Була помилка: точка бралася в сталих координатах (0…W), тож після
+    // панорамування зум і далі тримався першої позиції, і мапа «блукала».
+    const fx = (e.clientX - box.left) / box.width;
+    const fy = (e.clientY - box.top) / box.height;
     setView((v) => {
       const k = Math.min(14, Math.max(1, v.k * (e.deltaY < 0 ? 1.18 : 1 / 1.18)));
+      const px = v.x + fx * (W / v.k);      // куди дивиться курсор ЗАРАЗ
+      const py = v.y + fy * (H / v.k);
       return {
         k,
-        x: Math.min(Math.max(0, cx - ((cx - v.x) * v.k) / k), W - W / k),
-        y: Math.min(Math.max(0, cy - ((cy - v.y) * v.k) / k), H - H / k)
+        x: Math.min(Math.max(0, px - fx * (W / k)), W - W / k),
+        y: Math.min(Math.max(0, py - fy * (H / k)), H - H / k)
       };
     });
   };
