@@ -37,6 +37,7 @@ from raytsystem.ingestion import (
     IngestPipeline,
     QuarantinedInput,
     UnsupportedInput,
+    WorkspaceApprovalVerifier,
 )
 from raytsystem.io import write_text_atomic
 from raytsystem.linting import LintService
@@ -722,7 +723,10 @@ def promote(
     """Promote a validated run under fixture or approval policy."""
 
     _run_pipeline(
-        lambda: IngestPipeline(root).promote_run(
+        lambda: IngestPipeline(
+            root,
+            approval_verifier=WorkspaceApprovalVerifier() if approval else None,
+        ).promote_run(
             run_id,
             fixture=fixture,
             approval_path=approval,

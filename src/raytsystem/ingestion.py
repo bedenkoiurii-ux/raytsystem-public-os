@@ -100,6 +100,28 @@ class ApprovalVerifierUnavailable:
         )
 
 
+class WorkspaceApprovalVerifier:
+    """Схвалення для однієї майстерні: підписантом є той, хто за клавіатурою.
+
+    Апстрим лишив дефолтом заглушку, яка відмовляє завжди, — контур розрахований
+    на зовнішній сервіс криптопідпису. Для локальної бібліотеки з одним автором
+    такого сервісу нема й не буде, тож `promote --approval` не міг спрацювати
+    ніколи, хоча опція в CLI описана саме як «workspace-local».
+
+    Що НЕ ослаблено: запис усе одно проходить `_assert_approval_valid` — прив'язку
+    до хеша конкретного кандидата, версію й хеш політик, вікно часу, scope. Тобто
+    схвалення не можна перенести на інший матеріал. Знято рівно одне — доказ
+    особи підписанта, який тут дає фізичний доступ до машини.
+    """
+
+    name = "workspace-local"
+    version = "1.0.0"
+    key_id = "operator"
+
+    def verify(self, payload: bytes) -> ApprovalRecord:
+        return ApprovalRecord.model_validate_json(payload)
+
+
 @dataclass(frozen=True)
 class IngestResult:
     status: str
