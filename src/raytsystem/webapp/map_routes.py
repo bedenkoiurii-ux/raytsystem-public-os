@@ -143,6 +143,32 @@ def create_map_router(root: Path, *, require_session: Callable[..., Any]) -> API
         found.sort(key=lambda x: x["from"])
         return found
 
+    @router.post("/map/request")
+    def map_request(payload: dict[str, Any], _session=Depends(require_session)) -> dict[str, Any]:
+        """Сутність, якої в бібліотеці немає, — у чергу агентам.
+
+        РІШЕННЯ ЮРІЯ (2026-07-28): «Що стосується сутності чи подій, які
+        відсутні в бібліотеці — це привід дати поштовх нашим агентам шукати
+        інформацію, перевіряти і додавати до бібліотеки.» Читання перестає
+        бути споживанням: натрапив на порожнє посилання — замовив картку.
+
+        Пишемо в той самий посівний список, з якого живиться конвеєр апарату,
+        і знімаємо сентинел, щоб він прокинувся сам.
+        """
+        name = str(payload.get("name", "")).strip()
+        if not name or len(name) > 120 or "\n" in name:
+            return {"ok": False, "error": "bad_name"}
+        store = Path.home() / ".writer-lab"
+        store.mkdir(parents=True, exist_ok=True)
+        seed = store / "apparat-seed.txt"
+        lines = seed.read_text(encoding="utf-8").splitlines() if seed.is_file() else []
+        if name in lines:
+            return {"ok": True, "already": True, "queued": len(lines)}
+        with seed.open("a", encoding="utf-8") as handle:
+            handle.write(f"{name}\n")
+        (store / "apparat.done").unlink(missing_ok=True)      # робота зʼявилась
+        return {"ok": True, "already": False, "queued": len(lines) + 1}
+
     @router.get("/map/story")
     def map_story(title: str, _session=Depends(require_session)) -> dict[str, Any]:
         """Текст самого сюжету — розділу книги, епізоду, есею чи MOC.
@@ -184,17 +210,33 @@ def create_map_router(root: Path, *, require_session: Callable[..., Any]) -> API
         safe = name.strip().replace("/", "").replace("\\", "")
         if not safe:
             return {"error": "not_found"}
-        target = None
-        for candidate in (root / "30-Research").rglob("*.md"):
-            if candidate.stem == safe:
-                target = candidate
-                break
-        if target is None:                                  # шукаємо за title/aliases
-            for candidate in (root / "30-Research").rglob("*.md"):
+        # Спершу 30-Research (там сутності), далі вся бібліотека: посилання
+        # в тексті ведуть і на накази, есеї, розділи — вони існують, і казати
+        # «картки немає» про наявний документ було б неправдою.
+        def scan(base: Path) -> Path | None:
+            if not base.is_dir():
+                return None
+            for candidate in sorted(base.rglob("*.md")):
+                if {".git", "graphify-out"} & set(candidate.parts):
+                    continue
+                if candidate.stem == safe:
+                    return candidate
+            for candidate in sorted(base.rglob("*.md")):
+                if {".git", "graphify-out"} & set(candidate.parts):
+                    continue
                 fm = _front(candidate.read_text(encoding="utf-8", errors="ignore")[:900])
                 if safe in [_field(fm, "title"), *_list_field(fm, "aliases")]:
-                    target = candidate
-                    break
+                    return candidate
+            return None
+
+        def loose(base: Path) -> Path | None:
+            """Останній шанс: часткове входження, але лише коли кандидат один —
+            інакше «Острозький» міг би впіймати і місто, і людину."""
+            hits = [c for c in sorted(base.rglob("*.md"))
+                    if not ({".git", "graphify-out"} & set(c.parts)) and safe.lower() in c.stem.lower()]
+            return hits[0] if len(hits) == 1 else None
+
+        target = scan(root / "30-Research") or scan(root) or loose(root / "30-Research")
         if target is None:
             return {"error": "not_found", "name": safe}
 
@@ -218,7 +260,10 @@ def create_map_router(root: Path, *, require_session: Callable[..., Any]) -> API
             "place": _field(fm, "place"),
             # Заголовки різняться за типом картки: подія — «Що сталося», місце —
             # «Що тут відбувалося», людина — «Життя», поняття — «Що це».
-            "what": section("Що сталося", "Що тут відбувалося", "Що це", "Життя", "Хто це")[:1500],
+            # Для документів поза 30-Research беремо початок тіла: у наказу чи
+            # есею немає «Що сталося», але перший абзац і є відповіддю «що це».
+            "what": (section("Що сталося", "Що тут відбувалося", "Що це", "Життя", "Хто це")
+                     or re.sub(r"^#[^\n]*\n+", "", body.strip()).strip())[:1500],
             "consequences": section("Наслідки", "Цінність для розповіді", "Реперні події", "Чому важить")[:1500],
             "related": [x.strip() for x in re.findall(r"\[\[([^\]|#]+)", section("Пов'язане"))][:8],
             "path": rel,

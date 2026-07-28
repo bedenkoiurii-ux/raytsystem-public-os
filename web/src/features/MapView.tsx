@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { EmptyState, ErrorState, LoadingState } from "../components/StatePanel";
 import { getJson } from "../api";
 import { SafeMarkdownView, type WikilinkTarget } from "./documents/SafeMarkdownView";
+import { InlineStack, useNamedCard } from "./InlineEntity";
 
 /** Мапа сюжетів — географія розповіді.
  *
@@ -58,17 +59,6 @@ function useMapData() {
   });
 }
 
-/** Картка будь-якої сутності за назвою — для кліку по передумові.
- *  Передумови ведуть не лише на події: Флоренція — місце, Ісидор — людина. */
-function useNamedCard(name: string | null) {
-  return useQuery({
-    queryKey: ["map", "card", name],
-    enabled: Boolean(name),
-    staleTime: 60_000,
-    queryFn: () => getJson<EventCard & { kind: string; error?: string }>(`/api/v1/map/card?name=${encodeURIComponent(name ?? "")}`)
-  });
-}
-
 /** Текст самого сюжету — розділу, епізоду, есею. Клік по назві сюжету
  *  відкриває його читання, а не лише список подій (Юрій). */
 function useStoryDoc(title: string | null) {
@@ -116,30 +106,6 @@ function useLand(height: number) {
       return paths;
     }
   });
-}
-
-/** Картка, розгорнута з вікілінка в тексті. Показується одразу розкритою —
- *  її відкрили свідомо, кліком по імені. Всередині неї вікілінки працюють так
- *  само, тож ланцюг розкручується далі, не покидаючи панелі. */
-function InlineCard({ name, onClose, onOpen, onOpenDocument }: {
-  name: string; onClose: () => void; onOpen: (l: WikilinkTarget) => void; onOpenDocument?: (id: string) => void;
-}) {
-  const card = useNamedCard(name);
-  if (card.isLoading) return <div className="inline-card loading">{name}…</div>;
-  if (!card.data || card.data.error) return <div className="inline-card missing">{name} — картки в бібліотеці немає</div>;
-  return (
-    <div className="inline-card">
-      <header>
-        <strong>{card.data.title}</strong>
-        {card.data.year ? <span className="when">{card.data.year}{card.data.year_end && card.data.year_end !== card.data.year ? `–${card.data.year_end}` : ""}</span> : null}
-        <button type="button" className="close" onClick={onClose} aria-label="Згорнути">×</button>
-      </header>
-      {card.data.what ? <div className="safe-markdown"><SafeMarkdownView content={card.data.what} onOpenWikilink={onOpen} /></div> : null}
-      {card.data.document_id ? (
-        <button type="button" className="map-card-open" onClick={() => onOpenDocument?.(card.data!.document_id!)}>відкрити картку</button>
-      ) : null}
-    </div>
-  );
 }
 
 /** Передумова, що розкривається на місці. Всередині — така сама, тож ланцюг
@@ -531,14 +497,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
             ) : null}
           </header>
           <div className="safe-markdown"><SafeMarkdownView content={story.data.body} onOpenWikilink={openInline} /></div>
-          {inline.length ? (
-            <div className="map-inline">
-              {inline.map((name) => (
-                <InlineCard key={name} name={name} onClose={() => setInline((s) => s.filter((x) => x !== name))}
-                            onOpen={openInline} onOpenDocument={onOpenDocument} />
-              ))}
-            </div>
-          ) : null}
+          <InlineStack names={inline} setNames={setInline} onOpenDocument={onOpenDocument} />
         </aside>
       ) : null}
 
