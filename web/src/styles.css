@@ -1372,7 +1372,7 @@ button.table-row:hover { background: var(--surface-2); color: var(--bone); }
 .map-chains line.vector { stroke: var(--tangerine); fill: none; }
 .map-chains g.on line.chain { stroke: var(--periwinkle); }
 .map-arrow { fill: var(--tangerine); }
-.map-fit { position: absolute; right: 10px; bottom: 10px; display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border: 1px solid var(--line); border-radius: var(--radius-xs); background: var(--carbon); color: var(--muted); font: 11px var(--mono); cursor: pointer; }
+.map-fit { position: absolute; right: 10px; top: 10px; display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border: 1px solid var(--line); border-radius: var(--radius-xs); background: var(--carbon); color: var(--muted); font: 11px var(--mono); cursor: pointer; }
 .map-tip-fixed { position: fixed; right: 372px; bottom: 26px; padding: 7px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--carbon); display: grid; gap: 2px; pointer-events: none; }
 .map-tip-fixed strong { font: 500 13px var(--sans); color: var(--bone); }
 .map-tip-fixed span { font: 10.5px var(--mono); color: var(--muted-2); }
@@ -1453,3 +1453,5 @@ li.open .chev { transform: rotate(90deg); }
 .senses-drafts p { font-size: 12px; color: var(--muted-2); margin: 6px 0 8px; }
 .senses-drafts ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .senses-drafts button { border: 0; background: transparent; color: var(--cyan); font-size: 12.5px; cursor: pointer; padding: 0; text-align: left; }
+.map-point.dim circle { opacity: .28; }
+.map-point.dim { pointer-events: none; }

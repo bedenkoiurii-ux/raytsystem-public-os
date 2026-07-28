@@ -102,6 +102,31 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
 
   // Сюжет входить у зріз, якщо його роки перетинаються з обраним періодом.
   const [lo, hi] = span ?? bounds;
+
+  // Точки обраного сюжету. Решта лишається на мапі, але тьмяною й без підпису —
+  // саме нагромадження підписів робило мапу нечитною.
+  const focused = useMemo(() => {
+    const story = stories.find((s) => s.title === active);
+    if (!story) return null;
+    return new Set(story.events.flatMap((e) => e.route));
+  }, [active, stories]);
+  // Кого підписуємо. У режимі сюжету — тільки його точки (решта тьмяна, без
+  // назв). Без сюжету — груба сітка антиколізії; при зумі комірка дрібнішає,
+  // тож чим ближче, тим більше назв проступає.
+  const named = useMemo(() => {
+    const all = [...places.values()];
+    if (focused) return new Set(all.filter((p) => focused.has(p.title)).map((p) => p.title));
+    const taken = new Set<string>();
+    const out = new Set<string>();
+    for (const p of all.slice().sort((a, b) => a.title.length - b.title.length)) {
+      const cell = `${Math.round((p.x * view.k) / 120)}:${Math.round((p.y * view.k) / 20)}`;
+      if (taken.has(cell)) continue;
+      taken.add(cell);
+      out.add(p.title);
+    }
+    return out;
+  }, [places, focused, view.k]);
+
   const shown = stories.filter((s) => !span || (s.to >= span[0] && s.from <= span[1]));
   const periods = data.data?.periods ?? [];
   const drawn = active ? shown.filter((s) => s.title === active) : shown;
@@ -132,6 +157,26 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
       y: Math.min(Math.max(0, drag.current!.y - dy), H - H / v.k)
     }));
   };
+
+  /** Показати сюжет цілком: період по його роках, вигляд — по його точках.
+   *  Юрій: «вибираю сюжет, а мапа лишається в рамках усього часового простору».
+   *  Вибір сюжету звужує все одразу — час, зум і підписи. */
+  const showStory = useCallback((story: Story) => {
+    setSpan([story.from, story.to]);
+    const pts = story.events.flatMap((e) => e.route).map((n) => places.get(n)).filter(Boolean) as (Place & { x: number; y: number })[];
+    if (!pts.length) { setView({ x: 0, y: 0, k: 1 }); return; }
+    const pad = 90;
+    const minX = Math.min(...pts.map((p) => p.x)) - pad;
+    const maxX = Math.max(...pts.map((p) => p.x)) + pad;
+    const minY = Math.min(...pts.map((p) => p.y)) - pad;
+    const maxY = Math.max(...pts.map((p) => p.y)) + pad;
+    const k = Math.min(8, Math.max(1, Math.min(W / Math.max(1, maxX - minX), H / Math.max(1, maxY - minY))));
+    setView({
+      k,
+      x: Math.min(Math.max(0, (minX + maxX) / 2 - W / k / 2), W - W / k),
+      y: Math.min(Math.max(0, (minY + maxY) / 2 - H / k / 2), H - H / k)
+    });
+  }, [places]);
 
   /** Наблизити до точки — коли клікаєш реперну точку в правій колонці. */
   const focus = useCallback((name: string) => {
@@ -199,11 +244,13 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
 
             <g className="map-points">
               {[...places.values()].map((p) => (
-                <g key={p.title} className={`map-point${hover?.title === p.title ? " on" : ""}`}
+                <g key={p.title} className={`map-point${hover?.title === p.title ? " on" : ""}${focused && !focused.has(p.title) ? " dim" : ""}`}
                    onMouseEnter={() => setHover(p)} onMouseLeave={() => setHover(null)}
                    onClick={() => onOpenDocument?.(p.path)} role="button" tabIndex={0}>
                   <circle cx={p.x} cy={p.y} r={(hover?.title === p.title ? 6 : 4) / view.k} />
-                  <text x={p.x + 9 / view.k} y={p.y + 4 / view.k} style={{ fontSize: `${10.5 / view.k}px` }}>{p.title}</text>
+                  {named.has(p.title) ? (
+                    <text x={p.x + 9 / view.k} y={p.y + 4 / view.k} style={{ fontSize: `${10.5 / view.k}px` }}>{p.title}</text>
+                  ) : null}
                 </g>
               ))}
             </g>
@@ -279,7 +326,10 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                 return (
                   <li key={story.title} className={`${open ? "open " : ""}${active === story.title ? "active" : ""}`}>
                     <button type="button" className="map-story-head"
-                            onClick={() => { setOpenStory(open ? null : story.title); setActive(open ? null : story.title); }}>
+                            onClick={() => {
+                              if (open) { setOpenStory(null); setActive(null); setSpan(null); setView({ x: 0, y: 0, k: 1 }); }
+                              else { setOpenStory(story.title); setActive(story.title); showStory(story); }
+                            }}>
                       <ChevronRight size={14} className="chev" />
                       <span className="name">{story.title}</span>
                       <span className="span">{story.from}–{story.to}</span>
