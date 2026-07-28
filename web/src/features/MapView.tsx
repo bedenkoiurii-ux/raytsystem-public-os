@@ -559,6 +559,8 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
               <div className="safe-markdown"><SafeMarkdownView content={card.data.consequences} onOpenWikilink={openInline} /></div>
             </section>
           ) : null}
+
+          <InlineStack names={inline} setNames={setInline} onOpenDocument={onOpenDocument} />
         </aside>
       ) : null}
       </div>
