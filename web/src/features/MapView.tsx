@@ -4,6 +4,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { EmptyState, ErrorState, LoadingState } from "../components/StatePanel";
 import { getJson } from "../api";
+import { SafeMarkdownView } from "./documents/SafeMarkdownView";
 
 /** Мапа сюжетів — географія розповіді.
  *
@@ -114,8 +115,8 @@ function Entity({ name, opened, setOpened, onOpenDocument, depth = 0 }: {
       {isOpen && card.data && !card.data.error ? (
         <div className="entity-body">
           {card.data.year ? <p className="when">{card.data.year}{card.data.year_end && card.data.year_end !== card.data.year ? `–${card.data.year_end}` : ""}</p> : null}
-          {card.data.what ? <pre>{card.data.what}</pre> : null}
-          {card.data.consequences ? (<><span className="eyebrow">ЧИМ ВАЖИТЬ</span><pre>{card.data.consequences}</pre></>) : null}
+
+          {card.data.consequences ? (<><span className="eyebrow">ЧИМ ВАЖИТЬ</span><div className="safe-markdown"><SafeMarkdownView content={card.data.consequences} /></div></>) : null}
           {depth < 2 && card.data.related.length ? (
             <div className="entity-related">
               {card.data.related.map((n) => (
@@ -482,14 +483,14 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
           {card.data.what ? (
             <section className="map-card-block">
               <span className="eyebrow">ЩО СТАЛОСЯ</span>
-              <pre>{card.data.what}</pre>
+              <div className="safe-markdown"><SafeMarkdownView content={card.data.what} /></div>
             </section>
           ) : null}
 
           {card.data.consequences ? (
             <section className="map-card-block after">
               <span className="eyebrow">НАСЛІДКИ</span>
-              <pre>{card.data.consequences}</pre>
+              <div className="safe-markdown"><SafeMarkdownView content={card.data.consequences} /></div>
             </section>
           ) : null}
         </aside>
