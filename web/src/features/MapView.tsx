@@ -97,6 +97,41 @@ function useLand() {
   });
 }
 
+/** Передумова, що розкривається на місці. Всередині — така сама, тож ланцюг
+ *  розкручується вглиб, не покидаючи стовпця й нічого не перекриваючи. */
+function Entity({ name, opened, setOpened, onOpenDocument, depth = 0 }: {
+  name: string; opened: string[]; setOpened: (fn: (s: string[]) => string[]) => void;
+  onOpenDocument?: (id: string) => void; depth?: number;
+}) {
+  const isOpen = opened.includes(name);
+  const card = useNamedCard(isOpen ? name : null);
+  const toggle = () => setOpened((s) => (s.includes(name) ? s.filter((x) => x !== name) : [...s, name]));
+  return (
+    <div className={`entity${isOpen ? " open" : ""}`} data-depth={depth}>
+      <button type="button" className="entity-name" onClick={toggle}>
+        <ChevronRight size={12} className="chev" /> {name}
+      </button>
+      {isOpen && card.data && !card.data.error ? (
+        <div className="entity-body">
+          {card.data.year ? <p className="when">{card.data.year}{card.data.year_end && card.data.year_end !== card.data.year ? `–${card.data.year_end}` : ""}</p> : null}
+          {card.data.what ? <pre>{card.data.what}</pre> : null}
+          {card.data.consequences ? (<><span className="eyebrow">ЧИМ ВАЖИТЬ</span><pre>{card.data.consequences}</pre></>) : null}
+          {depth < 2 && card.data.related.length ? (
+            <div className="entity-related">
+              {card.data.related.map((n) => (
+                <Entity key={n} name={n} opened={opened} setOpened={setOpened} onOpenDocument={onOpenDocument} depth={depth + 1} />
+              ))}
+            </div>
+          ) : null}
+          {card.data.document_id ? (
+            <button type="button" className="map-card-open" onClick={() => onOpenDocument?.(card.data!.document_id!)}>відкрити картку</button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => void }) {
   const data = useMapData();
   const land = useLand();
@@ -110,10 +145,10 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
   const [spanByStory, setSpanByStory] = useState(false);
   const [openEvent, setOpenEvent] = useState<string | null>(null);
   const card = useEventCard(openEvent);
-  // Стек передумов: клік по назві розгортає її картку зверху, «назад» —
-  // на крок нижче. Юрій: «нехай розгортаються поруч або зверху».
-  const [stack, setStack] = useState<string[]>([]);
-  const peek = useNamedCard(stack.length ? stack[stack.length - 1] : null);
+  // Передумови розгортаються ВБУДОВАНО, у тому самому стовпці (Юрій: «щоб це
+  // був один стовпчик, передумови відкривались як вбудовані»). Стек плаваючих
+  // панелей прибрано: він перекривав те, з чого починався.
+  const [opened, setOpened] = useState<string[]>([]);
   const [hover, setHover] = useState<Place | null>(null);
   const [view, setView] = useState({ x: 0, y: 0, k: 1 });
   const drag = useRef<{ px: number; py: number; x: number; y: number } | null>(null);
@@ -375,7 +410,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                         {story.events.map((ev) => (
                           <li key={ev.path} className={ev.route.length ? "" : "unmapped"}>
                             <button type="button" className={openEvent === ev.path ? "on" : ""}
-                                    onClick={() => { if (ev.route[0]) focus(ev.route[0]); setStack([]); setOpenEvent(openEvent === ev.path ? null : ev.path); }}>
+                                    onClick={() => { if (ev.route[0]) focus(ev.route[0]); setOpened([]); setOpenEvent(openEvent === ev.path ? null : ev.path); }}>
                               <b>{ev.year}{ev.year_end && ev.year_end !== ev.year ? `–${ev.year_end}` : ""}</b>
                               <span className="what">{ev.title}</span>
                               <span className="where">
@@ -424,7 +459,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                 {card.data!.related.length ? (
                   <p className="related">
                     {card.data!.related.map((name) => (
-                      <button key={name} type="button" onClick={() => setStack((s) => [...s, name])}>{name}</button>
+                      <Entity key={name} name={name} opened={opened} setOpened={setOpened} onOpenDocument={onOpenDocument} />
                     ))}
                   </p>
                 ) : null}
@@ -448,36 +483,6 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
         </aside>
       ) : null}
       </div>
-
-      {stack.length && peek.data && !peek.data.error ? (
-        <aside className="map-peek">
-          <header>
-            <button type="button" className="back" onClick={() => setStack((s) => s.slice(0, -1))}>
-              ← {stack.length > 1 ? stack[stack.length - 2] : "до події"}
-            </button>
-            <span className="eyebrow">{peek.data.kind === "research" ? "ПЕРЕДУМОВА" : "КАРТКА"}</span>
-            <h2>{peek.data.title}</h2>
-            {peek.data.year ? <p className="when">{peek.data.year}{peek.data.year_end && peek.data.year_end !== peek.data.year ? `–${peek.data.year_end}` : ""}</p> : null}
-            {peek.data.document_id ? (
-              <button type="button" className="map-card-open" onClick={() => onOpenDocument?.(peek.data!.document_id!)}>відкрити картку</button>
-            ) : null}
-          </header>
-          {peek.data.what ? <section className="map-card-block"><pre>{peek.data.what}</pre></section> : null}
-          {peek.data.consequences ? (
-            <section className="map-card-block after"><span className="eyebrow">ЧИМ ВАЖИТЬ</span><pre>{peek.data.consequences}</pre></section>
-          ) : null}
-          {peek.data.related.length ? (
-            <section className="map-card-block">
-              <span className="eyebrow">ПОВʼЯЗАНЕ</span>
-              <p className="related">
-                {peek.data.related.map((name) => (
-                  <button key={name} type="button" onClick={() => setStack((s) => [...s, name])}>{name}</button>
-                ))}
-              </p>
-            </section>
-          ) : null}
-        </aside>
-      ) : null}
 
       {hover ? (
         <div className="map-tip-fixed"><strong>{hover.title}</strong><span>{hover.lat.toFixed(2)}, {hover.lon.toFixed(2)}</span></div>
