@@ -1231,13 +1231,17 @@ button.table-row:hover { background: var(--surface-2); color: var(--bone); }
 }
 :is(.document-content, .doc-peek, .map-card).sheet-light[data-sheet-tone="white"] { --sheet-paper: #ffffff; --sheet-desk: #ececec; }
 :is(.document-content, .doc-peek, .map-card).sheet-light[data-sheet-tone="sepia"] { --sheet-paper: #f7efdc; --sheet-desk: #e9dfc7; --bone: #241c0d; --muted: #3d3420; }
+/* У Документах аркуш — `.safe-markdown` (обгортка від Prose), у peek рендерер
+   дає голий `.doc-markdown` без неї. Папером має ставати те, що є на поверхні. */
 :is(.document-content, .doc-peek).sheet-light .safe-markdown,
+.doc-peek.sheet-light .doc-peek-body > .doc-markdown,
 :is(.document-content, .doc-peek).sheet-light .milkdown {
   background: var(--sheet-paper); color: var(--muted);
   max-width: 860px; margin: 18px auto 40px; border-radius: 6px;
   box-shadow: 0 10px 44px rgba(0,0,0,.35); border: 1px solid rgba(0,0,0,.07);
 }
-.document-content.sheet-light .safe-markdown { padding: 52px 60px; font-size: 15px; }
+.document-content.sheet-light :is(.safe-markdown, .doc-markdown) { padding: 52px 60px; font-size: 15px; }
+.document-content.sheet-light .safe-markdown .doc-markdown { padding: 0; }
 .document-content.sheet-light .milkdown .editor { padding: 52px 60px; }
 :is(.document-content, .doc-peek).sheet-light .doc-wikilink { color: var(--cyan); border-bottom: 1px dotted var(--cyan); background: none; }
 :is(.document-content, .doc-peek).sheet-light .doc-frontmatter,
@@ -1252,7 +1256,7 @@ button.table-row:hover { background: var(--surface-2); color: var(--bone); }
   background: var(--surface); border-bottom-color: var(--line-soft); color: var(--bone);
 }
 .doc-peek.sheet-light .doc-peek-body { background: var(--sheet-desk); }
-.doc-peek.sheet-light .safe-markdown { max-width: none; margin: 0 0 24px; padding: 30px 32px; font-size: 14.5px; box-shadow: 0 6px 24px rgba(0,0,0,.22); }
+.doc-peek.sheet-light :is(.safe-markdown, .doc-peek-body > .doc-markdown) { max-width: none; margin: 0 0 24px; padding: 30px 32px; font-size: 14.5px; box-shadow: 0 6px 24px rgba(0,0,0,.22); }
 
 /* Вирівнювання: peek — сусід стейджа в канві, тож стартує від верху (рівень
    вкладок). Зсуваємо його так, щоб ТІЛО картки почалося рівно там, де тіло

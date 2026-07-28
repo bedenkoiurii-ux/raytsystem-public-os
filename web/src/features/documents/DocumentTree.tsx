@@ -278,22 +278,24 @@ function emitDocument(
 
 function flattenTree(folder: TreeFolder, expanded: ReadonlySet<string>, versionsFor: Map<string, DocumentSummary[]>, versionChildIds: ReadonlySet<string>, materialChildIds: ReadonlySet<string>, depth = 1, parentId: string | null = null): VisibleEntry[] {
   const entries: VisibleEntry[] = [];
-  const folders = [...folder.folders.values()].sort((a, b) => a.name.localeCompare(b.name, "uk-UA"));
-  for (const child of folders) {
-    if (child.documents.length === 0 && child.folders.size === 0) continue;   // ховаємо порожні теки
-    const isExpanded = expanded.has(child.id);
-    entries.push({ id: child.id, type: "folder", name: child.name, depth, parentId, expanded: isExpanded, folder: child, count: countDocuments(child) });
-    if (isExpanded) entries.push(...flattenTree(child, expanded, versionsFor, versionChildIds, materialChildIds, depth + 1, child.id));
-  }
-  // Документи в теці: спершу за layout-порядком (order з frontmatter), тоді за назвою.
-  // Так послідовності (хроніки за часом, редактура за номером розділу) читаються
-  // за своїм принципом, а не за абеткою. Без order — усе як було, за назвою.
+  // Документи теки йдуть ПЕРЕД підтеками: у теці книги першим має стояти сама
+  // книга, а «Версії» та «Матеріали» — під нею. Варіант не може передувати
+  // фінальному документові — дерево читається як робота, не як файлова система.
+  // Порядок документів: layout-order з frontmatter (хроніки за часом, розділи
+  // за номером), без order — за назвою.
   const docOrder = (d: DocumentSummary) =>
     typeof d.properties?.order === "number" ? (d.properties.order as number) : Number.POSITIVE_INFINITY;
   for (const document of [...folder.documents].sort(
     (a, b) => docOrder(a) - docOrder(b) || a.filename.localeCompare(b.filename, "uk-UA"),
   )) {
     emitDocument(document, depth, parentId, versionsFor, versionChildIds, materialChildIds, expanded, entries);
+  }
+  const folders = [...folder.folders.values()].sort((a, b) => a.name.localeCompare(b.name, "uk-UA"));
+  for (const child of folders) {
+    if (child.documents.length === 0 && child.folders.size === 0) continue;   // ховаємо порожні теки
+    const isExpanded = expanded.has(child.id);
+    entries.push({ id: child.id, type: "folder", name: child.name, depth, parentId, expanded: isExpanded, folder: child, count: countDocuments(child) });
+    if (isExpanded) entries.push(...flattenTree(child, expanded, versionsFor, versionChildIds, materialChildIds, depth + 1, child.id));
   }
   return entries;
 }
