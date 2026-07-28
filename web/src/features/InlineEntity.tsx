@@ -28,6 +28,50 @@ export interface EntityCard {
   choices?: { uid: string; title: string; path: string }[];
 }
 
+/** Словник форм для автопідсвітки. Один запит на сеанс — далі з кешу. */
+export function useEntityForms(enabled: boolean) {
+  return useQuery({
+    queryKey: ["entity", "forms"],
+    enabled,
+    staleTime: Infinity,
+    queryFn: () => getJson<{ forms: Record<string, string>; count: number }>("/api/v1/entities/forms")
+  });
+}
+
+/** Позначити сутності в тексті, НЕ чіпаючи файл.
+ *
+ *  Юрій (2026-07-28): «кожного разу, коли згадується сутність, вона повинна
+ *  мати вигляд гіперпосилання». Робимо це при читанні: у копію тексту
+ *  вставляються `[[Назва|як стоїть у реченні]]`, файл лишається чистим.
+ *
+ *  Обережності, без яких вийшла б рябизна:
+ *  · довші форми першими — «Флорентійська унія» перед «унія»;
+ *  · те, що вже в [[…]], не чіпаємо, як і код, посилання й заголовки;
+ *  · кожну сутність підсвічуємо ЛИШЕ доти, доки вона не стала суцільним
+ *    рябінням: обмеження на повтори немає, бо саме цього Юрій і хотів. */
+export function autolink(text: string, forms: Record<string, string>): string {
+  const keys = Object.keys(forms);
+  if (!keys.length) return text;
+  const sorted = keys.sort((a, b) => b.length - a.length);
+  const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(`(?<![\\p{L}\\p{N}])(${sorted.map(escape).join("|")})(?![\\p{L}\\p{N}])`, "giu");
+
+  // Ділимо на «недоторкані» шматки й решту: вже наявні вікілінки, код, URL,
+  // рядки заголовків і frontmatter лишаються як є.
+  const guard = /(\[\[[^\]]*\]\]|`[^`]*`|```[\s\S]*?```|\[[^\]]*\]\([^)]*\)|https?:\/\/\S+|^#{1,6} .*$)/gm;
+  const parts = text.split(guard);
+  return parts
+    .map((piece, i) => {
+      if (i % 2 === 1 || !piece) return piece;          // непарні — недоторкані
+      return piece.replace(pattern, (match) => {
+        const title = forms[match.toLowerCase()];
+        if (!title) return match;
+        return title === match ? `[[${match}]]` : `[[${title}|${match}]]`;
+      });
+    })
+    .join("");
+}
+
 export function useNamedCard(name: string | null) {
   return useQuery({
     queryKey: ["entity", "card", name],
@@ -125,8 +169,13 @@ export function InlineCard({ name, onClose, onOpen, onOpenDocument, onOpenPanel 
  *  Механіка проста навмисно: розбиваємо прозу на абзаци й рендеримо кожен
  *  окремо; картка йде після того абзацу, де посилання трапилось уперше.
  *  Без порталів і вимірювань DOM — вставка живе в самій розмітці тексту. */
-export function Prose({ content, onOpenDocument, onOpenPanel, onOpenSource, onOpenRelativeLink, resolveImage }: {
+export function Prose({ content, autoLink = true, onOpenWikilinkOverride, onOpenDocument, onOpenPanel, onOpenSource, onOpenRelativeLink, resolveImage }: {
   content: string;
+  /** Підсвічувати сутності, яких автор не позначив руками. */
+  autoLink?: boolean;
+  /** Документи перехоплюють клік: там основна дія — картка в панелі, каскадом.
+   *  Врізка лишається на ⌥-клік і там, де каскад безсилий. */
+  onOpenWikilinkOverride?: (target: WikilinkTarget, event?: { altKey: boolean; node?: HTMLElement }) => void;
   onOpenDocument?: (id: string) => void;
   onOpenPanel?: (id: string) => void;
   onOpenSource?: () => void;
@@ -145,7 +194,8 @@ export function Prose({ content, onOpenDocument, onOpenPanel, onOpenSource, onOp
   // Запис у списку відкритих: «слово_в_тексті\u0000uid». Слово потрібне, щоб
   // знайти МІСЦЕ врізки в абзаці; uid — щоб показати саме ту сутність, коли
   // ім'я неоднозначне. Друга частина зʼявляється лише після вибору.
-  const toggle = (link: WikilinkTarget, event?: { node?: HTMLElement }) => {
+  const toggle = (link: WikilinkTarget, event?: { altKey?: boolean; node?: HTMLElement }) => {
+    if (onOpenWikilinkOverride) { onOpenWikilinkOverride(link, { altKey: Boolean(event?.altKey), node: event?.node }); return; }
     const name = link.target.trim();
     if (!name) return;
     // Котре це входження: рахуємо серед посилань на ту саму ціль у DOM —
@@ -166,7 +216,9 @@ export function Prose({ content, onOpenDocument, onOpenPanel, onOpenSource, onOp
   // тоді врізка, тоді решта абзацу. Юрій: «я хочу конкретно після слова мати
   // текст картки — можливо не в форматі картки, просто текст на фоні іншого
   // кольору». Тому це не картка, а врізка: без рамки, з лівою рискою.
-  const blocks = content.split(/\n{2,}/);
+  const forms = useEntityForms(autoLink);
+  const prepared = autoLink && forms.data?.forms ? autolink(content, forms.data.forms) : content;
+  const blocks = prepared.split(/\n{2,}/);
   const shown = new Set<string>();
   const pieces: React.ReactNode[] = [];
   // Лічильник входжень НАСКРІЗНИЙ по всьому тексту: у межах абзацу він давав

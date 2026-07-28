@@ -237,6 +237,34 @@ def create_map_router(root: Path, *, require_session: Callable[..., Any]) -> API
             }
         return {"error": "not_found", "title": want}
 
+    @router.get("/entities/forms")
+    def entity_forms(_session=Depends(require_session)) -> dict[str, Any]:
+        """Словник «форма імені → канонічна назва» для автопідсвітки в тексті.
+
+        РІШЕННЯ ЮРІЯ (2026-07-28): «кожного разу, коли згадується сутність,
+        вона повинна мати вигляд гіперпосилання» — раніше вистачало одного
+        посилання на текст.
+
+        Ключове: підсвітка робиться ПРИ ЧИТАННІ, а не правкою файлів. Текст
+        автора лишається чистим markdown, який читається будь-де; посилання
+        зʼявляються з індексу. Заведеться нова картка — старі розділи оживуть
+        самі, без переписування жодного рядка.
+
+        Віддаємо лише однозначні форми: там, де імʼя веде до кількох сутностей
+        («Катинь» — місце й розстріл), автоматика мовчить — вибір лишається
+        людині там, де вона сама поставила посилання.
+        """
+        index = _entity_index()
+        cards = index.get("cards", {})
+        out: dict[str, str] = {}
+        for form, uids in index.get("forms", {}).items():
+            if len(uids) != 1 or len(form) < 4:
+                continue
+            card = cards.get(uids[0])
+            if card:
+                out[form] = card["title"]
+        return {"forms": out, "count": len(out)}
+
     @router.get("/map/card")
     def map_card(name: str, _session=Depends(require_session)) -> dict[str, Any]:
         """Картка будь-якої сутності за назвою — для кліку по передумові.
