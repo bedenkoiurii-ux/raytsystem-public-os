@@ -45,7 +45,10 @@ function boundedMarkdown(content: string): { content: string; truncated: boolean
       break;
     }
   }
-  return { content: content.slice(0, end), truncated: end < content.length };
+  // HTML-коментарі — службові позначки для конвеєрів (`<!-- apparatus:start -->`),
+  // а не текст для читача. Ховаємо при рендері; файл лишається як є.
+  const visible = content.slice(0, end).replace(/^[ \t]*<!--[\s\S]*?-->[ \t]*\n?/gm, "");
+  return { content: visible, truncated: end < content.length };
 }
 
 function safeLink(url: string): { href: string; external: boolean } | null {

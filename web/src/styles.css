@@ -1573,10 +1573,21 @@ li.open .chev { transform: rotate(90deg); }
 .inline-aside.missing, .inline-aside.choose { background: color-mix(in srgb, var(--gold) 9%, transparent); box-shadow: 0 0 0 .35em color-mix(in srgb, var(--gold) 9%, transparent); }
 .inline-aside.missing .aside-name, .inline-aside.choose .aside-name { color: var(--gold); }
 .inline-aside .done { font: 10.5px var(--mono); color: var(--mint); margin-right: .9em; }
-/* Стек врізок у Документах (⌥-клік або ціль поза дозволеними roots) */
+/* Стек врізок у Документах (⌥-клік або ціль поза дозволеними roots).
+   Стоїть під аркушем окремим блоком, тож папір йому треба дати явно: інакше
+   він висить на темній хромі, а текст у ньому читається як примарний.
+   Аркуш триває, доки триває документ. */
 .document-content .map-inline { max-width: 860px; margin: 0 auto 32px; display: grid; gap: 8px; }
-.document-content.sheet-light .map-inline { padding: 0 60px; }
+.document-content.sheet-light .map-inline {
+  padding: 26px 60px 32px; margin-top: -32px; background: var(--sheet-paper); color: var(--muted);
+  border-radius: 0 0 6px 6px; box-shadow: 0 10px 44px rgba(0,0,0,.35);
+  border: 1px solid rgba(0,0,0,.07); border-top: 0;
+}
 .doc-peek .map-inline { margin: 0 14px 16px; display: grid; gap: 8px; }
+.doc-peek.sheet-light .map-inline {
+  padding: 18px 24px 22px; margin: -28px 0 24px; background: var(--sheet-paper); color: var(--muted);
+  border-radius: 0 0 6px 6px; box-shadow: 0 6px 24px rgba(0,0,0,.22);
+}
 /* Цінність — друга частина врізки: не хроніка, а «чому воно тут». */
 .inline-aside .aside-value { display: block; margin-top: .45em; padding-top: .35em; border-top: 1px solid color-mix(in srgb, var(--cyan) 22%, transparent); }
 .inline-card .aside-body.value { margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--line-soft); }
