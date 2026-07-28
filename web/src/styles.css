@@ -1618,3 +1618,7 @@ li.open .chev { transform: rotate(90deg); }
 .realm-chip.has-card { border-color: color-mix(in srgb, var(--gold) 45%, transparent); }
 .realm-chip .chip-card { color: var(--gold); font-size: 10.5px; }
 .map-realms-cards { width: 100%; display: grid; gap: 6px; margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--line-soft); }
+/* Панель кордонів — сестра мапи в сітці, не її вміст: усередині .map-stage
+   вона обрізалася (там overflow:hidden під зум). Стає під мапою, в тій самій
+   колонці. */
+.map-realms-bar { grid-column: 1; }

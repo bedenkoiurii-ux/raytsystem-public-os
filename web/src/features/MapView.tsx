@@ -491,6 +491,26 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
             </button>
           ) : null}
 
+          {/* Дві ручки на одній шкалі: «від» і «до». Той самий стан, що й поля
+              років праворуч, — рухаєш тут, змінюється там, і навпаки. */}
+          <div className="map-range">
+            <div className="map-range-track">
+              <div className="map-range-fill"
+                   style={{
+                     left: `${((lo - bounds[0]) / Math.max(1, bounds[1] - bounds[0])) * 100}%`,
+                     right: `${100 - ((hi - bounds[0]) / Math.max(1, bounds[1] - bounds[0])) * 100}%`
+                   }} />
+            </div>
+            <input type="range" min={bounds[0]} max={bounds[1]} value={lo} aria-label="Від року"
+                   onChange={(e) => { setSpanByStory(false); setSpan([Math.min(Number(e.target.value), hi), hi]); }} />
+            <input type="range" min={bounds[0]} max={bounds[1]} value={hi} aria-label="До року"
+                   onChange={(e) => { setSpanByStory(false); setSpan([lo, Math.max(Number(e.target.value), lo)]); }} />
+            <span className="map-range-lo">{lo}</span>
+            <span className="map-range-hi">{hi}</span>
+          </div>
+        </div>
+
+
           {/* Простір під мапою, де живуть самі кордони: рік зрізу, що на ньому
               видно, і звідки це взято. Юрій: «під картою може бути простір, де
               зберігається вся ця інформація по роках, по об'єктах». */}
@@ -545,25 +565,6 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
               </div>
             ) : year !== null ? <span className="map-realms-head">Завантажуємо зріз…</span> : null}
           </div>
-
-          {/* Дві ручки на одній шкалі: «від» і «до». Той самий стан, що й поля
-              років праворуч, — рухаєш тут, змінюється там, і навпаки. */}
-          <div className="map-range">
-            <div className="map-range-track">
-              <div className="map-range-fill"
-                   style={{
-                     left: `${((lo - bounds[0]) / Math.max(1, bounds[1] - bounds[0])) * 100}%`,
-                     right: `${100 - ((hi - bounds[0]) / Math.max(1, bounds[1] - bounds[0])) * 100}%`
-                   }} />
-            </div>
-            <input type="range" min={bounds[0]} max={bounds[1]} value={lo} aria-label="Від року"
-                   onChange={(e) => { setSpanByStory(false); setSpan([Math.min(Number(e.target.value), hi), hi]); }} />
-            <input type="range" min={bounds[0]} max={bounds[1]} value={hi} aria-label="До року"
-                   onChange={(e) => { setSpanByStory(false); setSpan([lo, Math.max(Number(e.target.value), lo)]); }} />
-            <span className="map-range-lo">{lo}</span>
-            <span className="map-range-hi">{hi}</span>
-          </div>
-        </div>
 
         <aside className="map-side">
           <div className="map-period">
