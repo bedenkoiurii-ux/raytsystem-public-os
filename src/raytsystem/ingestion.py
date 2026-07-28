@@ -3200,6 +3200,11 @@ class IngestPipeline:
             generation_id=generation.generation_id,
             event_id=event_id,
             txn_id=txn_id,
+            # Імпорт зовнішньої пропозиції змінює провідний сегмент: локальна
+            # модель могла відкинути перші фрагменти як не-твердження. Без
+            # запису в манифест `_load_prepared` віддає старий segment_id, і
+            # промоушен падає на «result snapshot mismatch».
+            segment_id=result.segment_id,
         )
         return _Prepared(
             result=result,
