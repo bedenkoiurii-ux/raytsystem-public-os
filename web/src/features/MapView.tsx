@@ -113,8 +113,21 @@ function useLand(height: number) {
  *  двома різними речима. Тільки те, що справді має картку, — решта чипів
  *  просто не веде нікуди, і це чесніше за посилання в порожнечу. */
 const REALM_CARDS: Record<string, string> = {
+  "Kyivan Rus": "Київська Русь",
+  "Rus": "Київська Русь",
+  "Byzantine Empire": "Візантія",
   "Khanate of the Golden Horde": "Золота Орда",
   "Golden Horde": "Золота Орда",
+  "Grand Duchy of Lithuania": "Велике князівство Литовське",
+  "Lithuania": "Велике князівство Литовське",
+  "Polish-Lithuanian Commonwealth": "Річ Посполита",
+  "Poland-Lithuania": "Річ Посполита",
+  "Cossack Hetmanate": "Гетьманщина",
+  "Zaporozhian Host": "Гетьманщина",
+  "Khazar Khaganate": "Хозарський каганат",
+  "Khazaria": "Хозарський каганат",
+  "Ottoman Empire": "Османська імперія",
+  "Scythia": "Скіфія",
   "Grand Duchy of Moscow": "Москва",
   "Muscovy": "Москва",
   "Tsardom of Russia": "Москва",
