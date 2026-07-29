@@ -510,11 +510,36 @@ def create_map_router(root: Path, *, require_session: Callable[..., Any]) -> API
         # часовий (Юрій, 2026-07-27). Сюжети без жодної точки на мапі лишаються
         # в списку на своєму місці в часі — вони теж частина розповіді.
         out.sort(key=lambda s: (s["from"], s["to"]))
+        # Люди на мапі. ЗАУВАГА ЮРІЯ (2026-07-29): «не бачу на нашій мапі
+        # іменних посилань… я маю на увазі людей: Геродота, Володимира».
+        # Конвеєр гео проставив `place:` маршрутом життя — Геродот має
+        # «Галікарнас → Самос → Афіни → Фурії», — але мапа брала лише місця
+        # й події. Людина на мапі — не точка народження, а лінія життя.
+        people: list[dict[str, Any]] = []
+        folk = root / "30-Research" / "People"
+        for path in sorted(folk.glob("*.md")) if folk.is_dir() else []:
+            text = path.read_text(encoding="utf-8", errors="ignore")
+            fm = _front(text)
+            route = _route(_field(fm, "place"), alias)
+            if not route:
+                continue
+            start, end = _field(fm, "time_start"), _field(fm, "time_end")
+            people.append({
+                "title": _field(fm, "title") or path.stem,
+                "year": int(start) if re.fullmatch(r"-?\d+", start or "") else None,
+                "year_end": int(end) if re.fullmatch(r"-?\d+", end or "") else None,
+                "route": route,
+                "place_raw": _field(fm, "place"),
+                "path": str(path.relative_to(root)),
+                "document_id": _doc_id(str(path.relative_to(root))),
+            })
+
         return {
             "places": list(canon.values()),
             "periods": _periods(),
             "stories": out,
             "loose": sorted(loose, key=lambda e: e["year"]),
+            "people": people,
         }
 
     return router

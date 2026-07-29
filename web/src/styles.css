@@ -1659,3 +1659,10 @@ li.open .chev { transform: rotate(90deg); }
 .map-frames button.towns.on { background: color-mix(in srgb, var(--bone) 14%, transparent); color: var(--bone); border-color: var(--bone); }
 .map-core-note.towns { border-left-color: color-mix(in srgb, var(--bone) 40%, transparent); }
 .map-core-note.towns b { color: var(--bone); }
+/* Люди на мапі: лінія життя, а не точка народження. Ім'я підписане завжди —
+   це і є «іменні посилання», яких бракувало. */
+.map-folk path { fill: none; stroke: color-mix(in srgb, var(--mint, #7fd1ae) 60%, transparent); stroke-dasharray: 2 3; vector-effect: non-scaling-stroke; }
+.map-folk circle { fill: color-mix(in srgb, var(--mint, #7fd1ae) 80%, transparent); }
+.map-folk text { fill: color-mix(in srgb, var(--mint, #7fd1ae) 90%, transparent); font-family: var(--mono); paint-order: stroke; stroke: rgba(0,0,0,.6); stroke-width: 2.4px; cursor: pointer; }
+.map-folk g:hover circle, .map-folk g:hover text { fill: var(--gold); }
+.map-frames button.folk.on { background: color-mix(in srgb, var(--mint, #7fd1ae) 16%, transparent); color: var(--mint, #7fd1ae); border-color: var(--mint, #7fd1ae); }

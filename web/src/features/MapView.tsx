@@ -32,7 +32,8 @@ interface Place { title: string; lat: number; lon: number; path: string; documen
 interface StoryEvent { title: string; year: number; year_end: number | null; place_raw: string; route: string[]; path: string; document_id: string | null }
 interface Story { title: string; from: number; to: number; events: StoryEvent[]; mapped: number }
 interface Period { title: string; from: number; to: number; path: string }
-interface MapData { places: Place[]; periods: Period[]; stories: Story[]; loose: StoryEvent[] }
+interface Person { title: string; year: number | null; year_end: number | null; route: string[]; place_raw: string; path: string; document_id: string | null }
+interface MapData { places: Place[]; periods: Period[]; stories: Story[]; loose: StoryEvent[]; people: Person[] }
 interface EventCard {
   title: string; year: string; year_end: string; place: string;
   what: string; consequences: string; related: string[]; sides: string; path: string; document_id: string | null;
@@ -415,6 +416,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
   const [realmCards, setRealmCards] = useState<string[]>([]);
   const [core, setCore] = useState(false);
   const coreLayer = useCore(core, projection, projKey);
+  const [folk, setFolk] = useState(false);
   const [towns, setTowns] = useState(false);
   const townLayer = usePlaces(towns, year, projection, projKey);
   const realms = useRealms(year, projection, projKey);
@@ -455,6 +457,19 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
 
   // Сюжет входить у зріз, якщо його роки перетинаються з обраним періодом.
   const [lo, hi] = span ?? bounds;
+
+  // Мапа йде за читанням. ЗАДУМ ЮРІЯ (2026-07-29): «мапа ілюструє текст, який
+  // ми зараз бачимо, буквально: що зараз відкрито, те й відображено». Відкритий
+  // розділ задає не лише підсвітку точок, а й епоху: кордони стрибають на зріз,
+  // найближчий до середини його часу, а не лишаються від попереднього перегляду.
+  useEffect(() => {
+    const story = stories.find((s) => s.title === (openStory ?? active));
+    if (!story) return;
+    const middle = Math.round((story.from + (story.to || story.from)) / 2);
+    setYear(sliceFor(middle));
+    setSpan([story.from, story.to || story.from]);
+    setSpanByStory(true);
+  }, [openStory, active, stories]);
 
   // Точки обраного сюжету. Решта лишається на мапі, але тьмяною й без підпису —
   // саме нагромадження підписів робило мапу нечитною.
@@ -595,6 +610,35 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
               {(land.data ?? []).map((d, i) => <path key={i} d={d} style={{ strokeWidth: 0.6 / view.k }} />)}
             </g>
 
+            {/* Люди — лінія життя, не точка народження. Юрій: «не бачу на нашій
+                мапі іменних посилань… я маю на увазі людей: Геродота, Володимира».
+                Маршрут із `place:` картки: «Галікарнас → Самос → Афіни → Фурії». */}
+            {folk ? (
+              <g className="map-folk">
+                {(data.data?.people ?? [])
+                  .filter((p) => !span || ((p.year ?? 0) <= span[1] && (p.year_end ?? p.year ?? 9999) >= span[0]))
+                  .map((person) => {
+                    const stops = person.route.map((n) => places.get(n)).filter(Boolean) as (Place & { x: number; y: number; on: boolean })[];
+                    const seen = stops.filter((s) => s.on);
+                    if (!seen.length) return null;
+                    const line = seen.map((s, i) => `${i ? "L" : "M"}${s.x.toFixed(1)} ${s.y.toFixed(1)}`).join("");
+                    const head = seen[0];
+                    return (
+                      <g key={person.path} onClick={() => person.document_id && onOpenDocument?.(person.document_id)}>
+                        {seen.length > 1 ? <path d={line} style={{ strokeWidth: 1.1 / view.k }} /> : null}
+                        {seen.map((s, i) => (
+                          <circle key={i} cx={s.x} cy={s.y} r={2.4 / view.k} />
+                        ))}
+                        <text x={head.x + 5 / view.k} y={head.y + 3 / view.k}
+                              style={{ fontSize: `${10.5 / view.k}px` }}>
+                          {person.title}{person.year !== null ? ` · ${person.year < 0 ? -person.year + " до н.е." : person.year}` : ""}
+                        </text>
+                      </g>
+                    );
+                  })}
+              </g>
+            ) : null}
+
             {/* Міста атласу — тлом під нашими точками: дрібно, без підписів,
                 бо їх дві тисячі. Наші місця лишаються яскравими, бо про них
                 бібліотека має що сказати. */}
@@ -724,6 +768,11 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                   {f.label}
                 </button>
               ))}
+              <button type="button" className={folk ? "on folk" : "folk"}
+                      title="Люди бібліотеки: лінія життя за place: картки"
+                      onClick={() => setFolk((v) => !v)}>
+                Люди
+              </button>
               <button type="button" className={towns ? "on towns" : "towns"}
                       title="Міста з історичного атласу — ширше за нашу бібліотеку"
                       onClick={() => setTowns((v) => !v)}>
