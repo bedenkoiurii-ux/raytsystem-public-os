@@ -1264,7 +1264,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                               className={`realm-chip p${r.precision && r.precision >= 1 ? r.precision : 1}`
                                          + (realm?.name === r.name ? " on" : "")
                                          + (REALM_CARDS[r.name] ? " has-card" : "")}
-                              title={`${r.name}${REALM_CARDS[r.name] ? ` · відкрити картку «${REALM_CARDS[r.name]}»` : ""}`}
+                              title={REALM_CARDS[r.name] ? `Відкрити картку «${REALM_CARDS[r.name]}»` : undefined}
                               onMouseEnter={() => setRealm(r)} onMouseLeave={() => setRealm(null)}
                               onClick={() => {
                                 const card = REALM_CARDS[r.name];
