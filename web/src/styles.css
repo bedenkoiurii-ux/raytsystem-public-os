@@ -1650,3 +1650,12 @@ li.open .chev { transform: rotate(90deg); }
 .map-frames button.core.on { background: color-mix(in srgb, var(--gold) 18%, transparent); color: var(--gold); border-color: var(--gold); }
 .map-core-note { font-size: 11px; color: var(--muted-2); line-height: 1.55; width: 100%; border-left: 2px solid color-mix(in srgb, var(--gold) 50%, transparent); padding-left: 8px; }
 .map-core-note b { color: var(--gold); font-weight: 500; }
+/* Міста атласу — тло розповіді. Дрібні й тьмяні: вони контекст, а не сюжет;
+   яскравими лишаються ті, про які бібліотека має картку. */
+.map-towns circle { fill: color-mix(in srgb, var(--bone) 34%, transparent); }
+.map-towns circle.dated { fill: color-mix(in srgb, var(--cyan) 55%, transparent); }
+.map-towns circle:hover { fill: var(--gold); }
+.map-frames button.towns { border-color: color-mix(in srgb, var(--bone) 30%, transparent); }
+.map-frames button.towns.on { background: color-mix(in srgb, var(--bone) 14%, transparent); color: var(--bone); border-color: var(--bone); }
+.map-core-note.towns { border-left-color: color-mix(in srgb, var(--bone) 40%, transparent); }
+.map-core-note.towns b { color: var(--bone); }

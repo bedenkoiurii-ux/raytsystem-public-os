@@ -235,6 +235,41 @@ function useCore(on: boolean, projection: Projection, key: string) {
   });
 }
 
+/** Міста з історичного атласу — 2 220 точок, ширші за нашу бібліотеку.
+ *
+ *  ЗАДУМ ЮРІЯ (2026-07-29): «мапа — це надкнига, це наша більш загальна база
+ *  знань зі своїми картками, питаннями, есеями, проєктами». Тобто показувати
+ *  варто й ті міста, про які книга ще не говорить: можливо, заговорить.
+ *
+ *  Дата заснування є лише в 70 точках із 2 220 — тож фільтр за часом чесно
+ *  застосовується тільки до них. Решта показується завжди: «дати не знаємо»
+ *  і «міста тоді не було» — різні твердження, і плутати їх не можна.
+ */
+function usePlaces(on: boolean, year: number | null, projection: Projection, key: string) {
+  return useQuery({
+    queryKey: ["map", "places", key, year],
+    enabled: on,
+    staleTime: Infinity,
+    queryFn: async () => {
+      const data = (await import("./historical/places.json")).default as unknown as {
+        places: { n: string; o?: string; x: number; y: number; s?: number; u?: number }[];
+      };
+      return data.places
+        .filter((p) => {
+          if (year === null) return true;
+          if (p.s !== undefined && year < p.s) return false;   // ще не існувало
+          if (p.u !== undefined && year > p.u) return false;    // вже не існувало
+          return true;
+        })
+        .filter((p) => projection.visible(p.y, p.x))
+        .map((p) => {
+          const [x, y] = projection.toScreen(p.y, p.x);
+          return { ...p, sx: x, sy: y, dated: p.s !== undefined };
+        });
+    }
+  });
+}
+
 function useRealms(year: number | null, projection: Projection, key: string) {
   const slice = year === null ? null : sliceFor(year);
   return useQuery({
@@ -380,6 +415,8 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
   const [realmCards, setRealmCards] = useState<string[]>([]);
   const [core, setCore] = useState(false);
   const coreLayer = useCore(core, projection, projKey);
+  const [towns, setTowns] = useState(false);
+  const townLayer = usePlaces(towns, year, projection, projKey);
   const realms = useRealms(year, projection, projKey);
   const drag = useRef<{ px: number; py: number; x: number; y: number; spinLat: number; spinLon: number } | null>(null);
   const stage = useRef<HTMLDivElement | null>(null);
@@ -558,6 +595,21 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
               {(land.data ?? []).map((d, i) => <path key={i} d={d} style={{ strokeWidth: 0.6 / view.k }} />)}
             </g>
 
+            {/* Міста атласу — тлом під нашими точками: дрібно, без підписів,
+                бо їх дві тисячі. Наші місця лишаються яскравими, бо про них
+                бібліотека має що сказати. */}
+            {townLayer.data ? (
+              <g className="map-towns">
+                {townLayer.data.map((p) => (
+                  <circle key={`${p.n}-${p.x}-${p.y}`} cx={p.sx} cy={p.sy}
+                          r={(p.dated ? 1.9 : 1.3) / view.k}
+                          className={p.dated ? "dated" : ""}>
+                    <title>{p.o ? `${p.n} (${p.o})` : p.n}{p.s !== undefined ? ` · від ${p.s < 0 ? -p.s + " до н.е." : p.s}` : ""}</title>
+                  </circle>
+                ))}
+              </g>
+            ) : null}
+
             {/* Ядро Русі — під історичними кордонами, щоб було видно, як
                 приріст лягає навколо нього. */}
             {coreLayer.data?.path ? (
@@ -672,6 +724,11 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                   {f.label}
                 </button>
               ))}
+              <button type="button" className={towns ? "on towns" : "towns"}
+                      title="Міста з історичного атласу — ширше за нашу бібліотеку"
+                      onClick={() => setTowns((v) => !v)}>
+                Міста епохи
+              </button>
               <button type="button" className={core ? "on core" : "core"}
                       title="«Руська земля» у вузькому сенсі: Київ — Чернігів — Переяслав"
                       onClick={() => setCore((v) => !v)}>
@@ -689,6 +746,14 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                 </span>
               ) : null}
             </div>
+            {towns && townLayer.data ? (
+              <span className="map-core-note towns">
+                <b>Міста епохи — {townLayer.data.length} точок.</b> З історичного атласу,
+                ширше за бібліотеку: мапа — не ілюстрація книги, а власна база знань.
+                Дата заснування відома лише для 70 міст — решта показується завжди,
+                бо «дати не знаємо» і «міста тоді не було» — різні твердження.
+              </span>
+            ) : null}
             {core && coreLayer.data ? (
               <span className="map-core-note">
                 <b>Ядро — «Руська земля» у вузькому сенсі.</b> {coreLayer.data.note}
