@@ -6,107 +6,107 @@
   {
    "year": -500,
    "file": "bc500.json",
-   "count": 30
+   "count": 188
   },
   {
    "year": -323,
    "file": "bc323.json",
-   "count": 31
+   "count": 148
   },
   {
    "year": -100,
    "file": "bc100.json",
-   "count": 33
+   "count": 232
   },
   {
    "year": 100,
    "file": "100.json",
-   "count": 66
+   "count": 434
   },
   {
    "year": 400,
    "file": "400.json",
-   "count": 29
+   "count": 361
   },
   {
    "year": 700,
    "file": "700.json",
-   "count": 65
+   "count": 252
   },
   {
    "year": 900,
    "file": "900.json",
-   "count": 47
+   "count": 243
   },
   {
    "year": 1000,
    "file": "1000.json",
-   "count": 52
+   "count": 263
   },
   {
    "year": 1100,
    "file": "1100.json",
-   "count": 60
+   "count": 234
   },
   {
    "year": 1200,
    "file": "1200.json",
-   "count": 45
+   "count": 285
   },
   {
    "year": 1279,
    "file": "1279.json",
-   "count": 45
+   "count": 246
   },
   {
    "year": 1300,
    "file": "1300.json",
-   "count": 34
+   "count": 236
   },
   {
    "year": 1400,
    "file": "1400.json",
-   "count": 37
+   "count": 232
   },
   {
    "year": 1492,
    "file": "1492.json",
-   "count": 34
+   "count": 1945
   },
   {
    "year": 1500,
    "file": "1500.json",
-   "count": 34
+   "count": 290
   },
   {
    "year": 1530,
    "file": "1530.json",
-   "count": 47
+   "count": 493
   },
   {
    "year": 1600,
    "file": "1600.json",
-   "count": 44
+   "count": 865
   },
   {
    "year": 1650,
    "file": "1650.json",
-   "count": 39
+   "count": 777
   },
   {
    "year": 1700,
    "file": "1700.json",
-   "count": 41
+   "count": 781
   },
   {
    "year": 1783,
    "file": "1783.json",
-   "count": 72
+   "count": 640
   },
   {
    "year": 1800,
    "file": "1800.json",
-   "count": 61
+   "count": 626
   }
  ]
 }

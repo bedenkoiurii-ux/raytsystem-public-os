@@ -39,17 +39,61 @@ interface EventCard {
 }
 
 const projectY = (lat: number) => Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360));
-const SCALE = W / (BOX.lonMax - BOX.lonMin);        // пікселів на градус довготи
-const yMid = projectY(BOX.latCenter);
-/** Меркатор зі спільним масштабом по обох осях — інакше контур спотворився б. */
 /** Затискач, що не пропускає NaN: будь-яке нечисло дає межу, а не зламаний viewBox. */
 const clamp = (value: number, low: number, high: number) =>
   Number.isFinite(value) ? Math.min(Math.max(value, low), high) : low;
 
-const toScreen = (lat: number, lon: number, height: number): [number, number] => [
-  (lon - BOX.lonMin) * SCALE,
-  height / 2 - (projectY(lat) - yMid) * SCALE * DEG
-];
+/** Вікна мапи. ЗАУВАГА ЮРІЯ (2026-07-29): «зараз я не бачу півночі і півдня,
+ *  мапа зосереджена на київській оптиці». Розповідь виходить далеко за Європу —
+ *  вікінги, Британія, Африка, Азія, увесь СРСР із системою ГУЛАГ. */
+export const FRAMES: Record<string, { label: string; lonMin: number; lonMax: number; latCenter: number }> = {
+  rus:     { label: "Русь і степ",     lonMin: -8,   lonMax: 52,  latCenter: 47 },
+  europe:  { label: "Європа й Візантія", lonMin: -12, lonMax: 62,  latCenter: 45 },
+  eurasia: { label: "Євразія",         lonMin: -25,  lonMax: 190, latCenter: 50 },
+  world:   { label: "Світ",            lonMin: -180, lonMax: 180, latCenter: 20 },
+};
+
+export type Frame = keyof typeof FRAMES;
+export interface Projection {
+  toScreen: (lat: number, lon: number) => [number, number];
+  /** Чи точка на видимій півкулі. Для плоскої карти — завжди true. */
+  visible: (lat: number, lon: number) => boolean;
+}
+
+/** Меркатор зі спільним масштабом по обох осях — інакше контур спотворився б. */
+function mercator(frame: Frame, height: number): Projection {
+  const box = FRAMES[frame];
+  const scale = W / (box.lonMax - box.lonMin);
+  const yMid = projectY(box.latCenter);
+  return {
+    toScreen: (lat, lon) => [
+      (lon - box.lonMin) * scale,
+      height / 2 - (projectY(clamp(lat, -84, 84)) - yMid) * scale * DEG,
+    ],
+    visible: () => true,
+  };
+}
+
+/** Глобус — ортографічна проєкція: як планета з орбіти, півкуля за раз.
+ *  Обертається перетягуванням; зворотний бік не малюємо, бо на сфері він
+ *  фізично не видимий, а не «поза кадром». */
+function orthographic(lat0: number, lon0: number, height: number): Projection {
+  const R = Math.min(W, height) * 0.46;
+  const cx = W / 2;
+  const cy = height / 2;
+  const rad = Math.PI / 180;
+  const sinP = Math.sin(lat0 * rad);
+  const cosP = Math.cos(lat0 * rad);
+  const cosC = (lat: number, lon: number) =>
+    sinP * Math.sin(lat * rad) + cosP * Math.cos(lat * rad) * Math.cos((lon - lon0) * rad);
+  return {
+    toScreen: (lat, lon) => [
+      cx + R * Math.cos(lat * rad) * Math.sin((lon - lon0) * rad),
+      cy - R * (cosP * Math.sin(lat * rad) - sinP * Math.cos(lat * rad) * Math.cos((lon - lon0) * rad)),
+    ],
+    visible: (lat, lon) => cosC(lat, lon) >= 0,
+  };
+}
 
 function useMapData() {
   return useQuery({
@@ -80,9 +124,9 @@ function useEventCard(path: string | null) {
   });
 }
 
-function useLand(height: number) {
+function useLand(projection: Projection, key: string) {
   return useQuery({
-    queryKey: ["map", "land", height],
+    queryKey: ["map", "land", key],
     staleTime: Infinity,
     queryFn: async () => {
       // Контур у бандлі окремим чанком: CSP має connect-src 'self', зовнішні
@@ -95,12 +139,17 @@ function useLand(height: number) {
         for (const poly of feature.geometry?.coordinates ?? []) {
           const ring = poly[0];
           if (!ring?.length) continue;
+          // На глобусі кільце може заходити за край: рвемо його там, де
+          // точки йдуть на зворотний бік, інакше суша «протикає» планету.
           let d = "";
-          ring.forEach(([lon, lat], i) => {
-            const [x, y] = toScreen(lat, lon, height);
-            d += `${i ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`;
-          });
-          paths.push(`${d}Z`);
+          let pen = false;
+          for (const [lon, lat] of ring) {
+            if (!projection.visible(lat, lon)) { pen = false; continue; }
+            const [x, y] = projection.toScreen(lat, lon);
+            d += `${pen ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`;
+            pen = true;
+          }
+          if (d) paths.push(d);
         }
       }
       return paths;
@@ -150,10 +199,10 @@ export function sliceFor(year: number): number {
   return SLICES.reduce((best, y) => (Math.abs(y - year) < Math.abs(best - year) ? y : best), SLICES[0]);
 }
 
-function useRealms(year: number | null, height: number) {
+function useRealms(year: number | null, projection: Projection, key: string) {
   const slice = year === null ? null : sliceFor(year);
   return useQuery({
-    queryKey: ["map", "realms", slice, height],
+    queryKey: ["map", "realms", slice, key],
     enabled: slice !== null,
     staleTime: Infinity,
     queryFn: async () => {
@@ -176,11 +225,14 @@ function useRealms(year: number | null, height: number) {
           for (const ring of poly) {
             if (!ring?.length) continue;
             let d = "";
-            ring.forEach(([lon, lat], i) => {
-              const [x, y] = toScreen(lat, lon, height);
-              d += `${i ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`;
-            });
-            paths.push(`${d}Z`);
+            let pen = false;
+            for (const [lon, lat] of ring) {
+              if (!projection.visible(lat, lon)) { pen = false; continue; }
+              const [x, y] = projection.toScreen(lat, lon);
+              d += `${pen ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`;
+              pen = true;
+            }
+            if (d) paths.push(`${d}Z`);
           }
         }
         if (paths.length && feature.properties.name) {
@@ -274,7 +326,15 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
   // Висота полотна в одиницях viewBox — з реальної форми контейнера, щоб
   // мапа показувала більше географії, а не порожні поля.
   const [H, setH] = useState(620);
-  const land = useLand(H);
+  // Режим показу: плоска карта з вибраним вікном або глобус, який обертається.
+  const [frame, setFrame] = useState<Frame>("rus");
+  const [globe, setGlobe] = useState(false);
+  const [spin, setSpin] = useState({ lat: 40, lon: 30 });   // центр глобуса
+  const projection = useMemo(
+    () => (globe ? orthographic(spin.lat, spin.lon, H) : mercator(frame, H)),
+    [globe, spin.lat, spin.lon, frame, H]);
+  const projKey = globe ? `globe:${spin.lat}:${spin.lon}:${H}` : `flat:${frame}:${H}`;
+  const land = useLand(projection, projKey);
   // Рік, на який показуємо кордони. Типово вимкнено: territorії — окремий
   // шар, а не тло, і читач вмикає його свідомо.
   const [year, setYear] = useState<number | null>(null);
@@ -282,8 +342,8 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
   // Утворення, чиї картки читач розкрив просто в панелі кордонів: територія
   // на мапі й розповідь про неї стають однією річчю, а не двома.
   const [realmCards, setRealmCards] = useState<string[]>([]);
-  const realms = useRealms(year, H);
-  const drag = useRef<{ px: number; py: number; x: number; y: number } | null>(null);
+  const realms = useRealms(year, projection, projKey);
+  const drag = useRef<{ px: number; py: number; x: number; y: number; spinLat: number; spinLon: number } | null>(null);
   const stage = useRef<HTMLDivElement | null>(null);
   // callback-ref, а не useEffect: на момент монтування вікно ще показує
   // LoadingState, вузла немає, і спостерігач нізащо не приєднається.
@@ -302,13 +362,15 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
   }, []);
 
   const places = useMemo(() => {
-    const map = new Map<string, Place & { x: number; y: number }>();
+    const map = new Map<string, Place & { x: number; y: number; on: boolean }>();
     for (const p of data.data?.places ?? []) {
-      const [x, y] = toScreen(p.lat, p.lon, H);
-      map.set(p.title, { ...p, x, y });
+      const [x, y] = projection.toScreen(p.lat, p.lon);
+      // `on` — чи точка на видимій півкулі: на глобусі половина світу за
+      // обрієм, і малювати її означало б розпластати сферу.
+      map.set(p.title, { ...p, x, y, on: projection.visible(p.lat, p.lon) });
     }
     return map;
-  }, [data.data, H]);
+  }, [data.data, projKey]);
 
   const stories = data.data?.stories ?? [];
   const bounds = useMemo(() => {
@@ -370,6 +432,17 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
     const start = drag.current;                 // знімок ДО setView
     const box = stage.current?.getBoundingClientRect();
     if (!start || !box || !box.width || !box.height) return;
+    // Глобус не панорамують — його обертають: перетягування міняє точку, з якої
+    // дивимось, а не зсуває полотно. Широту тримаємо в межах полюсів.
+    if (globe) {
+      const dLon = ((e.clientX - start.px) / box.width) * 180;
+      const dLat = ((e.clientY - start.py) / box.height) * 120;
+      setSpin({
+        lat: clamp(start.spinLat - dLat, -85, 85),
+        lon: ((start.spinLon - dLon + 540) % 360) - 180,
+      });
+      return;
+    }
     const dx = ((e.clientX - start.px) / box.width) * (W / view.k);
     const dy = ((e.clientY - start.py) / box.height) * (H / view.k);
     // Оновлювач стану виконується асинхронно: читати drag.current усередині
@@ -427,7 +500,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
           <svg viewBox={`${view.x} ${view.y} ${W / view.k} ${H / view.k}`} className="map-svg"
                role="img" aria-label="Мапа сюжетів"
                onWheel={onWheel} onMouseMove={onMove}
-               onMouseDown={(e) => { drag.current = { px: e.clientX, py: e.clientY, x: view.x, y: view.y }; }}
+               onMouseDown={(e) => { drag.current = { px: e.clientX, py: e.clientY, x: view.x, y: view.y, spinLat: spin.lat, spinLon: spin.lon }; }}
                onMouseUp={() => { drag.current = null; }} onMouseLeave={() => { drag.current = null; }}>
             <defs>
               <marker id="arrow" viewBox="0 0 8 8" refX="7" refY="4"
@@ -435,6 +508,13 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                 <path d="M0 0 L8 4 L0 8 z" className="map-arrow" />
               </marker>
             </defs>
+
+            {/* Сфера планети: без неї глобус читається як розсип уривків
+                ліній, бо ортографія малює саму лише сушу видимої півкулі. */}
+            {globe ? (
+              <circle className="map-globe" cx={W / 2} cy={H / 2}
+                      r={Math.min(W, H) * 0.46} style={{ strokeWidth: 1 / view.k }} />
+            ) : null}
 
             <g className="map-land">
               {(land.data ?? []).map((d, i) => <path key={i} d={d} style={{ strokeWidth: 0.6 / view.k }} />)}
@@ -529,6 +609,28 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
               видно, і звідки це взято. Юрій: «під картою може бути простір, де
               зберігається вся ця інформація по роках, по об'єктах». */}
           <div className="map-realms-bar">
+            {/* Вікно показу. «Русь і степ» — київська оптика, з якої мапа
+                починалась; решта відкриває північ, південь і схід, куди
+                розповідь виходить: вікінги, Африка, Азія, ГУЛАГ до Колими. */}
+            <div className="map-frames">
+              {Object.entries(FRAMES).map(([id, f]) => (
+                <button key={id} type="button" className={!globe && frame === id ? "on" : ""}
+                        onClick={() => { setGlobe(false); setFrame(id as Frame); setView({ x: 0, y: 0, k: 1 }); }}>
+                  {f.label}
+                </button>
+              ))}
+              <button type="button" className={globe ? "on globe" : "globe"}
+                      title="Глобус: перетягуванням обертати"
+                      onClick={() => { setGlobe(true); setView({ x: 0, y: 0, k: 1 }); }}>
+                Глобус
+              </button>
+              {globe ? (
+                <span className="map-frames-hint">
+                  {Math.abs(spin.lat).toFixed(0)}°{spin.lat >= 0 ? "пн" : "пд"}{" "}
+                  {Math.abs(spin.lon).toFixed(0)}°{spin.lon >= 0 ? "сх" : "зх"} · тягніть, щоб обертати
+                </span>
+              ) : null}
+            </div>
             <div className="map-realms-years">
               <button type="button" className={year === null ? "on" : ""}
                       onClick={() => { setYear(null); setRealm(null); }}>без кордонів</button>

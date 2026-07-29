@@ -1630,3 +1630,13 @@ li.open .chev { transform: rotate(90deg); }
    з'їжджав під мапу: верхні лінії колонок мають збігатися (Юрій). */
 .map-left { display: grid; gap: 10px; align-content: start; min-width: 0; }
 .map-realms-bar { grid-column: auto; }
+/* Вікна мапи й глобус. Київська оптика — лише одне з вікон, а не єдине. */
+.map-frames { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-bottom: 2px; }
+.map-frames button { font-size: 11.5px; padding: 3px 9px; border-radius: var(--radius-xs); border: 1px solid var(--line); background: transparent; color: var(--muted-2); cursor: pointer; }
+.map-frames button:hover { color: var(--bone); border-color: var(--cyan); }
+.map-frames button.on { background: color-mix(in srgb, var(--cyan) 16%, transparent); color: var(--cyan); border-color: var(--cyan); }
+.map-frames button.globe { border-style: dashed; }
+.map-frames button.globe.on { border-style: solid; background: color-mix(in srgb, var(--gold) 14%, transparent); color: var(--gold); border-color: var(--gold); }
+.map-frames-hint { font: 10.5px var(--mono); color: var(--muted-2); margin-left: 4px; }
+/* Планета під контуром: океан і край диска. Робить ортографію впізнаваною. */
+.map-globe { fill: color-mix(in srgb, var(--cyan) 6%, var(--carbon)); stroke: color-mix(in srgb, var(--cyan) 30%, transparent); }
