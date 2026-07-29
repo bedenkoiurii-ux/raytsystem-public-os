@@ -143,7 +143,17 @@ const yearText = (y: number): string => (y < 0 ? `${-y} до н.е.` : String(y)
 
 function whenLabel(years: string, birth: number | null, death: number | null): string {
   const clean = years.trim();
-  if (/^(нар|пом|княз|митр|заснув)/i.test(clean)) return clean;   // автор сказав сам
+  if (/^(нар|пом|княж|княз|митр|заснув|гетьман|заслан)/i.test(clean)) {
+    // Перерваний строк стискаємо до крайніх років: «княж. 1149–1151, 1155–1157»
+    // не вміщався на мапі, і підпис Києва зникав зовсім. Повний запис лишається
+    // в підказці точки — на мапі важливіше бачити, що місто взагалі підписане.
+    const all = (clean.match(/-?\d+/g) ?? []).map(Number);
+    if (all.length > 2) {
+      const mark = clean.match(/^[^\d]+/)?.[0].trim() ?? "";
+      return `${mark} ${Math.min(...all)}–${Math.max(...all)}`.trim();
+    }
+    return clean;
+  }
   const numbers = (clean.match(/-?\d+/g) ?? []).map(Number);
   if (!numbers.length) return clean;
   // Тільки коли в дужках ОДНЕ число: «Київ (1149–1151, 1155–1157)» — це роки
@@ -676,14 +686,14 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
     // 1. Те, що читач щойно вибрав: спершу імʼя, тоді міста його маршруту.
     if (folk && solo) {
       const person = (data.data?.people ?? []).find((x) => x.title === solo);
-      const first = (person?.route ?? []).map((n) => places.get(n)).find((x) => x?.on);
-      if (person && first) {
-        const label = person.title + (person.year !== null ? ` · ${yearText(person.year)}` : "");
-        if (say(label, first.x + 5 / view.k, first.y - 7 / view.k, 10.5)) ok.names.add(person.title);
-      }
       for (const name of person?.route ?? []) {
         const pt = places.get(name);
         if (pt?.on && say(name, pt.x + 5 / view.k, pt.y + 3 / view.k, 10)) ok.folk.add(name);
+      }
+      const first = (person?.route ?? []).map((n) => places.get(n)).find((x) => x?.on);
+      if (person && first) {
+        const label = person.title + (person.year !== null ? ` · ${yearText(person.year)}` : "");
+        if (say(label, first.x + 5 / view.k, first.y - 18 / view.k, 10.5)) ok.names.add(person.title);
       }
     } else if (folk) {
       for (const person of data.data?.people ?? []) {
@@ -694,9 +704,15 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
       }
     }
     // 2. Підписи наших контурів — опорні міста ядра, Скіфії, князівств.
+    //    Міста обраного маршруту сюди не потрапляють: Київ і Переяслав —
+    //    якорі ядра Русі, і вони забирали імʼя в маршруту Долгорукого, хоч
+    //    читач вибрав саме його. Вибір читача головніший за тло.
+    const onRoute = new Set(
+      solo ? (data.data?.people ?? []).find((x) => x.title === solo)?.route ?? [] : []);
     for (const layer of coreLayer.data ?? []) {
       if (hidden.has(layer.id)) continue;
       for (const a of layer.points) {
+        if (onRoute.has(a.name)) continue;
         if (say(a.name, a.xy[0] + 5 / view.k, a.xy[1] - 4 / view.k, 11)) ok.anchors.add(a.name);
       }
     }
@@ -868,7 +884,9 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                       <g key={person.path} onClick={() => person.document_id && onOpenDocument?.(person.document_id)}>
                         {seen.length > 1 ? <path d={line} style={{ strokeWidth: 1.1 / view.k }} /> : null}
                         {seen.map((s, i) => (
-                          <circle key={i} cx={s.x} cy={s.y} r={2.4 / view.k} />
+                          <circle key={i} cx={s.x} cy={s.y} r={2.4 / view.k}>
+                            <title>{s.title}{person.when?.[s.title] ? ` — ${person.when[s.title]}` : ""}</title>
+                          </circle>
                         ))}
                         {/* У соло-режимі підписуємо самі МІСТА маршруту: на
                             точці Москви стояло імʼя князя й рік народження, і
@@ -887,7 +905,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                             ))
                           : null}
                         {labels.names.has(person.title) ? (
-                          <text x={head.x + 5 / view.k} y={head.y - 7 / view.k}
+                          <text x={head.x + 5 / view.k} y={head.y - 18 / view.k}
                                 style={{ fontSize: `${10.5 / view.k}px` }}>
                             {person.title}
                             {person.year !== null
