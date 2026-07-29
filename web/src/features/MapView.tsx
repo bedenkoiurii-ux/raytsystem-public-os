@@ -427,8 +427,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
   // Утворення, чиї картки читач розкрив просто в панелі кордонів: територія
   // на мапі й розповідь про неї стають однією річчю, а не двома.
   const [realmCards, setRealmCards] = useState<string[]>([]);
-  const [core, setCore] = useState(false);
-  const coreLayer = useOwnLayers(core, year, projection, projKey);
+  const coreLayer = useOwnLayers(year !== null, year, projection, projKey);
   const [folk, setFolk] = useState(false);
   const [towns, setTowns] = useState(false);
   const townLayer = usePlaces(towns, year, projection, projKey);
@@ -487,8 +486,8 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
   // Імена, які вже підписало ядро: інакше на Києві, Чернігові й Переяславі
   // лежало б по два однакові написи один на одному (Юрій).
   const coreNames = useMemo(
-    () => new Set(core ? (coreLayer.data ?? []).flatMap((l) => l.anchors.map((a) => a.name)) : []),
-    [core, coreLayer.data]);
+    () => new Set((coreLayer.data ?? []).flatMap((l) => l.anchors.map((a) => a.name))),
+    [coreLayer.data]);
 
   // Точки обраного сюжету. Решта лишається на мапі, але тьмяною й без підпису —
   // саме нагромадження підписів робило мапу нечитною.
@@ -690,7 +689,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
 
             {/* Ядро Русі — під історичними кордонами, щоб було видно, як
                 приріст лягає навколо нього. */}
-            {core && coreLayer.data?.length ? (
+            {coreLayer.data?.length ? (
               <g className="map-core">
                 {coreLayer.data.map((l) => (
                   <g key={l.id} className={`own-${l.tone}`}>
@@ -816,11 +815,6 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                       onClick={() => setTowns((v) => !v)}>
                 Міста епохи
               </button>
-              <button type="button" className={core ? "on core" : "core"}
-                      title="Наші контури: ядро Русі та Скіфія — те, що джерела описують словами"
-                      onClick={() => setCore((v) => !v)}>
-                Ядро й Скіфія
-              </button>
               <button type="button" className={globe ? "on globe" : "globe"}
                       title="Глобус: перетягуванням обертати"
                       onClick={() => { setGlobe(true); setView({ x: 0, y: 0, k: 1 }); }}>
@@ -841,18 +835,6 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                 бо «дати не знаємо» і «міста тоді не було» — різні твердження.
               </span>
             ) : null}
-            {core && coreLayer.data?.length ? (
-              <span className="map-core-note">
-                {coreLayer.data.map((l) => (
-                  <span key={l.id} className="own-line">
-                    <b>{l.label}</b> ({l.from < 0 ? `${-l.from} до н.е.` : l.from}–{l.to < 0 ? `${-l.to} до н.е.` : l.to}). {l.note}
-                    {" "}<i>{l.source}</i>
-                  </span>
-                ))}
-              </span>
-            ) : core ? (
-              <span className="map-core-note">Для обраного року власних контурів немає — оберіть рік у межах Скіфії (700–250 до н.е.) або Русі (900–1240).</span>
-            ) : null}
             <div className="map-realms-years">
               <button type="button" className={year === null ? "on" : ""}
                       onClick={() => { setYear(null); setRealm(null); }}>без кордонів</button>
@@ -867,8 +849,19 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
               <div className="map-realms-list">
                 <span className="map-realms-head">
                   Кордони станом на {realms.data.year < 0 ? `${-realms.data.year} до н.е.` : realms.data.year}
-                  {" · "}{realms.data.realms.length} утворень
+                  {" · "}{realms.data.realms.length + (coreLayer.data?.length ?? 0)} утворень
                 </span>
+                {/* Наші контури — у тому самому переліку, що й атласні, але з
+                    позначкою джерела: вони не «правильніші», вони інші за
+                    природою — те, що джерело описує словами. Юрій: «Скіфія не
+                    повинна бути окремим вмикачем, вона повинна бути в переліку
+                    і саме в тому часовому відрізку, де вона й має бути». */}
+                {(coreLayer.data ?? []).map((l) => (
+                  <button key={l.id} type="button" className={`realm-chip own p1 own-${l.tone}`}
+                          title={`${l.note}\n\nДжерело: ${l.source}`}>
+                    {l.label}<span className="chip-own"> · наш контур</span>
+                  </button>
+                ))}
                 {realms.data.realms
                   .slice()
                   .sort((a, b) => a.name.localeCompare(b.name, "uk-UA"))

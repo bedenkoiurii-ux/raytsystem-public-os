@@ -1672,3 +1672,17 @@ li.open .chev { transform: rotate(90deg); }
 .map-core .own-amber text { fill: #d98f3d; }
 .own-line { display: block; margin-bottom: 6px; }
 .own-line i { color: var(--muted-2); font-style: normal; font-size: 10.5px; }
+/* Наш контур у переліку: та сама смуга, інша природа твердження. */
+.realm-chip.own { border-style: solid; border-color: color-mix(in srgb, var(--gold) 55%, transparent); }
+.realm-chip.own-amber { border-color: color-mix(in srgb, #d98f3d 60%, transparent); }
+.chip-own { color: var(--muted-2); font-size: 10px; }
+/* Князівства Русі: спільний тон, бо це одна система, а не різні держави. */
+.map-core .own-rus path { fill: color-mix(in srgb, var(--cyan) 9%, transparent); stroke: color-mix(in srgb, var(--cyan) 65%, transparent); stroke-dasharray: 6 3; }
+.map-core .own-rus circle { fill: color-mix(in srgb, var(--cyan) 80%, transparent); }
+.map-core .own-rus text { fill: color-mix(in srgb, var(--cyan) 90%, transparent); }
+/* Північні князівства — інший відтінок: це вже інша модель влади. */
+.map-core .own-north path { fill: color-mix(in srgb, #9b8cc4 10%, transparent); stroke: color-mix(in srgb, #9b8cc4 65%, transparent); stroke-dasharray: 6 3; }
+.map-core .own-north circle { fill: #9b8cc4; }
+.map-core .own-north text { fill: #9b8cc4; }
+.realm-chip.own-rus { border-color: color-mix(in srgb, var(--cyan) 55%, transparent); }
+.realm-chip.own-north { border-color: color-mix(in srgb, #9b8cc4 55%, transparent); }
