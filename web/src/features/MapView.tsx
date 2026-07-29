@@ -129,6 +129,32 @@ class LabelSpace {
   }
 }
 
+/** Що саме сталося в цій точці маршруту.
+ *
+ *  ЗАУВАГА ЮРІЯ (2026-07-29): «для розуміння перебування, народження, смерті
+ *  потрібні позначки — або піктограми, або просто текстом, щоб не виникало
+ *  зайвих питань». Текстом: піктограма потребує легенди, «нар.» і «пом.» —
+ *  ні. Позначку виводимо лише коли рік ТОЧНО збігається з роком народження
+ *  чи смерті з картки; в інших випадках мовчимо, бо перша точка маршруту не
+ *  конче місце народження, і вгадувати тут гірше, ніж не сказати.
+ */
+/** Рік по-людськи: до нашої ери — словами, а не мінусом. */
+const yearText = (y: number): string => (y < 0 ? `${-y} до н.е.` : String(y));
+
+function whenLabel(years: string, birth: number | null, death: number | null): string {
+  const clean = years.trim();
+  if (/^(нар|пом|княз|митр|заснув)/i.test(clean)) return clean;   // автор сказав сам
+  const numbers = (clean.match(/-?\d+/g) ?? []).map(Number);
+  if (!numbers.length) return clean;
+  // Тільки коли в дужках ОДНЕ число: «Київ (1149–1151, 1155–1157)» — це роки
+  // княжіння, і напис «пом. 1149–1151…» був би безглуздий, хоч останній рік і
+  // збігається з роком смерті.
+  if (numbers.length !== 1) return clean;
+  if (birth !== null && numbers[0] === birth) return `нар. ${clean}`;
+  if (death !== null && numbers[0] === death) return `пом. ${clean}`;
+  return clean;
+}
+
 function useMapData() {
   return useQuery({
     queryKey: ["map", "data"],
@@ -652,7 +678,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
       const person = (data.data?.people ?? []).find((x) => x.title === solo);
       const first = (person?.route ?? []).map((n) => places.get(n)).find((x) => x?.on);
       if (person && first) {
-        const label = person.title + (person.year !== null ? ` · ${person.year}` : "");
+        const label = person.title + (person.year !== null ? ` · ${yearText(person.year)}` : "");
         if (say(label, first.x + 5 / view.k, first.y - 7 / view.k, 10.5)) ok.names.add(person.title);
       }
       for (const name of person?.route ?? []) {
@@ -663,7 +689,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
       for (const person of data.data?.people ?? []) {
         const first = (person.route ?? []).map((n) => places.get(n)).find((x) => x?.on);
         if (!first) continue;
-        const label = person.title + (person.year !== null ? ` · ${person.year}` : "");
+        const label = person.title + (person.year !== null ? ` · ${yearText(person.year)}` : "");
         if (say(label, first.x + 5 / view.k, first.y - 7 / view.k, 10.5)) ok.names.add(person.title);
       }
     }
@@ -852,7 +878,10 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                               labels.folk.has(s.title)
                                 ? <text key={`n${i}`} x={s.x + 5 / view.k} y={s.y + 3 / view.k}
                                         style={{ fontSize: `${10 / view.k}px` }}>
-                                    {s.title}{person.when?.[s.title] ? ` · ${person.when[s.title]}` : ""}
+                                    {s.title}
+                                    {person.when?.[s.title]
+                                      ? ` · ${whenLabel(person.when[s.title], person.year, person.year_end)}`
+                                      : ""}
                                   </text>
                                 : null
                             ))
@@ -862,7 +891,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                                 style={{ fontSize: `${10.5 / view.k}px` }}>
                             {person.title}
                             {person.year !== null
-                              ? ` · ${person.year < 0 ? -person.year + " до н.е." : person.year}${person.year_end ? `–${person.year_end}` : ""}`
+                              ? ` · ${yearText(person.year)}${person.year_end !== null ? `–${yearText(person.year_end)}` : ""}`
                               : ""}
                           </text>
                         ) : null}
@@ -1138,7 +1167,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                             title={person.place_raw}
                             onClick={() => setSolo((s) => (s === person.title ? null : person.title))}>
                       {person.title}
-                      {person.year !== null ? <span className="folk-year"> {person.year < 0 ? `${-person.year} до н.е.` : person.year}</span> : null}
+                      {person.year !== null ? <span className="folk-year"> {yearText(person.year)}</span> : null}
                     </button>
                   )) : null}
               </div>
