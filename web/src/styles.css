@@ -1673,8 +1673,6 @@ li.open .chev { transform: rotate(90deg); }
 .own-line { display: block; margin-bottom: 6px; }
 .own-line i { color: var(--muted-2); font-style: normal; font-size: 10.5px; }
 /* Наш контур у переліку: та сама смуга, інша природа твердження. */
-.realm-chip.own { border-style: solid; border-color: color-mix(in srgb, var(--gold) 55%, transparent); }
-.realm-chip.own-amber { border-color: color-mix(in srgb, #d98f3d 60%, transparent); }
 .chip-own { color: var(--muted-2); font-size: 10px; }
 /* Князівства Русі: спільний тон, бо це одна система, а не різні держави. */
 .map-core .own-rus path { fill: color-mix(in srgb, var(--cyan) 9%, transparent); stroke: color-mix(in srgb, var(--cyan) 65%, transparent); stroke-dasharray: 6 3; }
@@ -1684,8 +1682,6 @@ li.open .chev { transform: rotate(90deg); }
 .map-core .own-north path { fill: color-mix(in srgb, #9b8cc4 10%, transparent); stroke: color-mix(in srgb, #9b8cc4 65%, transparent); stroke-dasharray: 6 3; }
 .map-core .own-north circle { fill: #9b8cc4; }
 .map-core .own-north text { fill: #9b8cc4; }
-.realm-chip.own-rus { border-color: color-mix(in srgb, var(--cyan) 55%, transparent); }
-.realm-chip.own-north { border-color: color-mix(in srgb, #9b8cc4 55%, transparent); }
 /* Річки — те, по чому проходили межі й торгівля. Тонкі, холодні, під усім. */
 .map-rivers path { fill: none; stroke: color-mix(in srgb, #4a8fb8 40%, transparent); vector-effect: non-scaling-stroke; }
 .map-rivers .big path { stroke: color-mix(in srgb, #5aa3d0 65%, transparent); }
@@ -1703,10 +1699,7 @@ li.open .chev { transform: rotate(90deg); }
 .map-core .is-route path { fill: none; stroke: #e0a94e; stroke-dasharray: 10 4; stroke-opacity: 1; }
 .map-core .own-route circle { fill: #e0a94e; }
 .map-core .own-route text { fill: #e0a94e; }
-.realm-chip.own-outer { border-color: color-mix(in srgb, var(--cyan) 80%, transparent); }
-.realm-chip.own-route { border-color: #e0a94e; }
 /* Вимкнений контур лишається в переліку — видно, що він є і його сховано. */
-.realm-chip.own.off { opacity: .45; border-style: dashed; }
 /* Список людей: вибір одного замість каші з 98 імен. */
 .map-folk-list { display: flex; flex-wrap: wrap; gap: 4px; padding-top: 8px; border-top: 1px solid var(--line-soft); }
 .folk-chip { font-size: 11px; padding: 2px 7px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--mint, #7fd1ae) 35%, transparent); background: transparent; color: var(--muted); cursor: pointer; }
@@ -1726,3 +1719,15 @@ li.open .chev { transform: rotate(90deg); }
 .map-block > div { padding: 4px 10px 10px; }
 .map-subgroup { width: 100%; display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
 .map-subgroup .map-realms-head { width: 100%; margin-bottom: 2px; }
+/* «Погляд» — над мапою: це рішення про те, ЗВІДКИ дивитись, і воно передує
+   всьому іншому, тож і стоїть перед полотном, а не під ним. */
+.map-look { margin-bottom: 8px; }
+
+/* Чип власного контуру: вигляд означає СТАН, а не тон шару. Раніше рамка
+   фарбувалася за кольором контуру на мапі, і два ввімкнені шари виглядали
+   по-різному — «стан однаковий, а контури різного кольору й жирності» (Юрій).
+   Увімкнено — жирний жовтий; вимкнено — звичайний бірюзовий. Підпису не треба:
+   стан і так видно. */
+.realm-chip.own { border: 2px solid var(--gold); color: var(--gold); background: color-mix(in srgb, var(--gold) 10%, transparent); }
+.realm-chip.own.off { border: 1px solid color-mix(in srgb, var(--cyan) 55%, transparent); color: var(--muted); background: transparent; }
+.realm-chip.own.off:hover { border-color: var(--cyan); color: var(--cyan); }

@@ -48,8 +48,11 @@ const clamp = (value: number, low: number, high: number) =>
  *  мапа зосереджена на київській оптиці». Розповідь виходить далеко за Європу —
  *  вікінги, Британія, Африка, Азія, увесь СРСР із системою ГУЛАГ. */
 export const FRAMES: Record<string, { label: string; lonMin: number; lonMax: number; latCenter: number }> = {
-  rus:     { label: "Русь і степ",     lonMin: -8,   lonMax: 52,  latCenter: 47 },
-  europe:  { label: "Європа й Візантія", lonMin: -12, lonMax: 62,  latCenter: 45 },
+  // Широти рахуються від центру: старий центр 45° обрізав північ на 59°, і
+  // Новгород ставав краєм світу, а Скандинавії — тієї самої, звідки прийшли
+  // варяги, — на «Європі й Візантії» не було взагалі (Юрій, 2026-07-29).
+  rus:     { label: "Русь і степ",       lonMin: -8,  lonMax: 52,  latCenter: 50 },  // 36–60°: Балтика і степ
+  europe:  { label: "Європа й Візантія", lonMin: -25, lonMax: 70,  latCenter: 55 },  // 34–69°: від Криту до Тромсе
   eurasia: { label: "Євразія",         lonMin: -25,  lonMax: 190, latCenter: 50 },
   world:   { label: "Світ",            lonMin: -180, lonMax: 180, latCenter: 20 },
 };
@@ -663,6 +666,29 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
     <div className="route route-map">
       <div className={`map-split${(openEvent && card.data) || (openText && story.data && !story.data.error) ? " with-card" : ""}`}>
         <div className="map-left">
+          <details className="map-block map-look" open>
+              <summary>Погляд <span className="cnt">{globe ? "глобус" : FRAMES[frame].label}</span></summary>
+              <div className="map-frames">
+                {Object.entries(FRAMES).map(([id, f]) => (
+                  <button key={id} type="button" className={!globe && frame === id ? "on" : ""}
+                          onClick={() => { setGlobe(false); setFrame(id as Frame); setView({ x: 0, y: 0, k: 1 }); }}>
+                    {f.label}
+                  </button>
+                ))}
+                <button type="button" className={globe ? "on globe" : "globe"}
+                        title="Глобус: перетягуванням обертати"
+                        onClick={() => { setGlobe(true); setView({ x: 0, y: 0, k: 1 }); }}>
+                  Глобус
+                </button>
+                {globe ? (
+                  <span className="map-frames-hint">
+                    {Math.abs(spin.lat).toFixed(0)}°{spin.lat >= 0 ? "пн" : "пд"}{" "}
+                    {Math.abs(spin.lon).toFixed(0)}°{spin.lon >= 0 ? "сх" : "зх"} · тягніть, щоб обертати
+                  </span>
+                ) : null}
+              </div>
+            </details>
+
         <div className="map-stage" ref={attachStage}>
           <svg viewBox={`${view.x} ${view.y} ${W / view.k} ${H / view.k}`} className="map-svg"
                role="img" aria-label="Мапа сюжетів"
@@ -859,29 +885,6 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
               Згорнуті за замовчуванням, крім часу: з нього все починається. */}
           <div className="map-realms-bar">
             <details className="map-block" open>
-              <summary>Погляд <span className="cnt">{globe ? "глобус" : FRAMES[frame].label}</span></summary>
-              <div className="map-frames">
-                {Object.entries(FRAMES).map(([id, f]) => (
-                  <button key={id} type="button" className={!globe && frame === id ? "on" : ""}
-                          onClick={() => { setGlobe(false); setFrame(id as Frame); setView({ x: 0, y: 0, k: 1 }); }}>
-                    {f.label}
-                  </button>
-                ))}
-                <button type="button" className={globe ? "on globe" : "globe"}
-                        title="Глобус: перетягуванням обертати"
-                        onClick={() => { setGlobe(true); setView({ x: 0, y: 0, k: 1 }); }}>
-                  Глобус
-                </button>
-                {globe ? (
-                  <span className="map-frames-hint">
-                    {Math.abs(spin.lat).toFixed(0)}°{spin.lat >= 0 ? "пн" : "пд"}{" "}
-                    {Math.abs(spin.lon).toFixed(0)}°{spin.lon >= 0 ? "сх" : "зх"} · тягніть, щоб обертати
-                  </span>
-                ) : null}
-              </div>
-            </details>
-
-            <details className="map-block" open>
               <summary>Час <span className="cnt">{year === null ? "без кордонів" : year < 0 ? `${-year} до н.е.` : year}</span></summary>
               <div className="map-realms-years">
                 <button type="button" className={year === null ? "on" : ""}
@@ -912,10 +915,10 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                       <span className="map-realms-head">{group}</span>
                       {items.map((l) => (
                         <button key={l.id} type="button"
-                                className={`realm-chip own p1 own-${l.tone}${hidden.has(l.id) ? " off" : ""}`}
+                                className={`realm-chip own${hidden.has(l.id) ? " off" : ""}`}
                                 title={`${l.note}\n\nДжерело: ${l.source}\n\nКлік — сховати або показати`}
                                 onClick={() => toggleLayer(l.id)}>
-                          {l.label}<span className="chip-own">{hidden.has(l.id) ? " · сховано" : ""}</span>
+                          {l.label}
                         </button>
                       ))}
                     </div>
