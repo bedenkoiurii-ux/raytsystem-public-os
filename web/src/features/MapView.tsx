@@ -48,10 +48,12 @@ const clamp = (value: number, low: number, high: number) =>
  *  мапа зосереджена на київській оптиці». Розповідь виходить далеко за Європу —
  *  вікінги, Британія, Африка, Азія, увесь СРСР із системою ГУЛАГ. */
 export const FRAMES: Record<string, { label: string; lonMin: number; lonMax: number; latCenter: number }> = {
-  // Широти рахуються від центру: старий центр 45° обрізав північ на 59°, і
-  // Новгород ставав краєм світу, а Скандинавії — тієї самої, звідки прийшли
-  // варяги, — на «Європі й Візантії» не було взагалі (Юрій, 2026-07-29).
-  rus:     { label: "Русь і степ",       lonMin: -8,  lonMax: 52,  latCenter: 50 },  // 36–60°: Балтика і степ
+  // Широти рахуються від центру, і це вже двічі підводило: центр 45° обрізав
+  // північ на 59°, Новгород ставав краєм світу, а Скандинавії — тієї самої,
+  // звідки прийшли варяги, — не було взагалі. Окреме вікно «Русь і степ»
+  // прибрано: воно різало саму Русь (зовнішня межа сягає 62°), а європейське
+  // вікно покриває і Русь, і степ. Юрій: «можливо, нам не потрібно плодити
+  // додаткові сутності».
   europe:  { label: "Європа й Візантія", lonMin: -25, lonMax: 70,  latCenter: 55 },  // 34–69°: від Криту до Тромсе
   eurasia: { label: "Євразія",         lonMin: -25,  lonMax: 190, latCenter: 50 },
   world:   { label: "Світ",            lonMin: -180, lonMax: 180, latCenter: 20 },
@@ -445,7 +447,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
   // мапа показувала більше географії, а не порожні поля.
   const [H, setH] = useState(620);
   // Режим показу: плоска карта з вибраним вікном або глобус, який обертається.
-  const [frame, setFrame] = useState<Frame>("rus");
+  const [frame, setFrame] = useState<Frame>("europe");
   const [globe, setGlobe] = useState(false);
   const [spin, setSpin] = useState({ lat: 40, lon: 30 });   // центр глобуса
   const projection = useMemo(
