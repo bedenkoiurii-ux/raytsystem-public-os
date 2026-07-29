@@ -165,6 +165,23 @@ function whenLabel(years: string, birth: number | null, death: number | null): s
   return clean;
 }
 
+/** Дія без діяча — половина твердження. ЗАУВАГА ЮРІЯ (2026-07-29): «на кожній
+ *  географічній точці має бути не просто "Москва, заснував", а хто саме
+ *  заснував: Москва заснована Юрієм Долгоруким у такому році».
+ *
+ *  Дописуємо імʼя лише до дій, які його вимагають («заснував»), і не чіпаємо
+ *  стани («княж.», «жив»): «Переяслав княж. Юрієм Долгоруким» звучало б
+ *  канцелярією, та й з панелі й так видно, чий це маршрут.
+ */
+function actorLabel(text: string, who: string): string {
+  // Називний, а не орудний: «засноване Юрієм Долгоруким» вимагало б відмінювати
+  // імʼя, а машинне відмінювання української — джерело потворних форм. «Заснував
+  // Юрій Долгорукий, 1147» читається однаково ясно й не бреше граматикою.
+  return /^заснував/i.test(text.trim())
+    ? text.replace(/^заснував\s*/i, `заснував ${who}, `)
+    : text;
+}
+
 function useMapData() {
   return useQuery({
     queryKey: ["map", "data"],
@@ -550,10 +567,20 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
   // callback-ref, а не useEffect: на момент монтування вікно ще показує
   // LoadingState, вузла немає, і спостерігач нізащо не приєднається.
   const observer = useRef<ResizeObserver | null>(null);
+  const wheelGuard = useRef<(() => void) | null>(null);
   const attachStage = useCallback((node: HTMLDivElement | null) => {
     stage.current = node;
     observer.current?.disconnect();
+    wheelGuard.current?.();
+    wheelGuard.current = null;
     if (!node) return;
+    // Колесо над мапою зумить мапу, а не гортає сторінку. React вішає wheel
+    // пасивно, тож preventDefault у ньому не діє — потрібен нативний слухач,
+    // і саме тут, у callback-ref: у useEffect вузла ще немає, бо ref не
+    // викликає перерендер (Юрій: «скрол сторінки і скрол мапи працюють разом»).
+    const stopScroll = (event: WheelEvent) => event.preventDefault();
+    node.addEventListener("wheel", stopScroll, { passive: false });
+    wheelGuard.current = () => node.removeEventListener("wheel", stopScroll);
     const measure = () => {
       const box = node.getBoundingClientRect();
       if (box.width > 0) setH(Math.round((box.height / box.width) * W));
@@ -732,6 +759,21 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
   const periods = data.data?.periods ?? [];
   const drawn = active ? shown.filter((s) => s.title === active) : shown;
 
+  // Колесо над мапою зумить мапу, а не гортає сторінку. React вішає wheel як
+  // passive, тож preventDefault там не діє — потрібен нативний слухач (Юрій:
+  // «коли скролю масштаб мапи, скрол сторінки теж вмикається, це погано»).
+  /** Підвести точку до середини кадру — для наведення на пункт у переліку. */
+  const flyTo = (x: number, y: number) => {
+    setView((v) => {
+      const k = Math.max(v.k, 2.2);
+      return {
+        k,
+        x: clamp(x - W / k / 2, 0, Math.max(0, W - W / k)),
+        y: clamp(y - H / k / 2, 0, Math.max(0, H - H / k)),
+      };
+    });
+  };
+
   const onWheel = (e: React.WheelEvent<SVGSVGElement>) => {
     const box = stage.current?.getBoundingClientRect();
     if (!box) return;
@@ -898,7 +940,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                                         style={{ fontSize: `${10 / view.k}px` }}>
                                     {s.title}
                                     {person.when?.[s.title]
-                                      ? ` · ${whenLabel(person.when[s.title], person.year, person.year_end)}`
+                                      ? ` · ${actorLabel(whenLabel(person.when[s.title], person.year, person.year_end), person.title)}`
                                       : ""}
                                   </text>
                                 : null
@@ -1027,6 +1069,43 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
               ))}
             </g>
           </svg>
+
+          {/* Досьє обраної постаті — у куті мапи. ЗАДУМ ЮРІЯ (2026-07-29):
+              «якщо ми в режимі Долгорукого, треба щоб великими літерами було
+              імʼя, народився, помер, і перелік усіх його точок — де був, де
+              княжував, причому інтерактивний: наводжу на напис, карта підводить
+              цю точку до середини». */}
+          {folk && solo ? (() => {
+            const person = (data.data?.people ?? []).find((x) => x.title === solo);
+            if (!person) return null;
+            return (
+              <div className="map-person">
+                <strong>{person.title}</strong>
+                {person.year !== null ? (
+                  <span className="person-life">
+                    {yearText(person.year)}{person.year_end !== null ? ` — ${yearText(person.year_end)}` : ""}
+                  </span>
+                ) : null}
+                <ul>
+                  {person.route.map((name) => {
+                    const pt = places.get(name);
+                    return (
+                      <li key={name}
+                          className={pt?.on ? "" : "away"}
+                          onMouseEnter={() => { if (pt?.on) flyTo(pt.x, pt.y); }}
+                          onClick={() => pt?.document_id && onOpenDocument?.(pt.document_id)}>
+                        <b>{name}</b>
+                        {person.when?.[name] ? <span> — {person.when[name]}</span> : null}
+                      </li>
+                    );
+                  })}
+                </ul>
+                <button type="button" className="person-close" onClick={() => setSolo(null)}>
+                  показати всіх
+                </button>
+              </div>
+            );
+          })() : null}
 
           {view.k > 1 ? (
             <button type="button" className="map-fit" onClick={() => setView({ x: 0, y: 0, k: 1 })}>

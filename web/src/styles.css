@@ -1741,3 +1741,22 @@ li.open .chev { transform: rotate(90deg); }
    розповзається в чорні плями довкола літер («тіні перетворюються на купи»,
    Юрій). vector-effect тримає товщину сталою на екрані, як і розмір шрифта. */
 .map-svg text { vector-effect: non-scaling-stroke; }
+/* Досьє постаті в куті мапи: імʼя, роки життя, маршрут списком. Наведення на
+   пункт підводить точку до середини кадру — читач іде життям людини, не
+   шукаючи її слідів на полотні. */
+.map-person { position: absolute; top: 10px; left: 10px; max-width: 300px; z-index: 3;
+  background: color-mix(in srgb, var(--carbon) 92%, transparent); border: 1px solid var(--line);
+  border-radius: var(--radius-md); padding: 10px 12px; display: grid; gap: 4px; }
+.map-person strong { font-size: 15px; color: var(--mint, #7fd1ae); line-height: 1.25; }
+.person-life { font: 11px var(--mono); color: var(--muted-2); }
+.map-person ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 2px; }
+.map-person li { font-size: 12px; color: var(--muted); padding: 3px 6px; border-radius: var(--radius-xs);
+  cursor: pointer; border-left: 2px solid transparent; }
+.map-person li:hover { background: color-mix(in srgb, var(--mint, #7fd1ae) 12%, transparent);
+  border-left-color: var(--mint, #7fd1ae); color: var(--bone); }
+.map-person li b { color: var(--bone); font-weight: 500; }
+.map-person li.away { opacity: .45; cursor: default; }
+.map-person li.away:hover { background: transparent; border-left-color: transparent; }
+.person-close { margin-top: 6px; font-size: 11px; background: transparent; border: 1px solid var(--line);
+  color: var(--muted-2); border-radius: var(--radius-xs); padding: 3px 8px; cursor: pointer; }
+.person-close:hover { color: var(--mint, #7fd1ae); border-color: var(--mint, #7fd1ae); }
