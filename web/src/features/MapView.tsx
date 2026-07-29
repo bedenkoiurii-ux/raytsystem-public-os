@@ -248,6 +248,42 @@ function useLand(projection: Projection, key: string) {
  *  українська: без цього містка територія на мапі й розповідь про неї лишаються
  *  двома різними речима. Тільки те, що справді має картку, — решта чипів
  *  просто не веде нікуди, і це чесніше за посилання в порожнечу. */
+/** Українські назви утворень атласу. Оригінал англійський і лишається в даних —
+ *  це чуже джерело, і підмінювати його не можна; показуємо переклад, а сире
+ *  імʼя тримаємо поруч, щоб завжди було видно, звідки воно (Юрій, 2026-07-29).
+ *  Чого немає в словнику — показується як є: краще англійською, ніж вигаданою
+ *  українською. */
+const REALM_UK: Record<string, string> = {
+  "Kyivan Rus": "Київська Русь", "Rus": "Русь",
+  "Byzantine Empire": "Візантія", "Eastern Roman Empire": "Східна Римська імперія",
+  "Roman Empire": "Римська імперія", "Western Roman Empire": "Західна Римська імперія",
+  "Holy Roman Empire": "Священна Римська імперія",
+  "Khanate of the Golden Horde": "Золота Орда", "Golden Horde": "Золота Орда",
+  "Grand Duchy of Lithuania": "Велике князівство Литовське", "Lithuania": "Литва",
+  "Poland": "Польща", "Kingdom of Poland": "Королівство Польське",
+  "Polish-Lithuanian Commonwealth": "Річ Посполита", "Poland-Lithuania": "Річ Посполита",
+  "Cossack Hetmanate": "Гетьманщина", "Zaporozhian Host": "Військо Запорозьке",
+  "Khazar Khaganate": "Хозарський каганат", "Khazaria": "Хозарія",
+  "Ottoman Empire": "Османська імперія", "Ottoman Sultanate": "Османський султанат",
+  "Crimean Khanate": "Кримське ханство", "Scythians": "Скіфи", "Sarmates": "Сармати",
+  "Cumans": "Половці", "Kipchaks": "Кипчаки", "Pechenegs": "Печеніги",
+  "Volga Bulgaria": "Волзька Булгарія", "Bulgaria": "Болгарія",
+  "Grand Duchy of Moscow": "Велике князівство Московське", "Muscovy": "Московія",
+  "Tsardom of Russia": "Московське царство", "Russian Empire": "Російська імперія",
+  "Novgorod": "Новгород", "Novgorod Republic": "Новгородська республіка",
+  "Sweden": "Швеція", "Denmark": "Данія", "Norway": "Норвегія", "Finland": "Фінляндія",
+  "England": "Англія", "Scotland": "Шотландія", "Ireland": "Ірландія", "France": "Франція",
+  "Spain": "Іспанія", "Portugal": "Португалія", "Italy": "Італія", "Venice": "Венеція",
+  "Genoa": "Генуя", "Papal States": "Папська держава", "Sicily": "Сицилія",
+  "Hungary": "Угорщина", "Bohemia": "Богемія", "Moravia": "Моравія", "Austria": "Австрія",
+  "Serbia": "Сербія", "Croatia": "Хорватія", "Bosnia": "Боснія", "Wallachia": "Волощина",
+  "Moldavia": "Молдавія", "Greece": "Греція", "Greek city-states": "Грецькі поліси",
+  "Georgia": "Грузія", "Armenia": "Вірменія", "Persia": "Персія",
+  "Achaemenid Empire": "Держава Ахеменідів", "Teutonic Order": "Тевтонський орден",
+  "Livonian Order": "Лівонський орден", "Prussia": "Пруссія", "Prussians": "Пруси",
+  "Magyars": "Мадяри", "Illyrians": "Іллірійці", "Cyprus": "Кіпр", "Crete": "Крит",
+};
+
 const REALM_CARDS: Record<string, string> = {
   "Kyivan Rus": "Київська Русь",
   "Rus": "Київська Русь",
@@ -1206,7 +1242,14 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
 
             {realms.data ? (
               <details className="map-block">
-                <summary>Кордони з атласу <span className="cnt">{realms.data.realms.length}</span></summary>
+                <summary>
+                  Кордони з атласу
+                  <span className="cnt">
+                    {realm
+                      ? <b className="hovered">{REALM_UK[realm.name] ?? realm.name}</b>
+                      : `${realms.data.realms.length} утворень`}
+                  </span>
+                </summary>
                 <div className="map-realms-list">
                   <span className="map-realms-note">
                     Штрих — певність межі за джерелом: суцільна лінія означає кордон,
@@ -1215,20 +1258,20 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                   </span>
                   {realms.data.realms
                     .slice()
-                    .sort((a, b) => a.name.localeCompare(b.name, "uk-UA"))
+                    .sort((a, b) => (REALM_UK[a.name] ?? a.name).localeCompare(REALM_UK[b.name] ?? b.name, "uk-UA"))
                     .map((r) => (
                       <button key={r.name} type="button"
                               className={`realm-chip p${r.precision && r.precision >= 1 ? r.precision : 1}`
                                          + (realm?.name === r.name ? " on" : "")
                                          + (REALM_CARDS[r.name] ? " has-card" : "")}
-                              title={REALM_CARDS[r.name] ? `Відкрити картку «${REALM_CARDS[r.name]}»` : undefined}
+                              title={`${r.name}${REALM_CARDS[r.name] ? ` · відкрити картку «${REALM_CARDS[r.name]}»` : ""}`}
                               onMouseEnter={() => setRealm(r)} onMouseLeave={() => setRealm(null)}
                               onClick={() => {
                                 const card = REALM_CARDS[r.name];
                                 if (card) setRealmCards((s) => (s.includes(card) ? s.filter((x) => x !== card) : [...s, card]));
                               }}>
-                        {r.name}
-                        {REALM_CARDS[r.name] ? <span className="chip-card"> · {REALM_CARDS[r.name]}</span> : null}
+                        {REALM_UK[r.name] ?? r.name}
+                        {REALM_CARDS[r.name] ? <span className="chip-card"> · картка</span> : null}
                       </button>
                     ))}
                   {realmCards.length ? (

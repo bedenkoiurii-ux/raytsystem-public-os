@@ -1757,3 +1757,6 @@ li.open .chev { transform: rotate(90deg); }
 .map-person li b { color: var(--bone); font-weight: 500; }
 .map-person li.away { opacity: .45; cursor: default; }
 .map-person li.away:hover { background: transparent; border-left-color: transparent; }
+/* Назва області під курсором — просто в заголовку блоку, тож її видно й
+   тоді, коли блок згорнутий. */
+.map-block > summary .cnt b.hovered { color: var(--gold); font-weight: 500; font-family: var(--sans, inherit); font-size: 11.5px; }
