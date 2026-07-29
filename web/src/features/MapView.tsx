@@ -199,6 +199,42 @@ export function sliceFor(year: number): number {
   return SLICES.reduce((best, y) => (Math.abs(y - year) < Math.abs(best - year) ? y : best), SLICES[0]);
 }
 
+/** Ядро Русі — «Руська земля» у вузькому сенсі.
+ *
+ *  ЗАВДАННЯ ЮРІЯ (2026-07-29): «Для мене важливо показати ядро — це основна
+ *  ціль цього завдання». Атлас цього не вміє: він дає Русь одним контуром без
+ *  поділу на ядро й приріст. Тому контур наш — реконструкція за словесним
+ *  описом межі в ЕІУ (Десна, Сейм, Сула, Рось, Тясмин, Горинь), і саме тому
+ *  вона підписана як приблизна, з джерелом просто в панелі. Різниця між ядром
+ *  і приростом — те, що стирає формула «збирання земель Русі».
+ */
+function useCore(on: boolean, projection: Projection, key: string) {
+  return useQuery({
+    queryKey: ["map", "core", key],
+    enabled: on,
+    staleTime: Infinity,
+    queryFn: async () => {
+      const data = (await import("./historical/core-rus.json")).default as unknown as {
+        note: string; source: string;
+        anchors: { name: string; lat: number; lon: number }[];
+        ring: number[][];
+      };
+      let d = "";
+      let pen = false;
+      for (const [lon, lat] of data.ring) {
+        if (!projection.visible(lat, lon)) { pen = false; continue; }
+        const [x, y] = projection.toScreen(lat, lon);
+        d += `${pen ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`;
+        pen = true;
+      }
+      const anchors = data.anchors
+        .filter((a) => projection.visible(a.lat, a.lon))
+        .map((a) => ({ ...a, xy: projection.toScreen(a.lat, a.lon) }));
+      return { path: d ? `${d}Z` : "", anchors, note: data.note, source: data.source };
+    }
+  });
+}
+
 function useRealms(year: number | null, projection: Projection, key: string) {
   const slice = year === null ? null : sliceFor(year);
   return useQuery({
@@ -342,6 +378,8 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
   // Утворення, чиї картки читач розкрив просто в панелі кордонів: територія
   // на мапі й розповідь про неї стають однією річчю, а не двома.
   const [realmCards, setRealmCards] = useState<string[]>([]);
+  const [core, setCore] = useState(false);
+  const coreLayer = useCore(core, projection, projKey);
   const realms = useRealms(year, projection, projKey);
   const drag = useRef<{ px: number; py: number; x: number; y: number; spinLat: number; spinLon: number } | null>(null);
   const stage = useRef<HTMLDivElement | null>(null);
@@ -520,6 +558,21 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
               {(land.data ?? []).map((d, i) => <path key={i} d={d} style={{ strokeWidth: 0.6 / view.k }} />)}
             </g>
 
+            {/* Ядро Русі — під історичними кордонами, щоб було видно, як
+                приріст лягає навколо нього. */}
+            {coreLayer.data?.path ? (
+              <g className="map-core">
+                <path d={coreLayer.data.path} style={{ strokeWidth: 1.6 / view.k }} />
+                {coreLayer.data.anchors.map((a) => (
+                  <g key={a.name}>
+                    <circle cx={a.xy[0]} cy={a.xy[1]} r={3.2 / view.k} />
+                    <text x={a.xy[0] + 5 / view.k} y={a.xy[1] - 4 / view.k}
+                          style={{ fontSize: `${11 / view.k}px` }}>{a.name}</text>
+                  </g>
+                ))}
+              </g>
+            ) : null}
+
             {/* Історичні кордони. Штрих несе певність джерела, а не прикрашає:
                 precision 1 — атлас сам каже «приблизно», і межа розмита; 3 —
                 визначена правом, лінія суцільна. Так ілюстративність не стає
@@ -619,6 +672,11 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                   {f.label}
                 </button>
               ))}
+              <button type="button" className={core ? "on core" : "core"}
+                      title="«Руська земля» у вузькому сенсі: Київ — Чернігів — Переяслав"
+                      onClick={() => setCore((v) => !v)}>
+                Ядро Русі
+              </button>
               <button type="button" className={globe ? "on globe" : "globe"}
                       title="Глобус: перетягуванням обертати"
                       onClick={() => { setGlobe(true); setView({ x: 0, y: 0, k: 1 }); }}>
@@ -631,6 +689,11 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                 </span>
               ) : null}
             </div>
+            {core && coreLayer.data ? (
+              <span className="map-core-note">
+                <b>Ядро — «Руська земля» у вузькому сенсі.</b> {coreLayer.data.note}
+              </span>
+            ) : null}
             <div className="map-realms-years">
               <button type="button" className={year === null ? "on" : ""}
                       onClick={() => { setYear(null); setRealm(null); }}>без кордонів</button>

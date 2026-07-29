@@ -1640,3 +1640,13 @@ li.open .chev { transform: rotate(90deg); }
 .map-frames-hint { font: 10.5px var(--mono); color: var(--muted-2); margin-left: 4px; }
 /* Планета під контуром: океан і край диска. Робить ортографію впізнаваною. */
 .map-globe { fill: color-mix(in srgb, var(--cyan) 6%, var(--carbon)); stroke: color-mix(in srgb, var(--cyan) 30%, transparent); }
+/* Ядро Русі. Суцільна лінія відрізняє його від приблизних кордонів атласу,
+   але заливка тепла й слабка: це не «правильніша» межа, а інший рівень
+   твердження — те, що джерело описує словами, а не контуром. */
+.map-core path { fill: color-mix(in srgb, var(--gold) 12%, transparent); stroke: var(--gold); vector-effect: non-scaling-stroke; }
+.map-core circle { fill: var(--gold); }
+.map-core text { fill: var(--gold); font-family: var(--mono); paint-order: stroke; stroke: rgba(0,0,0,.55); stroke-width: 2px; }
+.map-frames button.core { border-color: color-mix(in srgb, var(--gold) 45%, transparent); color: color-mix(in srgb, var(--gold) 85%, var(--muted-2)); }
+.map-frames button.core.on { background: color-mix(in srgb, var(--gold) 18%, transparent); color: var(--gold); border-color: var(--gold); }
+.map-core-note { font-size: 11px; color: var(--muted-2); line-height: 1.55; width: 100%; border-left: 2px solid color-mix(in srgb, var(--gold) 50%, transparent); padding-left: 8px; }
+.map-core-note b { color: var(--gold); font-weight: 500; }
