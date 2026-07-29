@@ -33,7 +33,7 @@ interface Place { title: string; lat: number; lon: number; path: string; documen
 interface StoryEvent { title: string; year: number; year_end: number | null; place_raw: string; route: string[]; path: string; document_id: string | null }
 interface Story { title: string; from: number; to: number; events: StoryEvent[]; mapped: number }
 interface Period { title: string; from: number; to: number; path: string }
-interface Person { title: string; year: number | null; year_end: number | null; route: string[]; place_raw: string; path: string; document_id: string | null }
+interface Person { title: string; year: number | null; year_end: number | null; route: string[]; when?: Record<string, string>; place_raw: string; path: string; document_id: string | null }
 interface MapData { places: Place[]; periods: Period[]; stories: Story[]; loose: StoryEvent[]; people: Person[] }
 interface EventCard {
   title: string; year: string; year_end: string; place: string;
@@ -100,6 +100,33 @@ function orthographic(lat0: number, lon0: number, height: number): Projection {
     ],
     visible: (lat, lon) => cosC(lat, lon) >= 0,
   };
+}
+
+/** Реєстр підписів: жоден напис не лягає на інший.
+ *
+ *  ЗАВДАННЯ ЮРІЯ (2026-07-29): «одна назва ніколи не повинна перекривати іншу.
+ *  Треба подумати, який механізм для цього треба збудувати». Механізм такий:
+ *  усі шари просять місце в одного реєстру, у порядку ваги — спершу те, що
+ *  читач щойно вибрав, тоді наші контури, тоді міста, і аж тоді тло. Кому
+ *  місця не лишилось, той мовчить: краще без підпису, ніж нечитний клубок.
+ *
+ *  Прямокутник рахуємо від довжини рядка — це грубо, але дешево й не вимагає
+ *  вимірювати текст у DOM на кожен рух мапи.
+ */
+class LabelSpace {
+  private taken: { x1: number; y1: number; x2: number; y2: number }[] = [];
+  constructor(private scale: number) {}
+  /** Спробувати поставити підпис. Повертає false, якщо місце зайняте. */
+  claim(x: number, y: number, text: string, size = 10.5): boolean {
+    const w = (text.length * size * 0.56) / this.scale;
+    const h = (size * 1.5) / this.scale;
+    const box = { x1: x, y1: y - h, x2: x + w, y2: y };
+    const clash = this.taken.some((b) =>
+      box.x1 < b.x2 && box.x2 > b.x1 && box.y1 < b.y2 && box.y2 > b.y1);
+    if (clash) return false;
+    this.taken.push(box);
+    return true;
+  }
 }
 
 function useMapData() {
@@ -603,6 +630,62 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
     return out;
   }, [places, focused, view.k, weight]);
 
+  // Місце під підписи розподіляється ЗАЗДАЛЕГІДЬ і в порядку ваги, а не в
+  // порядку малювання: у SVG річки лежать під усім, тож у JSX вони йдуть
+  // першими й забрали б місце в того, що читачеві важливіше.
+  const labels = useMemo(() => {
+    const space = new LabelSpace(view.k);
+    const ok = { folk: new Set<string>(), points: new Set<string>(), rivers: new Set<string>(),
+                 names: new Set<string>(), anchors: new Set<string>() };
+    // Одне імʼя — один підпис на всю мапу. Київ буває якорем і ядра, і
+    // Київського князівства, і точкою бібліотеки: три шари підписували його
+    // тричі, і написи лягали один на одного (скріншот Юрія).
+    const said = new Set<string>();
+    const say = (name: string, x: number, y: number, size: number) => {
+      if (said.has(name)) return false;
+      if (!space.claim(x, y, name, size)) return false;
+      said.add(name);
+      return true;
+    };
+    // 1. Те, що читач щойно вибрав: спершу імʼя, тоді міста його маршруту.
+    if (folk && solo) {
+      const person = (data.data?.people ?? []).find((x) => x.title === solo);
+      const first = (person?.route ?? []).map((n) => places.get(n)).find((x) => x?.on);
+      if (person && first) {
+        const label = person.title + (person.year !== null ? ` · ${person.year}` : "");
+        if (say(label, first.x + 5 / view.k, first.y - 7 / view.k, 10.5)) ok.names.add(person.title);
+      }
+      for (const name of person?.route ?? []) {
+        const pt = places.get(name);
+        if (pt?.on && say(name, pt.x + 5 / view.k, pt.y + 3 / view.k, 10)) ok.folk.add(name);
+      }
+    } else if (folk) {
+      for (const person of data.data?.people ?? []) {
+        const first = (person.route ?? []).map((n) => places.get(n)).find((x) => x?.on);
+        if (!first) continue;
+        const label = person.title + (person.year !== null ? ` · ${person.year}` : "");
+        if (say(label, first.x + 5 / view.k, first.y - 7 / view.k, 10.5)) ok.names.add(person.title);
+      }
+    }
+    // 2. Підписи наших контурів — опорні міста ядра, Скіфії, князівств.
+    for (const layer of coreLayer.data ?? []) {
+      if (hidden.has(layer.id)) continue;
+      for (const a of layer.points) {
+        if (say(a.name, a.xy[0] + 5 / view.k, a.xy[1] - 4 / view.k, 11)) ok.anchors.add(a.name);
+      }
+    }
+    // 3. Наші місця з підписами.
+    for (const pt of places.values()) {
+      if (!named.has(pt.title) || coreNames.has(pt.title) || !pt.on) continue;
+      if (say(pt.title, pt.x + 9 / view.k, pt.y + 4 / view.k, 10.5)) ok.points.add(pt.title);
+    }
+    // 4. Річки — тло: беруть те, що лишилось.
+    for (const r of rivers.data ?? []) {
+      if (r.label && r.labelAt && say(r.n, r.labelAt[0], r.labelAt[1], 9.5)) ok.rivers.add(r.n);
+    }
+    return ok;
+  }, [view.k, projKey, solo, folk, named, coreNames, places, rivers.data, data.data, coreLayer.data, hidden]);
+
   const shown = stories.filter((s) => !span || spanByStory || (s.to >= span[0] && s.from <= span[1]));
   const periods = data.data?.periods ?? [];
   const drawn = active ? shown.filter((s) => s.title === active) : shown;
@@ -761,10 +844,28 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                         {seen.map((s, i) => (
                           <circle key={i} cx={s.x} cy={s.y} r={2.4 / view.k} />
                         ))}
-                        <text x={head.x + 5 / view.k} y={head.y + 3 / view.k}
-                              style={{ fontSize: `${10.5 / view.k}px` }}>
-                          {person.title}{person.year !== null ? ` · ${person.year < 0 ? -person.year + " до н.е." : person.year}` : ""}
-                        </text>
+                        {/* У соло-режимі підписуємо самі МІСТА маршруту: на
+                            точці Москви стояло імʼя князя й рік народження, і
+                            з мапи не було видно навіть, що це Москва (Юрій). */}
+                        {solo === person.title
+                          ? seen.map((s, i) => (
+                              labels.folk.has(s.title)
+                                ? <text key={`n${i}`} x={s.x + 5 / view.k} y={s.y + 3 / view.k}
+                                        style={{ fontSize: `${10 / view.k}px` }}>
+                                    {s.title}{person.when?.[s.title] ? ` · ${person.when[s.title]}` : ""}
+                                  </text>
+                                : null
+                            ))
+                          : null}
+                        {labels.names.has(person.title) ? (
+                          <text x={head.x + 5 / view.k} y={head.y - 7 / view.k}
+                                style={{ fontSize: `${10.5 / view.k}px` }}>
+                            {person.title}
+                            {person.year !== null
+                              ? ` · ${person.year < 0 ? -person.year + " до н.е." : person.year}${person.year_end ? `–${person.year_end}` : ""}`
+                              : ""}
+                          </text>
+                        ) : null}
                       </g>
                     );
                   })}
@@ -776,7 +877,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                 {rivers.data.map((r, i) => (
                   <g key={`${r.n}-${i}`} className={r.big ? "big" : ""}>
                     <path d={r.d} style={{ strokeWidth: (r.big ? 1.3 : 0.7) / view.k }} />
-                    {r.label && r.labelAt ? (
+                    {r.label && r.labelAt && labels.rivers.has(r.n) ? (
                       <text x={r.labelAt[0]} y={r.labelAt[1]} style={{ fontSize: `${9.5 / view.k}px` }}>{r.n}</text>
                     ) : null}
                   </g>
@@ -809,8 +910,10 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                     {l.points.map((a) => (
                       <g key={a.name}>
                         <circle cx={a.xy[0]} cy={a.xy[1]} r={3.2 / view.k} />
-                        <text x={a.xy[0] + 5 / view.k} y={a.xy[1] - 4 / view.k}
-                              style={{ fontSize: `${11 / view.k}px` }}>{a.name}</text>
+                        {labels.anchors.has(a.name) ? (
+                          <text x={a.xy[0] + 5 / view.k} y={a.xy[1] - 4 / view.k}
+                                style={{ fontSize: `${11 / view.k}px` }}>{a.name}</text>
+                        ) : null}
                       </g>
                     ))}
                   </g>
@@ -869,7 +972,8 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                    onMouseEnter={() => setHover(p)} onMouseLeave={() => setHover(null)}
                    onClick={() => p.document_id && onOpenDocument?.(p.document_id)} role="button" tabIndex={0}>
                   <circle cx={p.x} cy={p.y} r={(hover?.title === p.title ? 6 : 4) / view.k} />
-                  {named.has(p.title) && !coreNames.has(p.title) ? (
+                  {named.has(p.title) && !coreNames.has(p.title)
+                   && labels.points.has(p.title) ? (
                     <text x={p.x + 9 / view.k} y={p.y + 4 / view.k} style={{ fontSize: `${10.5 / view.k}px` }}>{p.title}</text>
                   ) : null}
                 </g>

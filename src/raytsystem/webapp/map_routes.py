@@ -179,7 +179,11 @@ def create_map_router(root: Path, *, require_session: Callable[..., Any]) -> API
         for path in sorted(base.glob("*.md")):
             text = path.read_text(encoding="utf-8", errors="ignore")
             fm = _front(text)
-            coords = re.search(r"^coordinates:\s*\n\s*-\s*([\d.-]+)\s*\n\s*-\s*([\d.-]+)", fm, re.M)
+            # Два записи координат, обидва законні в YAML. Сімнадцять карток
+            # зі 112 писали інлайном — і мовчки не потрапляли на мапу; серед
+            # них Переяслав, одне з трьох міст ядра Русі (Юрій, 2026-07-29).
+            coords = (re.search(r"^coordinates:\s*\n\s*-\s*([\d.-]+)\s*\n\s*-\s*([\d.-]+)", fm, re.M)
+                      or re.search(r"^coordinates:\s*\[\s*([\d.-]+)\s*,\s*([\d.-]+)\s*\]", fm, re.M))
             if not coords:
                 continue
             name = _field(fm, "title") or path.stem
@@ -520,16 +524,29 @@ def create_map_router(root: Path, *, require_session: Callable[..., Any]) -> API
         for path in sorted(folk.glob("*.md")) if folk.is_dir() else []:
             text = path.read_text(encoding="utf-8", errors="ignore")
             fm = _front(text)
-            route = _route(_field(fm, "place"), alias)
+            place_raw = _field(fm, "place")
+            route = _route(place_raw, alias)
             if not route:
                 continue
+            # Роки перебування, якщо автор їх записав: «Москва (1147)» або
+            # «Київ (1149–1157)». Юрій: «не написано, коли Юрій Долгорукий був
+            # у Москві — хотілось би це бачити». Де дужок немає, лишається
+            # порожньо: вигадувати рік із тривалості життя не можна.
+            when: dict[str, str] = {}
+            for city, years in re.findall(r"([^→(]+)\(([^)]+)\)", place_raw):
+                name = city.strip(" ,;")
+                for canon_name in route:
+                    if canon_name.lower() in name.lower() or name.lower() in canon_name.lower():
+                        when[canon_name] = years.strip()
+                        break
             start, end = _field(fm, "time_start"), _field(fm, "time_end")
             people.append({
                 "title": _field(fm, "title") or path.stem,
                 "year": int(start) if re.fullmatch(r"-?\d+", start or "") else None,
                 "year_end": int(end) if re.fullmatch(r"-?\d+", end or "") else None,
                 "route": route,
-                "place_raw": _field(fm, "place"),
+                "when": when,
+                "place_raw": place_raw,
                 "path": str(path.relative_to(root)),
                 "document_id": _doc_id(str(path.relative_to(root))),
             })
