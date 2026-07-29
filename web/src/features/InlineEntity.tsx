@@ -1,7 +1,8 @@
 import type React from "react";
-import { createContext, useContext, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getJson, postJson } from "../api";
+import { focusEntity } from "./entityFocus";
 import { SafeMarkdownView, type WikilinkTarget } from "./documents/SafeMarkdownView";
 
 /** Розгортання сутності просто в тілі тексту — універсальний принцип системи.
@@ -83,6 +84,11 @@ export const CardScope = CardScopeContext.Provider;
 
 export function useNamedCard(name: string | null) {
   const scope = useContext(CardScopeContext);
+  // Відкрита картка стає поточною сутністю для всього застосунку: Мапа
+  // підхопить її й покаже маршрут або місце.
+  useEffect(() => {
+    if (name) focusEntity(name.startsWith("uid:") ? name : name.trim());
+  }, [name]);
   return useQuery({
     queryKey: ["entity", "card", name, scope],
     enabled: Boolean(name),

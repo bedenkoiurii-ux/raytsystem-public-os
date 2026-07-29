@@ -6,6 +6,7 @@ import { EmptyState, ErrorState, LoadingState } from "../components/StatePanel";
 import { getJson } from "../api";
 import { SafeMarkdownView, type WikilinkTarget } from "./documents/SafeMarkdownView";
 import { Prose, useNamedCard } from "./InlineEntity";
+import { FOCUS_EVENT, currentFocus } from "./entityFocus";
 
 /** Мапа сюжетів — географія розповіді.
  *
@@ -518,6 +519,31 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
 
   // Сюжет входить у зріз, якщо його роки перетинаються з обраним періодом.
   const [lo, hi] = span ?? bounds;
+
+  // Мапа відгукується на розкриту картку. ЗАДУМ ЮРІЯ (2026-07-29): «зробимо
+  // реакцію мапи на відкриття карточок або на відкриття врізок». Фокус
+  // приходить із Документів через localStorage: вкладки живуть окремо, і стан
+  // має пережити перехід між ними.
+  useEffect(() => {
+    const react = (name: string | null) => {
+      if (!name) return;
+      const people = data.data?.people ?? [];
+      const person = people.find((x) => x.title === name);
+      if (person) {
+        setFolk(true);
+        setSolo(person.title);
+        if (person.year !== null) setYear(sliceFor(person.year));
+        return;
+      }
+      // Не людина — може, місце: підсвічуємо його як активну точку.
+      const place = data.data?.places.find((x) => x.title === name);
+      if (place) setHover({ ...place } as Place);
+    };
+    react(currentFocus());
+    const onFocus = (e: Event) => react((e as CustomEvent<string | null>).detail);
+    window.addEventListener(FOCUS_EVENT, onFocus);
+    return () => window.removeEventListener(FOCUS_EVENT, onFocus);
+  }, [data.data]);
 
   // Мапа йде за читанням. ЗАДУМ ЮРІЯ (2026-07-29): «мапа ілюструє текст, який
   // ми зараз бачимо, буквально: що зараз відкрито, те й відображено». Відкритий
