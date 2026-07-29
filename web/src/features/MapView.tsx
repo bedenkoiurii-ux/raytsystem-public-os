@@ -1100,9 +1100,6 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                     );
                   })}
                 </ul>
-                <button type="button" className="person-close" onClick={() => setSolo(null)}>
-                  показати всіх
-                </button>
               </div>
             );
           })() : null}

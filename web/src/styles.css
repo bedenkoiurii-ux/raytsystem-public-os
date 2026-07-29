@@ -1757,6 +1757,3 @@ li.open .chev { transform: rotate(90deg); }
 .map-person li b { color: var(--bone); font-weight: 500; }
 .map-person li.away { opacity: .45; cursor: default; }
 .map-person li.away:hover { background: transparent; border-left-color: transparent; }
-.person-close { margin-top: 6px; font-size: 11px; background: transparent; border: 1px solid var(--line);
-  color: var(--muted-2); border-radius: var(--radius-xs); padding: 3px 8px; cursor: pointer; }
-.person-close:hover { color: var(--mint, #7fd1ae); border-color: var(--mint, #7fd1ae); }
