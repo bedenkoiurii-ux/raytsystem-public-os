@@ -914,7 +914,29 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                     }, {} as Record<string, typeof coreLayer.data>)
                   ).map(([group, items]) => (
                     <div key={group} className="map-subgroup">
-                      <span className="map-realms-head">{group}</span>
+                      {/* Кластер — вмикається цілим. ЗАДУМ ЮРІЯ (2026-07-29):
+                          «хочу мати можливість включати-виключати обʼєднані в
+                          кластери обʼєкти, а в рамках одного кластеру вибірково
+                          вмикати чи вимикати». Заголовок групи керує всією
+                          групою, чипи всередині — кожен собою. */}
+                      <button type="button" className="map-cluster"
+                              onClick={() => {
+                                const ids = items.map((l) => l.id);
+                                const allOn = ids.every((id) => !hidden.has(id));
+                                setHidden((s) => {
+                                  const next = new Set(s);
+                                  ids.forEach((id) => (allOn ? next.add(id) : next.delete(id)));
+                                  return next;
+                                });
+                              }}>
+                        <span className="cluster-box">
+                          {items.every((l) => !hidden.has(l.id)) ? "◼" : items.some((l) => !hidden.has(l.id)) ? "◧" : "◻"}
+                        </span>
+                        {group}
+                        <span className="cluster-count">
+                          {items.filter((l) => !hidden.has(l.id)).length}/{items.length}
+                        </span>
+                      </button>
                       {items.map((l) => (
                         <button key={l.id} type="button"
                                 className={`realm-chip own${hidden.has(l.id) ? " off" : ""}`}
