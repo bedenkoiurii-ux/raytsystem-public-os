@@ -1686,3 +1686,22 @@ li.open .chev { transform: rotate(90deg); }
 .map-core .own-north text { fill: #9b8cc4; }
 .realm-chip.own-rus { border-color: color-mix(in srgb, var(--cyan) 55%, transparent); }
 .realm-chip.own-north { border-color: color-mix(in srgb, #9b8cc4 55%, transparent); }
+/* Річки — те, по чому проходили межі й торгівля. Тонкі, холодні, під усім. */
+.map-rivers path { fill: none; stroke: color-mix(in srgb, #4a8fb8 40%, transparent); vector-effect: non-scaling-stroke; }
+.map-rivers .big path { stroke: color-mix(in srgb, #5aa3d0 65%, transparent); }
+.map-rivers text { fill: color-mix(in srgb, #5aa3d0 75%, transparent); font-family: var(--mono); font-style: italic; paint-order: stroke; stroke: rgba(0,0,0,.5); stroke-width: 2px; }
+
+/* Землі Русі: заливка без різкої лінії — щілини між приблизними контурами
+   перестають читатись як «клапті, що не мають відношення одне до одного»
+   (Юрій). Єдність тримає зовнішня рамка, а не стики. */
+.map-core .own-rus path, .map-core .own-north path { stroke-dasharray: none; stroke-opacity: .35; }
+.map-core .own-rus path { fill: color-mix(in srgb, var(--cyan) 13%, transparent); }
+.map-core .own-north path { fill: color-mix(in srgb, #9b8cc4 14%, transparent); }
+/* Зовнішня межа Русі — суцільна й помітна: саме вона каже, що це одна держава. */
+.map-core .is-outer path { fill: color-mix(in srgb, var(--cyan) 5%, transparent); stroke: color-mix(in srgb, var(--cyan) 85%, transparent); stroke-dasharray: none; stroke-opacity: 1; }
+/* Шлях із варягів у греки — лінія, не область. */
+.map-core .is-route path { fill: none; stroke: #e0a94e; stroke-dasharray: 10 4; stroke-opacity: 1; }
+.map-core .own-route circle { fill: #e0a94e; }
+.map-core .own-route text { fill: #e0a94e; }
+.realm-chip.own-outer { border-color: color-mix(in srgb, var(--cyan) 80%, transparent); }
+.realm-chip.own-route { border-color: #e0a94e; }

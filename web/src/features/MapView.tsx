@@ -213,7 +213,7 @@ export function sliceFor(year: number): number {
  */
 interface OwnLayer {
   id: string; label: string; from: number; to: number; tone: string;
-  note: string; source: string;
+  note: string; source: string; line?: boolean; outer?: boolean; group?: string;
   anchors: { name: string; lat: number; lon: number }[];
   ring: number[][];
 }
@@ -253,6 +253,34 @@ function usePlaces(on: boolean, year: number | null, projection: Projection, key
   });
 }
 
+/** Річки. ЗАУВАГА ЮРІЯ (2026-07-29): «потрібно мати основні річки, тому що
+ *  кордони і торгові шляхи — а вони на мапі взагалі відсутні». Для Русі це не
+ *  оздоба: межі земель описані саме річками, і шлях із варягів у греки — теж
+ *  річка з волоками. Без них мапа показує землі, яких ніщо не тримає. */
+function useRivers(projection: Projection, key: string) {
+  return useQuery({
+    queryKey: ["map", "rivers", key],
+    staleTime: Infinity,
+    queryFn: async () => {
+      const data = (await import("./historical/rivers.json")).default as unknown as {
+        rivers: { n: string; big: boolean; label?: boolean; l: number[][] }[];
+      };
+      return data.rivers.map((r) => {
+        let d = "";
+        let pen = false;
+        for (const [lon, lat] of r.l) {
+          if (!projection.visible(lat, lon)) { pen = false; continue; }
+          const [x, y] = projection.toScreen(lat, lon);
+          d += `${pen ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`;
+          pen = true;
+        }
+        const mid = r.l[Math.floor(r.l.length / 2)];
+        return { ...r, d, labelAt: projection.visible(mid[1], mid[0]) ? projection.toScreen(mid[1], mid[0]) : null };
+      }).filter((r) => r.d);
+    }
+  });
+}
+
 function useOwnLayers(on: boolean, year: number | null, projection: Projection, key: string) {
   return useQuery({
     queryKey: ["map", "own", key, year],
@@ -274,7 +302,9 @@ function useOwnLayers(on: boolean, year: number | null, projection: Projection, 
           }
           return {
             ...l,
-            path: d ? `${d}Z` : "",
+            // Шлях — лінія, не область: замикати його означало б малювати
+            // Балтику й Босфор одним берегом.
+            path: d ? (l.line ? d : `${d}Z`) : "",
             points: l.anchors.filter((a) => projection.visible(a.lat, a.lon))
               .map((a) => ({ ...a, xy: projection.toScreen(a.lat, a.lon) })),
           };
@@ -428,6 +458,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
   // на мапі й розповідь про неї стають однією річчю, а не двома.
   const [realmCards, setRealmCards] = useState<string[]>([]);
   const coreLayer = useOwnLayers(year !== null, year, projection, projKey);
+  const rivers = useRivers(projection, projKey);
   const [folk, setFolk] = useState(false);
   const [towns, setTowns] = useState(false);
   const townLayer = usePlaces(towns, year, projection, projKey);
@@ -672,6 +703,19 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
               </g>
             ) : null}
 
+            {rivers.data ? (
+              <g className="map-rivers">
+                {rivers.data.map((r, i) => (
+                  <g key={`${r.n}-${i}`} className={r.big ? "big" : ""}>
+                    <path d={r.d} style={{ strokeWidth: (r.big ? 1.3 : 0.7) / view.k }} />
+                    {r.label && r.labelAt ? (
+                      <text x={r.labelAt[0]} y={r.labelAt[1]} style={{ fontSize: `${9.5 / view.k}px` }}>{r.n}</text>
+                    ) : null}
+                  </g>
+                ))}
+              </g>
+            ) : null}
+
             {/* Міста атласу — тлом під нашими точками: дрібно, без підписів,
                 бо їх дві тисячі. Наші місця лишаються яскравими, бо про них
                 бібліотека має що сказати. */}
@@ -692,8 +736,8 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
             {coreLayer.data?.length ? (
               <g className="map-core">
                 {coreLayer.data.map((l) => (
-                  <g key={l.id} className={`own-${l.tone}`}>
-                    <path d={l.path} style={{ strokeWidth: 1.6 / view.k }} />
+                  <g key={l.id} className={`own-${l.tone}${l.line ? " is-route" : ""}${l.outer ? " is-outer" : ""}`}>
+                    <path d={l.path} style={{ strokeWidth: (l.outer ? 2.2 : l.line ? 2 : 1.6) / view.k }} />
                     {l.points.map((a) => (
                       <g key={a.name}>
                         <circle cx={a.xy[0]} cy={a.xy[1]} r={3.2 / view.k} />
