@@ -1705,3 +1705,11 @@ li.open .chev { transform: rotate(90deg); }
 .map-core .own-route text { fill: #e0a94e; }
 .realm-chip.own-outer { border-color: color-mix(in srgb, var(--cyan) 80%, transparent); }
 .realm-chip.own-route { border-color: #e0a94e; }
+/* Вимкнений контур лишається в переліку — видно, що він є і його сховано. */
+.realm-chip.own.off { opacity: .45; border-style: dashed; }
+/* Список людей: вибір одного замість каші з 98 імен. */
+.map-folk-list { display: flex; flex-wrap: wrap; gap: 4px; padding-top: 8px; border-top: 1px solid var(--line-soft); }
+.folk-chip { font-size: 11px; padding: 2px 7px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--mint, #7fd1ae) 35%, transparent); background: transparent; color: var(--muted); cursor: pointer; }
+.folk-chip:hover { color: var(--mint, #7fd1ae); border-color: var(--mint, #7fd1ae); }
+.folk-chip.on { background: color-mix(in srgb, var(--mint, #7fd1ae) 18%, transparent); color: var(--mint, #7fd1ae); border-color: var(--mint, #7fd1ae); }
+.folk-year { color: var(--muted-2); font-family: var(--mono); font-size: 10px; }

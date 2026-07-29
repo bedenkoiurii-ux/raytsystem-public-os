@@ -459,6 +459,19 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
   const [realmCards, setRealmCards] = useState<string[]>([]);
   const coreLayer = useOwnLayers(year !== null, year, projection, projKey);
   const rivers = useRivers(projection, projKey);
+  // Кожен шар вимикається окремо. ЗАУВАГА ЮРІЯ (2026-07-29): «мене цікавить
+  // кожного разу якийсь окремий зріз або декілька зрізів, які я можу
+  // комбінувати… коли воно все разом і не можна щось відімкнути — це не
+  // робочий інструмент». Тримаємо ПРИХОВАНІ, а не показані: нові контури
+  // зʼявляються самі, а вимкнене лишається вимкненим.
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const toggleLayer = (id: string) => setHidden((s) => {
+    const next = new Set(s);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  // Одна людина замість усіх: 98 підписаних імен разом — «розібрати неможливо».
+  const [solo, setSolo] = useState<string | null>(null);
   const [folk, setFolk] = useState(false);
   const [towns, setTowns] = useState(false);
   const townLayer = usePlaces(towns, year, projection, projKey);
@@ -680,7 +693,8 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
             {folk ? (
               <g className="map-folk">
                 {(data.data?.people ?? [])
-                  .filter((p) => !span || ((p.year ?? 0) <= span[1] && (p.year_end ?? p.year ?? 9999) >= span[0]))
+                  .filter((p) => (solo ? p.title === solo : true))
+                  .filter((p) => solo || !span || ((p.year ?? 0) <= span[1] && (p.year_end ?? p.year ?? 9999) >= span[0]))
                   .map((person) => {
                     const stops = person.route.map((n) => places.get(n)).filter(Boolean) as (Place & { x: number; y: number; on: boolean })[];
                     const seen = stops.filter((s) => s.on);
@@ -735,7 +749,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                 приріст лягає навколо нього. */}
             {coreLayer.data?.length ? (
               <g className="map-core">
-                {coreLayer.data.map((l) => (
+                {coreLayer.data.filter((l) => !hidden.has(l.id)).map((l) => (
                   <g key={l.id} className={`own-${l.tone}${l.line ? " is-route" : ""}${l.outer ? " is-outer" : ""}`}>
                     <path d={l.path} style={{ strokeWidth: (l.outer ? 2.2 : l.line ? 2 : 1.6) / view.k }} />
                     {l.points.map((a) => (
@@ -879,6 +893,29 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                 бо «дати не знаємо» і «міста тоді не було» — різні твердження.
               </span>
             ) : null}
+            {/* Люди — списком, щоб можна було вибрати одного: 98 імен на мапі
+                разом «розібрати неможливо» (Юрій). Клік по імені лишає на мапі
+                тільки його лінію життя; повторний клік повертає всіх. */}
+            {folk ? (
+              <div className="map-folk-list">
+                <span className="map-realms-head">
+                  Люди · {(data.data?.people ?? []).length}
+                  {solo ? <> · показано лише <b>{solo}</b></> : " · клік по імені лишає одного"}
+                </span>
+                {(data.data?.people ?? [])
+                  .slice()
+                  .sort((a, b) => (a.year ?? 0) - (b.year ?? 0))
+                  .map((person) => (
+                    <button key={person.path} type="button"
+                            className={`folk-chip${solo === person.title ? " on" : ""}`}
+                            title={person.place_raw}
+                            onClick={() => setSolo((s) => (s === person.title ? null : person.title))}>
+                      {person.title}
+                      {person.year !== null ? <span className="folk-year"> {person.year < 0 ? `${-person.year} до н.е.` : person.year}</span> : null}
+                    </button>
+                  ))}
+              </div>
+            ) : null}
             <div className="map-realms-years">
               <button type="button" className={year === null ? "on" : ""}
                       onClick={() => { setYear(null); setRealm(null); }}>без кордонів</button>
@@ -901,9 +938,11 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                     повинна бути окремим вмикачем, вона повинна бути в переліку
                     і саме в тому часовому відрізку, де вона й має бути». */}
                 {(coreLayer.data ?? []).map((l) => (
-                  <button key={l.id} type="button" className={`realm-chip own p1 own-${l.tone}`}
-                          title={`${l.note}\n\nДжерело: ${l.source}`}>
-                    {l.label}<span className="chip-own"> · наш контур</span>
+                  <button key={l.id} type="button"
+                          className={`realm-chip own p1 own-${l.tone}${hidden.has(l.id) ? " off" : ""}`}
+                          title={`${l.note}\n\nДжерело: ${l.source}\n\nКлік — сховати або показати`}
+                          onClick={() => toggleLayer(l.id)}>
+                    {l.label}<span className="chip-own">{hidden.has(l.id) ? " · сховано" : " · наш контур"}</span>
                   </button>
                 ))}
                 {realms.data.realms
