@@ -1666,3 +1666,9 @@ li.open .chev { transform: rotate(90deg); }
 .map-folk text { fill: color-mix(in srgb, var(--mint, #7fd1ae) 90%, transparent); font-family: var(--mono); paint-order: stroke; stroke: rgba(0,0,0,.6); stroke-width: 2.4px; cursor: pointer; }
 .map-folk g:hover circle, .map-folk g:hover text { fill: var(--gold); }
 .map-frames button.folk.on { background: color-mix(in srgb, var(--mint, #7fd1ae) 16%, transparent); color: var(--mint, #7fd1ae); border-color: var(--mint, #7fd1ae); }
+/* Другий власний контур — Скіфія: інший тон, щоб не зливалася з ядром Русі. */
+.map-core .own-amber path { fill: color-mix(in srgb, #d98f3d 12%, transparent); stroke: #d98f3d; }
+.map-core .own-amber circle { fill: #d98f3d; }
+.map-core .own-amber text { fill: #d98f3d; }
+.own-line { display: block; margin-bottom: 6px; }
+.own-line i { color: var(--muted-2); font-style: normal; font-size: 10.5px; }

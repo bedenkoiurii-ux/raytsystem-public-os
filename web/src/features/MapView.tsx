@@ -200,40 +200,22 @@ export function sliceFor(year: number): number {
   return SLICES.reduce((best, y) => (Math.abs(y - year) < Math.abs(best - year) ? y : best), SLICES[0]);
 }
 
-/** Ядро Русі — «Руська земля» у вузькому сенсі.
+/** Власні контури — те, що джерела описують СЛОВАМИ, а атласи не дають геометрією.
  *
- *  ЗАВДАННЯ ЮРІЯ (2026-07-29): «Для мене важливо показати ядро — це основна
- *  ціль цього завдання». Атлас цього не вміє: він дає Русь одним контуром без
- *  поділу на ядро й приріст. Тому контур наш — реконструкція за словесним
- *  описом межі в ЕІУ (Десна, Сейм, Сула, Рось, Тясмин, Горинь), і саме тому
- *  вона підписана як приблизна, з джерелом просто в панелі. Різниця між ядром
- *  і приростом — те, що стирає формула «збирання земель Русі».
+ *  ЗАВДАННЯ ЮРІЯ: показати ядро Русі (2026-07-29) і Скіфію — «скіфи були, а на
+ *  мапі я їх не бачу». Атлас справді мовчить: на зрізі −500, в епоху Геродота,
+ *  Північне Причорномор'я в ньому порожнє, скіфи зʼявляються аж на −100 і на
+ *  схід від Каспію. Тому контур наш, за словесним описом джерела, і підписаний
+ *  як приблизний — річки названі джерелом, лінія між ними проведена нами.
+ *
+ *  Показуємо ті, чий період накриває обраний зріз: Скіфія не має стояти на
+ *  мапі XVII століття лише тому, що шар увімкнений.
  */
-function useCore(on: boolean, projection: Projection, key: string) {
-  return useQuery({
-    queryKey: ["map", "core", key],
-    enabled: on,
-    staleTime: Infinity,
-    queryFn: async () => {
-      const data = (await import("./historical/core-rus.json")).default as unknown as {
-        note: string; source: string;
-        anchors: { name: string; lat: number; lon: number }[];
-        ring: number[][];
-      };
-      let d = "";
-      let pen = false;
-      for (const [lon, lat] of data.ring) {
-        if (!projection.visible(lat, lon)) { pen = false; continue; }
-        const [x, y] = projection.toScreen(lat, lon);
-        d += `${pen ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`;
-        pen = true;
-      }
-      const anchors = data.anchors
-        .filter((a) => projection.visible(a.lat, a.lon))
-        .map((a) => ({ ...a, xy: projection.toScreen(a.lat, a.lon) }));
-      return { path: d ? `${d}Z` : "", anchors, note: data.note, source: data.source };
-    }
-  });
+interface OwnLayer {
+  id: string; label: string; from: number; to: number; tone: string;
+  note: string; source: string;
+  anchors: { name: string; lat: number; lon: number }[];
+  ring: number[][];
 }
 
 /** Міста з історичного атласу — 2 220 точок, ширші за нашу бібліотеку.
@@ -267,6 +249,37 @@ function usePlaces(on: boolean, year: number | null, projection: Projection, key
           const [x, y] = projection.toScreen(p.y, p.x);
           return { ...p, sx: x, sy: y, dated: p.s !== undefined };
         });
+    }
+  });
+}
+
+function useOwnLayers(on: boolean, year: number | null, projection: Projection, key: string) {
+  return useQuery({
+    queryKey: ["map", "own", key, year],
+    enabled: on,
+    staleTime: Infinity,
+    queryFn: async () => {
+      const data = (await import("./historical/own-layers.json")).default as unknown as { layers: OwnLayer[] };
+      const at = year;
+      return data.layers
+        .filter((l) => at === null || (at >= l.from && at <= l.to))
+        .map((l) => {
+          let d = "";
+          let pen = false;
+          for (const [lon, lat] of l.ring) {
+            if (!projection.visible(lat, lon)) { pen = false; continue; }
+            const [x, y] = projection.toScreen(lat, lon);
+            d += `${pen ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`;
+            pen = true;
+          }
+          return {
+            ...l,
+            path: d ? `${d}Z` : "",
+            points: l.anchors.filter((a) => projection.visible(a.lat, a.lon))
+              .map((a) => ({ ...a, xy: projection.toScreen(a.lat, a.lon) })),
+          };
+        })
+        .filter((l) => l.path);
     }
   });
 }
@@ -415,7 +428,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
   // на мапі й розповідь про неї стають однією річчю, а не двома.
   const [realmCards, setRealmCards] = useState<string[]>([]);
   const [core, setCore] = useState(false);
-  const coreLayer = useCore(core, projection, projKey);
+  const coreLayer = useOwnLayers(core, year, projection, projKey);
   const [folk, setFolk] = useState(false);
   const [towns, setTowns] = useState(false);
   const townLayer = usePlaces(towns, year, projection, projKey);
@@ -471,6 +484,12 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
     setSpanByStory(true);
   }, [openStory, active, stories]);
 
+  // Імена, які вже підписало ядро: інакше на Києві, Чернігові й Переяславі
+  // лежало б по два однакові написи один на одному (Юрій).
+  const coreNames = useMemo(
+    () => new Set(core ? (coreLayer.data ?? []).flatMap((l) => l.anchors.map((a) => a.name)) : []),
+    [core, coreLayer.data]);
+
   // Точки обраного сюжету. Решта лишається на мапі, але тьмяною й без підпису —
   // саме нагромадження підписів робило мапу нечитною.
   const focused = useMemo(() => {
@@ -481,19 +500,34 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
   // Кого підписуємо. У режимі сюжету — тільки його точки (решта тьмяна, без
   // назв). Без сюжету — груба сітка антиколізії; при зумі комірка дрібнішає,
   // тож чим ближче, тим більше назв проступає.
+  // Вага місця — скільки разів про нього говорить бібліотека: події сюжетів,
+  // окремі події, маршрути людей. Це і є міра того, чи варте воно підпису.
+  const weight = useMemo(() => {
+    const w = new Map<string, number>();
+    const bump = (name: string) => w.set(name, (w.get(name) ?? 0) + 1);
+    for (const s of data.data?.stories ?? []) for (const e of s.events) e.route.forEach(bump);
+    for (const e of data.data?.loose ?? []) e.route.forEach(bump);
+    for (const person of data.data?.people ?? []) person.route.forEach(bump);
+    return w;
+  }, [data.data]);
+
   const named = useMemo(() => {
     const all = [...places.values()];
     if (focused) return new Set(all.filter((p) => focused.has(p.title)).map((p) => p.title));
     const taken = new Set<string>();
     const out = new Set<string>();
-    for (const p of all.slice().sort((a, b) => a.title.length - b.title.length)) {
+    // Сортуємо за ВАГОЮ, а не за довжиною назви. Довільний критерій лишав
+    // Київ без підпису — найважливіша точка мапи програвала Ізюму, бо назви
+    // однакової довжини, а порядок був випадковий (Юрій помітив на ядрі).
+    for (const p of all.slice().sort((a, b) => (weight.get(b.title) ?? 0) - (weight.get(a.title) ?? 0)
+                                               || a.title.length - b.title.length)) {
       const cell = `${Math.round((p.x * view.k) / 120)}:${Math.round((p.y * view.k) / 20)}`;
       if (taken.has(cell)) continue;
       taken.add(cell);
       out.add(p.title);
     }
     return out;
-  }, [places, focused, view.k]);
+  }, [places, focused, view.k, weight]);
 
   const shown = stories.filter((s) => !span || spanByStory || (s.to >= span[0] && s.from <= span[1]));
   const periods = data.data?.periods ?? [];
@@ -642,7 +676,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
             {/* Міста атласу — тлом під нашими точками: дрібно, без підписів,
                 бо їх дві тисячі. Наші місця лишаються яскравими, бо про них
                 бібліотека має що сказати. */}
-            {townLayer.data ? (
+            {towns && townLayer.data ? (
               <g className="map-towns">
                 {townLayer.data.map((p) => (
                   <circle key={`${p.n}-${p.x}-${p.y}`} cx={p.sx} cy={p.sy}
@@ -656,14 +690,18 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
 
             {/* Ядро Русі — під історичними кордонами, щоб було видно, як
                 приріст лягає навколо нього. */}
-            {coreLayer.data?.path ? (
+            {core && coreLayer.data?.length ? (
               <g className="map-core">
-                <path d={coreLayer.data.path} style={{ strokeWidth: 1.6 / view.k }} />
-                {coreLayer.data.anchors.map((a) => (
-                  <g key={a.name}>
-                    <circle cx={a.xy[0]} cy={a.xy[1]} r={3.2 / view.k} />
-                    <text x={a.xy[0] + 5 / view.k} y={a.xy[1] - 4 / view.k}
-                          style={{ fontSize: `${11 / view.k}px` }}>{a.name}</text>
+                {coreLayer.data.map((l) => (
+                  <g key={l.id} className={`own-${l.tone}`}>
+                    <path d={l.path} style={{ strokeWidth: 1.6 / view.k }} />
+                    {l.points.map((a) => (
+                      <g key={a.name}>
+                        <circle cx={a.xy[0]} cy={a.xy[1]} r={3.2 / view.k} />
+                        <text x={a.xy[0] + 5 / view.k} y={a.xy[1] - 4 / view.k}
+                              style={{ fontSize: `${11 / view.k}px` }}>{a.name}</text>
+                      </g>
+                    ))}
                   </g>
                 ))}
               </g>
@@ -720,7 +758,7 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                    onMouseEnter={() => setHover(p)} onMouseLeave={() => setHover(null)}
                    onClick={() => p.document_id && onOpenDocument?.(p.document_id)} role="button" tabIndex={0}>
                   <circle cx={p.x} cy={p.y} r={(hover?.title === p.title ? 6 : 4) / view.k} />
-                  {named.has(p.title) ? (
+                  {named.has(p.title) && !coreNames.has(p.title) ? (
                     <text x={p.x + 9 / view.k} y={p.y + 4 / view.k} style={{ fontSize: `${10.5 / view.k}px` }}>{p.title}</text>
                   ) : null}
                 </g>
@@ -779,9 +817,9 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                 Міста епохи
               </button>
               <button type="button" className={core ? "on core" : "core"}
-                      title="«Руська земля» у вузькому сенсі: Київ — Чернігів — Переяслав"
+                      title="Наші контури: ядро Русі та Скіфія — те, що джерела описують словами"
                       onClick={() => setCore((v) => !v)}>
-                Ядро Русі
+                Ядро й Скіфія
               </button>
               <button type="button" className={globe ? "on globe" : "globe"}
                       title="Глобус: перетягуванням обертати"
@@ -803,10 +841,17 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                 бо «дати не знаємо» і «міста тоді не було» — різні твердження.
               </span>
             ) : null}
-            {core && coreLayer.data ? (
+            {core && coreLayer.data?.length ? (
               <span className="map-core-note">
-                <b>Ядро — «Руська земля» у вузькому сенсі.</b> {coreLayer.data.note}
+                {coreLayer.data.map((l) => (
+                  <span key={l.id} className="own-line">
+                    <b>{l.label}</b> ({l.from < 0 ? `${-l.from} до н.е.` : l.from}–{l.to < 0 ? `${-l.to} до н.е.` : l.to}). {l.note}
+                    {" "}<i>{l.source}</i>
+                  </span>
+                ))}
               </span>
+            ) : core ? (
+              <span className="map-core-note">Для обраного року власних контурів немає — оберіть рік у межах Скіфії (700–250 до н.е.) або Русі (900–1240).</span>
             ) : null}
             <div className="map-realms-years">
               <button type="button" className={year === null ? "on" : ""}
