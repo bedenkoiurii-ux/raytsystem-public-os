@@ -1713,3 +1713,16 @@ li.open .chev { transform: rotate(90deg); }
 .folk-chip:hover { color: var(--mint, #7fd1ae); border-color: var(--mint, #7fd1ae); }
 .folk-chip.on { background: color-mix(in srgb, var(--mint, #7fd1ae) 18%, transparent); color: var(--mint, #7fd1ae); border-color: var(--mint, #7fd1ae); }
 .folk-year { color: var(--muted-2); font-family: var(--mono); font-size: 10px; }
+/* Панель шарів блоками: кожен — окреме питання до мапи. Згорнуті, доки не
+   потрібні: суцільне поле чипів, у якому «можна загубитись» (Юрій), заміняє
+   структура від великого до малого. */
+.map-block { border: 1px solid var(--line-soft); border-radius: var(--radius-xs); background: color-mix(in srgb, var(--carbon) 60%, transparent); }
+.map-block > summary { cursor: pointer; padding: 6px 10px; font-size: 12px; color: var(--bone); list-style: none; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.map-block > summary::-webkit-details-marker { display: none; }
+.map-block > summary::before { content: "▸"; color: var(--muted-2); font-size: 10px; margin-right: 6px; transition: transform .12s ease; display: inline-block; }
+.map-block[open] > summary::before { transform: rotate(90deg); }
+.map-block > summary .cnt { font: 10.5px var(--mono); color: var(--muted-2); font-weight: normal; }
+.map-block > summary:hover { color: var(--cyan); }
+.map-block > div { padding: 4px 10px 10px; }
+.map-subgroup { width: 100%; display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.map-subgroup .map-realms-head { width: 100%; margin-bottom: 2px; }

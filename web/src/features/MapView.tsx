@@ -852,57 +852,127 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
           {/* Простір під мапою, де живуть самі кордони: рік зрізу, що на ньому
               видно, і звідки це взято. Юрій: «під картою може бути простір, де
               зберігається вся ця інформація по роках, по об'єктах». */}
+          {/* Панель шарів — блоками, від великого до малого. ЗАУВАГА ЮРІЯ
+              (2026-07-29): «зараз це подається як єдине поле, і шукай там серед
+              цього те, що тобі потрібно… треба робити блоки, які розкриваються».
+              Кожен блок — окреме питання до мапи: коли, де, хто, чим сполучене.
+              Згорнуті за замовчуванням, крім часу: з нього все починається. */}
           <div className="map-realms-bar">
-            {/* Вікно показу. «Русь і степ» — київська оптика, з якої мапа
-                починалась; решта відкриває північ, південь і схід, куди
-                розповідь виходить: вікінги, Африка, Азія, ГУЛАГ до Колими. */}
-            <div className="map-frames">
-              {Object.entries(FRAMES).map(([id, f]) => (
-                <button key={id} type="button" className={!globe && frame === id ? "on" : ""}
-                        onClick={() => { setGlobe(false); setFrame(id as Frame); setView({ x: 0, y: 0, k: 1 }); }}>
-                  {f.label}
+            <details className="map-block" open>
+              <summary>Погляд <span className="cnt">{globe ? "глобус" : FRAMES[frame].label}</span></summary>
+              <div className="map-frames">
+                {Object.entries(FRAMES).map(([id, f]) => (
+                  <button key={id} type="button" className={!globe && frame === id ? "on" : ""}
+                          onClick={() => { setGlobe(false); setFrame(id as Frame); setView({ x: 0, y: 0, k: 1 }); }}>
+                    {f.label}
+                  </button>
+                ))}
+                <button type="button" className={globe ? "on globe" : "globe"}
+                        title="Глобус: перетягуванням обертати"
+                        onClick={() => { setGlobe(true); setView({ x: 0, y: 0, k: 1 }); }}>
+                  Глобус
                 </button>
-              ))}
-              <button type="button" className={folk ? "on folk" : "folk"}
-                      title="Люди бібліотеки: лінія життя за place: картки"
-                      onClick={() => setFolk((v) => !v)}>
-                Люди
-              </button>
-              <button type="button" className={towns ? "on towns" : "towns"}
-                      title="Міста з історичного атласу — ширше за нашу бібліотеку"
-                      onClick={() => setTowns((v) => !v)}>
-                Міста епохи
-              </button>
-              <button type="button" className={globe ? "on globe" : "globe"}
-                      title="Глобус: перетягуванням обертати"
-                      onClick={() => { setGlobe(true); setView({ x: 0, y: 0, k: 1 }); }}>
-                Глобус
-              </button>
-              {globe ? (
-                <span className="map-frames-hint">
-                  {Math.abs(spin.lat).toFixed(0)}°{spin.lat >= 0 ? "пн" : "пд"}{" "}
-                  {Math.abs(spin.lon).toFixed(0)}°{spin.lon >= 0 ? "сх" : "зх"} · тягніть, щоб обертати
-                </span>
-              ) : null}
-            </div>
-            {towns && townLayer.data ? (
-              <span className="map-core-note towns">
-                <b>Міста епохи — {townLayer.data.length} точок.</b> З історичного атласу,
-                ширше за бібліотеку: мапа — не ілюстрація книги, а власна база знань.
-                Дата заснування відома лише для 70 міст — решта показується завжди,
-                бо «дати не знаємо» і «міста тоді не було» — різні твердження.
-              </span>
+                {globe ? (
+                  <span className="map-frames-hint">
+                    {Math.abs(spin.lat).toFixed(0)}°{spin.lat >= 0 ? "пн" : "пд"}{" "}
+                    {Math.abs(spin.lon).toFixed(0)}°{spin.lon >= 0 ? "сх" : "зх"} · тягніть, щоб обертати
+                  </span>
+                ) : null}
+              </div>
+            </details>
+
+            <details className="map-block" open>
+              <summary>Час <span className="cnt">{year === null ? "без кордонів" : year < 0 ? `${-year} до н.е.` : year}</span></summary>
+              <div className="map-realms-years">
+                <button type="button" className={year === null ? "on" : ""}
+                        onClick={() => { setYear(null); setRealm(null); }}>без кордонів</button>
+                {SLICES.map((y) => (
+                  <button key={y} type="button" className={year === y ? "on" : ""}
+                          onClick={() => setYear(y)}>
+                    {y < 0 ? `${-y} до н.е.` : y}
+                  </button>
+                ))}
+              </div>
+            </details>
+
+            {coreLayer.data?.length ? (
+              <details className="map-block" open>
+                <summary>
+                  Наші контури <span className="cnt">{coreLayer.data.filter((l) => !hidden.has(l.id)).length} з {coreLayer.data.length}</span>
+                </summary>
+                <div className="map-realms-list">
+                  {Object.entries(
+                    coreLayer.data.reduce((acc, l) => {
+                      const key = l.group ?? "Окремі контури";
+                      (acc[key] ??= []).push(l);
+                      return acc;
+                    }, {} as Record<string, typeof coreLayer.data>)
+                  ).map(([group, items]) => (
+                    <div key={group} className="map-subgroup">
+                      <span className="map-realms-head">{group}</span>
+                      {items.map((l) => (
+                        <button key={l.id} type="button"
+                                className={`realm-chip own p1 own-${l.tone}${hidden.has(l.id) ? " off" : ""}`}
+                                title={`${l.note}\n\nДжерело: ${l.source}\n\nКлік — сховати або показати`}
+                                onClick={() => toggleLayer(l.id)}>
+                          {l.label}<span className="chip-own">{hidden.has(l.id) ? " · сховано" : ""}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </details>
             ) : null}
-            {/* Люди — списком, щоб можна було вибрати одного: 98 імен на мапі
-                разом «розібрати неможливо» (Юрій). Клік по імені лишає на мапі
-                тільки його лінію життя; повторний клік повертає всіх. */}
-            {folk ? (
+
+            {realms.data ? (
+              <details className="map-block">
+                <summary>Кордони з атласу <span className="cnt">{realms.data.realms.length}</span></summary>
+                <div className="map-realms-list">
+                  <span className="map-realms-note">
+                    Штрих — певність межі за джерелом: суцільна лінія означає кордон,
+                    визначений правом, розмита — приблизний. Дані:{" "}
+                    <code>aourednik/historical-basemaps</code> (GPL-3.0).
+                  </span>
+                  {realms.data.realms
+                    .slice()
+                    .sort((a, b) => a.name.localeCompare(b.name, "uk-UA"))
+                    .map((r) => (
+                      <button key={r.name} type="button"
+                              className={`realm-chip p${r.precision && r.precision >= 1 ? r.precision : 1}`
+                                         + (realm?.name === r.name ? " on" : "")
+                                         + (REALM_CARDS[r.name] ? " has-card" : "")}
+                              title={REALM_CARDS[r.name] ? `Відкрити картку «${REALM_CARDS[r.name]}»` : undefined}
+                              onMouseEnter={() => setRealm(r)} onMouseLeave={() => setRealm(null)}
+                              onClick={() => {
+                                const card = REALM_CARDS[r.name];
+                                if (card) setRealmCards((s) => (s.includes(card) ? s.filter((x) => x !== card) : [...s, card]));
+                              }}>
+                        {r.name}
+                        {REALM_CARDS[r.name] ? <span className="chip-card"> · {REALM_CARDS[r.name]}</span> : null}
+                      </button>
+                    ))}
+                  {realmCards.length ? (
+                    <div className="map-realms-cards">
+                      {realmCards.map((name) => (
+                        <Entity key={name} name={name} opened={opened} setOpened={setOpened}
+                                onOpenDocument={onOpenDocument} />
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              </details>
+            ) : null}
+
+            <details className="map-block">
+              <summary>
+                Люди <span className="cnt">{folk ? (solo ? solo : `${(data.data?.people ?? []).length} на мапі`) : "вимкнено"}</span>
+              </summary>
               <div className="map-folk-list">
-                <span className="map-realms-head">
-                  Люди · {(data.data?.people ?? []).length}
-                  {solo ? <> · показано лише <b>{solo}</b></> : " · клік по імені лишає одного"}
-                </span>
-                {(data.data?.people ?? [])
+                <button type="button" className={`folk-chip${folk ? " on" : ""}`}
+                        onClick={() => { setFolk((v) => !v); setSolo(null); }}>
+                  {folk ? "прибрати з мапи" : "показати на мапі"}
+                </button>
+                {folk ? (data.data?.people ?? [])
                   .slice()
                   .sort((a, b) => (a.year ?? 0) - (b.year ?? 0))
                   .map((person) => (
@@ -913,73 +983,24 @@ export function MapView({ onOpenDocument }: { onOpenDocument?: (id: string) => v
                       {person.title}
                       {person.year !== null ? <span className="folk-year"> {person.year < 0 ? `${-person.year} до н.е.` : person.year}</span> : null}
                     </button>
-                  ))}
+                  )) : null}
               </div>
-            ) : null}
-            <div className="map-realms-years">
-              <button type="button" className={year === null ? "on" : ""}
-                      onClick={() => { setYear(null); setRealm(null); }}>без кордонів</button>
-              {SLICES.map((y) => (
-                <button key={y} type="button" className={year === y ? "on" : ""}
-                        onClick={() => setYear(y)}>
-                  {y < 0 ? `${-y} до н.е.` : y}
-                </button>
-              ))}
-            </div>
-            {realms.data ? (
-              <div className="map-realms-list">
-                <span className="map-realms-head">
-                  Кордони станом на {realms.data.year < 0 ? `${-realms.data.year} до н.е.` : realms.data.year}
-                  {" · "}{realms.data.realms.length + (coreLayer.data?.length ?? 0)} утворень
-                </span>
-                {/* Наші контури — у тому самому переліку, що й атласні, але з
-                    позначкою джерела: вони не «правильніші», вони інші за
-                    природою — те, що джерело описує словами. Юрій: «Скіфія не
-                    повинна бути окремим вмикачем, вона повинна бути в переліку
-                    і саме в тому часовому відрізку, де вона й має бути». */}
-                {(coreLayer.data ?? []).map((l) => (
-                  <button key={l.id} type="button"
-                          className={`realm-chip own p1 own-${l.tone}${hidden.has(l.id) ? " off" : ""}`}
-                          title={`${l.note}\n\nДжерело: ${l.source}\n\nКлік — сховати або показати`}
-                          onClick={() => toggleLayer(l.id)}>
-                    {l.label}<span className="chip-own">{hidden.has(l.id) ? " · сховано" : " · наш контур"}</span>
-                  </button>
-                ))}
-                {realms.data.realms
-                  .slice()
-                  .sort((a, b) => a.name.localeCompare(b.name, "uk-UA"))
-                  .map((r) => (
-                    <button key={r.name} type="button"
-                            className={`realm-chip p${r.precision && r.precision >= 1 ? r.precision : 1}`
-                                       + (realm?.name === r.name ? " on" : "")
-                                       + (REALM_CARDS[r.name] ? " has-card" : "")}
-                            title={REALM_CARDS[r.name] ? `Відкрити картку «${REALM_CARDS[r.name]}»` : undefined}
-                            onMouseEnter={() => setRealm(r)} onMouseLeave={() => setRealm(null)}
-                            onClick={() => {
-                              const card = REALM_CARDS[r.name];
-                              if (card) setRealmCards((s) => (s.includes(card) ? s.filter((x) => x !== card) : [...s, card]));
-                            }}>
-                      {r.name}
-                      {REALM_CARDS[r.name] ? <span className="chip-card"> · {REALM_CARDS[r.name]}</span> : null}
-                    </button>
-                  ))}
-                {realmCards.length ? (
-                  <div className="map-realms-cards">
-                    {realmCards.map((name) => (
-                      <Entity key={name} name={name} opened={opened} setOpened={setOpened}
-                              onOpenDocument={onOpenDocument} />
-                    ))}
-                  </div>
-                ) : null}
-                <span className="map-realms-note">
-                  Штрих — певність межі за джерелом: суцільна лінія означає кордон,
-                  визначений правом, розмита — приблизний. Дані:{" "}
-                  <code>aourednik/historical-basemaps</code> (GPL-3.0).
-                </span>
-              </div>
-            ) : year !== null ? <span className="map-realms-head">Завантажуємо зріз…</span> : null}
-          </div>
+            </details>
 
+            <details className="map-block">
+              <summary>Географія <span className="cnt">річки · {towns ? "міста епохи" : "без міст"}</span></summary>
+              <div className="map-frames">
+                <button type="button" className={towns ? "on towns" : "towns"}
+                        title="Міста з історичного атласу — ширше за нашу бібліотеку"
+                        onClick={() => setTowns((v) => !v)}>
+                  Міста епохи {towns && townLayer.data ? `· ${townLayer.data.length}` : ""}
+                </button>
+                <span className="map-frames-hint">
+                  Річки показані завжди: по них ішли межі земель і торгові шляхи.
+                </span>
+              </div>
+            </details>
+          </div>
         </div>
 
         <aside className="map-side">
