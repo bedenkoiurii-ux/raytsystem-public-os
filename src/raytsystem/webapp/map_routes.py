@@ -68,6 +68,36 @@ def _clip(text: str, limit: int) -> str:
     return head.rsplit(" ", 1)[0].strip() + " …"
 
 
+def _by_chapter(value: str, context: str) -> str:
+    """Шари картки в рамці розділу, з якого прийшли.
+
+    ЗАУВАГА ЮРІЯ (2026-07-29): картка Києва подає три шари — X–XIII, XVI–XVII,
+    XX–XXI — рівнозначно, і у врізці всередині розділу про Боголюбського це
+    хибно: «часові рамки розділу задають рамку тієї інформації, яка тут для
+    нас актуальна. Можливі згадки про до і після, але не рівнозначні».
+
+    Періоди не вгадуємо: шари самі називають свої розділи — «У розділі 08 Київ
+    — доказ того, що…». Ця прив'язка написана автором, і вона точніша за будь-яке
+    зіставлення століть.
+    """
+    m = re.search(r"розділ\D{0,3}(\d{1,2})", context, re.I)
+    if not m or not value.strip():
+        return value
+    number = int(m.group(1))
+    blocks = [b for b in re.split(r"\n{2,}", value.strip()) if b.strip()]
+    if len(blocks) < 2:
+        return value
+    here, elsewhere = [], []
+    for block in blocks:
+        mentioned = {int(x) for x in re.findall(r"розділ\w*\s+(\d{1,2})", block, re.I)}
+        (here if number in mentioned else elsewhere).append(block)
+    if not here or not elsewhere:
+        return value
+    return ("\n\n".join(here)
+            + "\n\n*Інші шари картки — поза рамками цього розділу:*\n\n"
+            + "\n\n".join(elsewhere))
+
+
 def _front(text: str) -> str:
     m = re.match(r"^---\n(.*?)\n---\n", text, re.S)
     return m.group(1) if m else ""
@@ -382,8 +412,8 @@ def create_map_router(root: Path, *, require_session: Callable[..., Any]) -> API
             "why": _clip(why, 1200),
             "why_scope": why_scope,
             "lead": _clip(lead, 1400),
-            "value": _clip(section("Цінність для розповіді", "Значення для розповіді",
-                                   "Чому важить", "Чим важить"), 3000),
+            "value": _clip(_by_chapter(section("Цінність для розповіді", "Значення для розповіді",
+                                               "Чому важить", "Чим важить"), context), 3000),
             "year": _field(fm, "time_start"),
             "year_end": _field(fm, "time_end"),
             "place": _field(fm, "place"),

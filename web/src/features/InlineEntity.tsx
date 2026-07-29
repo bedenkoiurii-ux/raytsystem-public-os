@@ -217,9 +217,18 @@ export function Prose({ content, autoLink = true, onOpenWikilinkOverride, onOpen
       // Рахуємо за ЦІЛЛЮ, не за текстом кнопки: «Київську» і «Києва» — різні
       // написання одного [[Київ]], і рахунок за написанням давав хибу (клік
       // у пʼятому абзаці відкривав довідку біля першого «Києва»).
+      //
+      // І тільки серед посилань САМОГО ТЕКСТУ: у розкритій врізці теж є
+      // вікілінки, і вони зсували лічильник — клік по першому «Боголюбському»
+      // відкривав врізку біля третього, бо дві попередні врізки додали в DOM
+      // власні згадки тієї ж особи (скарга Юрія). Місце врізки шукається в
+      // тексті, тож і рахувати треба лише те, що в тексті є.
+      const inAside = event.node.closest(".inline-aside, .inline-card");
       const same = [...host.current.querySelectorAll<HTMLElement>(".doc-wikilink")]
-        .filter((b) => b.dataset.target === event.node!.dataset.target);
-      nth = Math.max(0, same.indexOf(event.node));
+        .filter((b) => b.dataset.target === event.node!.dataset.target
+                       && !b.closest(".inline-aside, .inline-card"));
+      // Клік із самої врізки місця в тексті не має — лишаємо перше входження.
+      nth = inAside ? 0 : Math.max(0, same.indexOf(event.node));
     }
     const key = `${name}\u0000\u0000${nth}`;
     setOpen((s) => (s.some((x) => x.split("\u0000")[0] === name) ? s.filter((x) => x.split("\u0000")[0] !== name) : [...s, key]));
