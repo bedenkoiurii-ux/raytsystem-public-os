@@ -48,6 +48,10 @@ LOG="$S/$TASK-loop.log"; STOP="$S/$TASK-loop.stop"
 DONE="$S/$TASK.done";    PIDF="$S/$TASK-loop.pid"
 GAP=8
 KEYCHAIN_SERVICE="writer-lab-claude"
+RUN_OUT="$S/$TASK-last-run.txt"   # вивід останнього прогону — щоб розібрати причину збою
+MAX_FAILS=5                       # стільки невдач поспіль — і цикл зупиняється сам
+LIMIT_WAIT_MAX=43200              # не спати довше 12 год за раз: прокинувся — перевірив сам
+LIMIT_WAIT_FALLBACK=1800          # час reset не розібрався — пробуємо за півгодини
 
 case "$TASK" in
   apparat)  NAKAZ="НАКАЗ-апарату.md";  UNIT="картку апарату" ;;
@@ -106,10 +110,27 @@ one_run() {
     --allowedTools "${ALLOWED[@]}" --disallowedTools "${FORBIDDEN[@]}"
 }
 
+# Скільки секунд до скидання ліміту. Два реальні формати з логів 29.07:
+#   «You've hit your weekly limit · resets Jul 31 at 1am (Europe/Kiev)»
+#   «You've hit your session limit · resets 4:30pm (Europe/Kiev)»
+# Не розібралось — не вгадуємо: викликач бере запасні півгодини.
+reset_in() {
+  local when now target fmt
+  when=$(sed -nE "s/.*resets ([^(]+).*/\1/p" "$1" | head -1 | sed 's/[[:space:]]*$//')
+  [ -z "$when" ] && return 1
+  now=$(date +%s)
+  for fmt in "%b %d at %I:%M%p" "%b %d at %I%p" "%I:%M%p" "%I%p"; do
+    target=$(date -j -f "$fmt" "$when" +%s 2>/dev/null) || continue
+    [ "$target" -le "$now" ] && target=$((target + 86400))   # час без дати — уже завтра
+    echo $((target - now)); return 0
+  done
+  return 1
+}
+
 loop() {
   mkdir -p "$S"; rm -f "$STOP"; ensure_worktree; cd "$VAULT"
   echo "=== wl-loop [$TASK] піднято $(date '+%F %T') ===" >>"$LOG"
-  local n=0
+  local n=0 fails=0 pause
   while :; do
     [ -f "$STOP" ] && { echo "--- стоп $(date '+%T') ---" >>"$LOG"; break; }
     [ -f "$DONE" ] && { echo "--- сентинел, робота вичерпана $(date '+%T') ---" >>"$LOG"; break; }
@@ -121,7 +142,25 @@ loop() {
     # source_origin ще вказував на _001.docx, хоча main уже мав _003. Merge на
     # старті не рятує: між стартом і прогоном минають години правок у main.
     sync_from_main
-    one_run >>"$LOG" 2>&1 || echo "!! прогін #$n з помилкою, продовжую" >>"$LOG"
+    # tee: у лог видно наживо, копія лишається для розбору причини збою.
+    if one_run 2>&1 | tee -a "$LOG" >"$RUN_OUT"; then
+      fails=0
+    elif grep -qai "hit your.*limit" "$RUN_OUT"; then
+      # Ліміт — не помилка, а «зарано». 29.07 sources зробив 594 холості прогони
+      # об weekly limit, opponent — 93 об session limit: цикл бив у стіну щовісім
+      # секунд двоє діб. Лічильник невдач ліміт не чіпає — робота не провалилась.
+      pause=$(reset_in "$RUN_OUT") || pause="$LIMIT_WAIT_FALLBACK"
+      [ "$pause" -gt "$LIMIT_WAIT_MAX" ] && pause="$LIMIT_WAIT_MAX"
+      echo "--- ліміт, сплю до $(date -v+"${pause}"S '+%F %T') ---" >>"$LOG"
+      sleep "$pause"; continue
+    else
+      fails=$((fails + 1))
+      echo "!! прогін #$n з помилкою ($fails поспіль)" >>"$LOG"
+      if [ "$fails" -ge "$MAX_FAILS" ]; then
+        echo "!!! $MAX_FAILS невдач поспіль — зупиняю цикл $(date '+%F %T'). Причина у $RUN_OUT" >>"$LOG"
+        break
+      fi
+    fi
     sleep "$GAP"
   done
   rm -f "$PIDF"
