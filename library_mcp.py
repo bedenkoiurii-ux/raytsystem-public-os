@@ -157,5 +157,54 @@ def library_proposals() -> str:
     return "\n".join(out)
 
 
+@mcp.tool()
+def library_decisions(topic: str = "") -> str:
+    """Що вже вирішено в системі: архітектура, правила, відомі проблеми, відкриті питання.
+
+    ВИКЛИКАТИ ПЕРЕД будь-якою порадою про будову системи — як щось піднімати,
+    зберігати, називати, де чому жити. Порожня тема поверне останні рішення.
+
+    Причина існування (2026-07-31): `library_context` за побудовою не бачить
+    `90-Meta` — тека в списку SKIP, бо для карток службовий шар не є джерелом.
+    Наслідок: рішення, ухвалені й записані, лишались недосяжними з інших сесій,
+    і поради двічі пішли всупереч ухваленому. Тут той самий волт, але дивимось
+    саме туди, куди пошук карток дивитися не має.
+    """
+    sources = [
+        (VAULT / "90-Meta/sessions/decisions.md",       "РІШЕННЯ (реєстр)"),
+        (VAULT / "90-Meta/sessions/decisions-code.md",  "РІШЕННЯ, ЗАФІКСОВАНІ В КОДІ"),
+        (VAULT / "90-Meta/sessions/KNOWN-ISSUES.md",    "ВІДОМІ ПРОБЛЕМИ"),
+        (VAULT / "35-Editorial/ЧЕРГА-ПИТАНЬ.md",        "ПИТАННЯ ДО ЮРІЯ"),
+        (VAULT / "90-Meta/sessions/patterns.md",        "ЗАКОНОМІРНОСТІ"),
+        (VAULT / "CLAUDE.md",                           "КОНСТИТУЦІЯ"),
+    ]
+    needle = topic.strip().casefold()
+    out: list[str] = []
+    for path, label in sources:
+        if not path.is_file():
+            continue
+        hits: list[str] = []
+        for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+            clean = line.strip()
+            if len(clean) < 30 or clean.startswith(("#", ">")):
+                continue
+            if needle and needle not in clean.casefold():
+                continue
+            if SECRET.search(clean):        # секрети не віддаємо навіть у витягу
+                continue
+            hits.append(re.sub(r"\*\*|`", "", clean)[:300])
+            if len(hits) >= (6 if needle else 8):
+                break
+        if hits:
+            out.append(f"── {label}  ({path.relative_to(VAULT)})")
+            out += [f"   · {h}" for h in hits]
+    if not out:
+        return (f"Про «{topic}» рішень не записано. Це не дозвіл вирішувати самому: "
+                "спитай Юрія і запиши відповідь у 90-Meta/sessions/decisions.md.")
+    head = (f"Що система вже вирішила про «{topic}». Суперечити цьому не можна — "
+            "спершу спитати Юрія.\n" if topic else "Останні рішення системи.\n")
+    return head + "\n".join(out)
+
+
 if __name__ == "__main__":
     mcp.run()
