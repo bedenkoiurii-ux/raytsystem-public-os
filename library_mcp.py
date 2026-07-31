@@ -22,7 +22,7 @@ from mcp.server.fastmcp import FastMCP
 
 VAULT = Path.home() / "Writer-Lab/Library"
 sys.path.insert(0, str(VAULT / "90-Meta/scripts"))
-from card_prep import PRIORITY, SKIP, scan  # noqa: E402  — логіка пошуку вже написана, не дублюємо
+from card_prep import PRIORITY, SKIP, name_forms, scan  # noqa: E402  — логіка пошуку вже написана, не дублюємо
 
 # Секрети назовні не віддаємо НІКОЛИ — правило бібліотеки, не оптимізація.
 SECRET = re.compile(r"secret|token|\.env|credential|keychain|password", re.I)
@@ -54,7 +54,11 @@ def _lead(path: Path) -> str:
 def library_context(topic: str, per_file: int = 2) -> str:
     """Що бібліотека вже знає про тему. Викликати ПЕРЕД пошуком в інтернеті
     і перед початком будь-якого нового проєкту на цю тему."""
-    found = scan(topic, per_file)
+    # Третій аргумент — морфологічні форми: card_prep.scan() набув його разом
+    # з entity-index, main() скрипта оновили, а сервер ні. Через це головний
+    # інструмент бібліотеки падав на кожному виклику, тобто правило «спершу
+    # бібліотека, потім інтернет» не діяло в жодній зовнішній сесії.
+    found = scan(topic, per_file, name_forms(topic))
     if not found:
         return f"Бібліотека не має документів про «{topic}»."
     out = [f"Бібліотека має документи про «{topic}». Порядок = вага джерела.\n"]
@@ -82,7 +86,9 @@ def library_search(query: str, limit: int = 20) -> str:
         if not _safe(rel):
             continue
         try:
-            in_body = pat.search(path.read_text(encoding="utf-8"))
+            # errors="ignore": один не-UTF-8 файл валив увесь пошук —
+            # UnicodeDecodeError не є OSError і повз цей except проходив.
+            in_body = pat.search(path.read_text(encoding="utf-8", errors="ignore"))
         except OSError:
             continue
         if pat.search(path.stem) or in_body:
@@ -104,7 +110,10 @@ def library_read(name: str) -> str:
     rel = target.relative_to(VAULT)
     if not _safe(rel):
         return "Доступ до цього файлу закрито."
-    return target.read_text(encoding="utf-8")[:60_000]
+    try:
+        return target.read_text(encoding="utf-8", errors="ignore")[:60_000]
+    except OSError as error:                 # трейсбек у чужій сесії читається як поломка сервера
+        return f"Документ «{rel}» не прочитався: {error}"
 
 
 INBOX = VAULT / "00-Inbox/Пропозиції"
