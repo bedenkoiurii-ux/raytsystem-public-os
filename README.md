@@ -90,7 +90,7 @@ uv run raytsystem doctor
 uv run raytsystem start
 ```
 
-`start` is the supported short alias for `ui`. It opens `http://127.0.0.1:8765`; use `Ctrl+C` in
+`start` is the supported short alias for `ui`. It opens `http://127.0.0.1:8790`; use `Ctrl+C` in
 the launching terminal to stop it. The current release refuses non-loopback binds. No API key,
 cloud account, or browser extension is required for this safe local start.
 

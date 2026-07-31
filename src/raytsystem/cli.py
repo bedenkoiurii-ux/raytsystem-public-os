@@ -335,7 +335,7 @@ def task_transition(
 def ui(
     root: RootOption = DEFAULT_ROOT,
     host: Annotated[str, typer.Option("--host")] = "127.0.0.1",
-    port: Annotated[int, typer.Option("--port", min=1024, max=65_535)] = 8765,
+    port: Annotated[int, typer.Option("--port", min=1024, max=65_535)] = 8790,
     open_browser: Annotated[bool, typer.Option("--open/--no-open")] = True,
 ) -> None:
     """Start the same-origin raytsystem interface on the local loopback only."""
@@ -347,7 +347,7 @@ def ui(
 def start(
     root: RootOption = DEFAULT_ROOT,
     host: Annotated[str, typer.Option("--host")] = "127.0.0.1",
-    port: Annotated[int, typer.Option("--port", min=1024, max=65_535)] = 8765,
+    port: Annotated[int, typer.Option("--port", min=1024, max=65_535)] = 8790,
     open_browser: Annotated[bool, typer.Option("--open/--no-open")] = True,
 ) -> None:
     """Start the raytsystem interface — short alias for `ui`."""

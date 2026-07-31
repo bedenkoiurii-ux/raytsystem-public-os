@@ -68,7 +68,7 @@ uv run raytsystem doctor
 uv run raytsystem start
 ```
 
-Команда `start` открывает `http://127.0.0.1:8765`. Для остановки используйте `Ctrl+C`. API-ключ, облачный аккаунт и расширение браузера для безопасного локального старта не нужны.
+Команда `start` открывает `http://127.0.0.1:8790`. Для остановки используйте `Ctrl+C`. API-ключ, облачный аккаунт и расширение браузера для безопасного локального старта не нужны.
 
 Подробные инструкции: [установка](website/docs/getting-started/installation.md), [первый запуск](website/docs/getting-started/first-run.md), [обновление](website/docs/getting-started/upgrading.md), [резервное копирование](website/docs/security/secrets-backup.md) и [удаление](website/docs/getting-started/uninstall.md).
 
