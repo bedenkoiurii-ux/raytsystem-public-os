@@ -1,5 +1,5 @@
 import type React from "react";
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getJson, postJson } from "../api";
 import { focusEntity } from "./entityFocus";
@@ -38,7 +38,7 @@ export function useEntityForms(enabled: boolean) {
     queryKey: ["entity", "forms"],
     enabled,
     staleTime: Infinity,
-    queryFn: () => getJson<{ forms: Record<string, string>; count: number }>("/api/v1/entities/forms")
+    queryFn: () => getJson<{ forms: Record<string, string>; proper?: string[]; count: number }>("/api/v1/entities/forms")
   });
 }
 
@@ -53,7 +53,7 @@ export function useEntityForms(enabled: boolean) {
  *  · те, що вже в [[…]], не чіпаємо, як і код, посилання й заголовки;
  *  · кожну сутність підсвічуємо ЛИШЕ доти, доки вона не стала суцільним
  *    рябінням: обмеження на повтори немає, бо саме цього Юрій і хотів. */
-export function autolink(text: string, forms: Record<string, string>): string {
+export function autolink(text: string, forms: Record<string, string>, proper?: Set<string>): string {
   const keys = Object.keys(forms);
   if (!keys.length) return text;
   const sorted = keys.sort((a, b) => b.length - a.length);
@@ -67,9 +67,24 @@ export function autolink(text: string, forms: Record<string, string>): string {
   return parts
     .map((piece, i) => {
       if (i % 2 === 1 || !piece) return piece;          // непарні — недоторкані
-      return piece.replace(pattern, (match) => {
-        const title = forms[match.toLowerCase()];
+      return piece.replace(pattern, (match: string, _group: string, offset: number, whole: string) => {
+        const key = match.toLowerCase();
+        const title = forms[key];
         if (!title) return match;
+        if (proper?.has(key)) {
+          // Власна назва з малої літери — омонім, а не сутність: «на максимі»
+          // (принцип) не веде на Максима-митрополита, «вільно» (як) — на Вільно.
+          if (/^\p{Ll}/u.test(match)) return match;
+          // І не рвати складене ім'я: «Йону Ельстеру» — норвезький теоретик,
+          // а не митрополит Йона, якому дісталося перше слово (скарга Юрія
+          // 2026-07-31). Якщо праворуч стоїть іще одне слово з великої, а
+          // пари немає у словнику — це чуже повне ім'я. Лікується не тут, а
+          // аліасом у картці: щойно пара стане відомою формою, довша виграє
+          // за довжиною й підсвітиться цілком.
+          const tail = whole.slice(offset + match.length);
+          const next = tail.match(/^[  ]+(\p{Lu}[\p{L}'’-]+)/u);
+          if (next && !forms[`${key} ${next[1].toLowerCase()}`]) return match;
+        }
         return title === match ? `[[${match}]]` : `[[${title}|${match}]]`;
       });
     })
@@ -247,7 +262,13 @@ export function Prose({ content, autoLink = true, onOpenWikilinkOverride, onOpen
   // текст картки — можливо не в форматі картки, просто текст на фоні іншого
   // кольору». Тому це не картка, а врізка: без рамки, з лівою рискою.
   const forms = useEntityForms(autoLink);
-  const prepared = autoLink && forms.data?.forms ? autolink(content, forms.data.forms) : content;
+  const properForms = useMemo(
+    () => new Set(forms.data?.proper ?? []),
+    [forms.data?.proper]
+  );
+  const prepared = autoLink && forms.data?.forms
+    ? autolink(content, forms.data.forms, properForms)
+    : content;
   const blocks = prepared.split(/\n{2,}/);
   const shown = new Set<string>();
   const pieces: React.ReactNode[] = [];
@@ -265,7 +286,12 @@ export function Prose({ content, autoLink = true, onOpenWikilinkOverride, onOpen
         .filter((entry) => !shown.has(entry))
         .map((entry) => {
           const word = entry.split("\u0000")[0];
-          const at = rest.search(new RegExp(`\\[\\[${word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\||\\]\\])`));
+          const safe = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          // Шукаємо і за ціллю (`[[Максим (митрополит)|…`), і за написанням
+          // (`[[…|максимі]]`). Без другого врізка не знаходила собі місця й
+          // падала в кінець документа, за межі тіла — а їй там не місце
+          // (Юрій 2026-07-31: «відкривається врізка не в тілі документа»).
+          const at = rest.search(new RegExp(`\\[\\[(?:${safe}(?:\\||\\]\\])|[^\\]|]*\\|${safe}\\]\\])`));
           return { entry, word, at };
         })
         .filter((x) => x.at >= 0)

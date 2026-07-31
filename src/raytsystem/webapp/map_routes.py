@@ -311,13 +311,25 @@ def create_map_router(root: Path, *, require_session: Callable[..., Any]) -> API
         index = _entity_index()
         cards = index.get("cards", {})
         out: dict[str, str] = {}
+        proper: list[str] = []
         for form, uids in index.get("forms", {}).items():
             if len(uids) != 1 or len(form) < 4:
                 continue
             card = cards.get(uids[0])
-            if card:
-                out[form] = card["title"]
-        return {"forms": out, "count": len(out)}
+            if not card:
+                continue
+            out[form] = card["title"]
+            # ЗАУВАГА ЮРІЯ (2026-07-31): «максима — не ім'я людини, а поняття,
+            # це зрозуміло з контексту. Як і вільно — не назва міста».
+            # Відмінкові форми власних назв омонімічні загальним словам:
+            # «максимі» — і місцевий відмінок імені Максим, і форма слова
+            # «максима»; «Вільно» — історична назва Вільнюса й прислівник.
+            # Контексту автоматика не має, зате має регістр: власна назва в
+            # українському тексті стоїть з великої, загальне слово — з малої.
+            # Тому людей, місця й події лінкуємо лише при великій літері.
+            if any(f"/{folder}/" in card.get("path", "") for folder in ("People", "Places", "Events")):
+                proper.append(form)
+        return {"forms": out, "proper": proper, "count": len(out)}
 
     @router.get("/map/card")
     def map_card(name: str, context: str = "", _session=Depends(require_session)) -> dict[str, Any]:
