@@ -178,4 +178,89 @@ class InboxWatcher:
                 pass
 
 
+SYNC = LIBRARY / "90-Meta/scripts/sync_originals.py"
+ORIGINALS_INTERVAL_SECONDS = 120     # автор зберігає docx і чекає побачити це в бібліотеці
+
+
+class OriginalsWatcher:
+    """Сторож оригіналів. Автор править docx у Word — бібліотека доганяє сама.
+
+    РІШЕННЯ ЮРІЯ (2026-07-31): «Це повинно бути частиною системи LW. Піднявся
+    застосунок — піднялись всі процеси, без зовнішніх хуків.» Тому агент, а не
+    launchd і не забутий `nohup` у терміналі — на тій самій підставі, що й
+    [[InboxWatcher]] вище.
+
+    Робота сама лежить у `sync_originals.py`: він тримає відбиток кожного
+    оригіналу, чекає, поки файл устоїться, і після переносу перезбирає апарат.
+    Агент його лише будить — щоб логіка синхронізації жила в одному місці
+    й однаково працювала з рук і з вікна.
+    """
+
+    def __init__(self) -> None:
+        self.enabled = True
+        self.last_check: str | None = None
+        self.last_event: str | None = None
+        self._task: asyncio.Task[None] | None = None
+
+    def state(self) -> dict[str, object]:
+        return {
+            "enabled": self.enabled,
+            "alive": bool(self._task and not self._task.done()),
+            "interval_seconds": ORIGINALS_INTERVAL_SECONDS,
+            "last_check": self.last_check,
+            "last_event": self.last_event,
+            "tracked": self._tracked(),
+        }
+
+    @staticmethod
+    def _tracked() -> int:
+        """Скільки документів під наглядом — за станом, який веде сам скрипт."""
+        state_file = STORE / "originals-state.json"
+        if not state_file.is_file():
+            return 0
+        try:
+            import json
+            return len(json.loads(state_file.read_text(encoding="utf-8")))
+        except (OSError, ValueError):
+            return 0
+
+    async def _tick(self) -> None:
+        self.last_check = datetime.now(UTC).isoformat(timespec="seconds")
+        if not SYNC.is_file():
+            return
+        done = await asyncio.to_thread(
+            subprocess.run,
+            ["uv", "run", "--with", "pyyaml", "python3", str(SYNC)],
+            capture_output=True, text=True, timeout=1800, cwd=str(SYNC.parent),
+        )
+        moved = [l.strip() for l in done.stdout.splitlines() if l.strip().startswith("→")]
+        if moved:
+            self.last_event = f"{self.last_check} — оновлено: " + "; ".join(
+                l.lstrip("→ ").split(" ←")[0] for l in moved)
+
+    async def _loop(self) -> None:
+        while True:
+            try:
+                if self.enabled:
+                    await self._tick()
+            except asyncio.CancelledError:
+                raise
+            except Exception as error:          # один недоступний оригінал не валить агента
+                self.last_event = f"помилка синхронізації: {error}"
+            await asyncio.sleep(ORIGINALS_INTERVAL_SECONDS)
+
+    def start(self) -> None:
+        if self._task is None or self._task.done():
+            self._task = asyncio.create_task(self._loop())
+
+    async def stop(self) -> None:
+        if self._task and not self._task.done():
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
+
+
 watcher = InboxWatcher()
+originals = OriginalsWatcher()
