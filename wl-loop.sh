@@ -53,6 +53,14 @@ MAX_FAILS=5                       # стільки невдач поспіль �
 LIMIT_WAIT_MAX=43200              # не спати довше 12 год за раз: прокинувся — перевірив сам
 LIMIT_WAIT_FALLBACK=1800          # час reset не розібрався — пробуємо за півгодини
 
+# Денний бюджет прогонів — з config.yaml бібліотеки (наказ-2, 2026-07-31).
+# Проти класу «прогони йдуть, а роботи немає»: у липні sources зробив за день
+# 102 реальні прогони й закрив ними 0.59 тези на прогін. Запобіжники фази 3
+# ловлять помилки й ліміти; цей ловить успішні прогони, що нічого не дають.
+MAX_RUNS_PER_DAY="$(uv run --quiet --with pyyaml python3 \
+  "$MAIN/90-Meta/scripts/loop_budget.py" "$TASK" 2>/dev/null || echo 60)"
+case "$MAX_RUNS_PER_DAY" in ''|*[!0-9]*) MAX_RUNS_PER_DAY=60 ;; esac
+
 case "$TASK" in
   apparat)  NAKAZ="НАКАЗ-апарату.md";  UNIT="картку апарату" ;;
   geo)      NAKAZ="НАКАЗ-гео.md";      UNIT="порцію координат" ;;
@@ -134,6 +142,19 @@ loop() {
   while :; do
     [ -f "$STOP" ] && { echo "--- стоп $(date '+%T') ---" >>"$LOG"; break; }
     [ -f "$DONE" ] && { echo "--- сентинел, робота вичерпана $(date '+%T') ---" >>"$LOG"; break; }
+    # Бюджет рахуємо по днях: лічильник у файлі з датою в імені, тож нова доба
+    # починається з нуля сама, без планувальника й без стану в памʼяті.
+    today="$(date '+%F')"
+    spent_file="$S/$TASK-runs-$today"
+    spent=$(cat "$spent_file" 2>/dev/null || echo 0)
+    if [ "$spent" -ge "$MAX_RUNS_PER_DAY" ]; then
+      left=$(( $(date -j -f '%F %T' "$(date -v+1d '+%F') 00:00:05" +%s) - $(date +%s) ))
+      [ "$left" -lt 60 ] && left=60
+      echo "--- денний бюджет вичерпано ($spent із $MAX_RUNS_PER_DAY), сплю до півночі ---" >>"$LOG"
+      sleep "$left"
+      continue
+    fi
+    echo $((spent+1)) >"$spent_file"
     n=$((n+1))
     echo "───────── [$TASK] прогін #$n  $(date '+%F %T') ─────────" >>"$LOG"
     # Підтягуємо main ПЕРЕД КОЖНИМ прогоном, а не лише на старті циклу.
