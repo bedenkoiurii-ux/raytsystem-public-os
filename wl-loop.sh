@@ -37,6 +37,12 @@ MAIN="$HOME/Writer-Lab/Library"
 BRANCH="wl-$TASK"
 [ "$TASK" = "apparat" ] && { VAULT="$HOME/Writer-Lab/.apparat-work"; BRANCH="apparat-wave2"; }
 
+# Автозапущені процеси (GUI-застосунок, launchd) не успадковують користувацький
+# PATH: 30–31.07 цикл інбоксу зробив 5468 холостих прогонів об «claude: command
+# not found», кожні 8 с. Резолвимо бінарник один раз, з абсолютним запасним
+# шляхом саме на випадок порожнього PATH.
+CLAUDE_BIN="$(command -v claude || echo "$HOME/.local/bin/claude")"
+
 S="$HOME/.writer-lab"
 LOG="$S/$TASK-loop.log"; STOP="$S/$TASK-loop.stop"
 DONE="$S/$TASK.done";    PIDF="$S/$TASK-loop.pid"
@@ -96,7 +102,7 @@ sync_from_main() {
 
 one_run() {
   CLAUDE_CODE_OAUTH_TOKEN="$(token)" \
-  claude -p "$PROMPT" --permission-mode acceptEdits \
+  "$CLAUDE_BIN" -p "$PROMPT" --permission-mode acceptEdits \
     --allowedTools "${ALLOWED[@]}" --disallowedTools "${FORBIDDEN[@]}"
 }
 

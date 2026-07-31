@@ -47,6 +47,14 @@ PROPOSALS = LIBRARY / "00-Inbox/Пропозиції"
 
 INTERVAL_SECONDS = 300          # перевірка дешева; частіше просто не має сенсу
 
+# Застосунок, піднятий з Dock, успадковує куций PATH launchd — без ~/.local/bin
+# (`claude`) і без /opt/homebrew/bin (`uv`, `pandoc`). Саме тому варта інбоксу
+# 30–31.07 зробила 5468 холостих прогонів об «claude: command not found».
+# Лагодимо один раз на модуль: усі subprocess нижче успадковують цей os.environ.
+for _bin in (str(Path.home() / ".local/bin"), "/opt/homebrew/bin"):
+    if _bin not in os.environ.get("PATH", "").split(":"):
+        os.environ["PATH"] = f"{_bin}:{os.environ.get('PATH', '')}"
+
 
 class InboxWatcher:
     """Сторож вхідних тек. Дивиться сам, будить варту лише на зміни."""
