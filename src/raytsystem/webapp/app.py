@@ -124,7 +124,7 @@ _SPA_ROUTES = frozenset(
         "timeline",
         "map",
         "senses",
-        "conveyors",
+        "conveyors",   # ФОРК uk-locale: див. ФОРК-відхилення.md, п. 4
         "runs",
         "agents",
         "skills",
@@ -1834,7 +1834,8 @@ def create_app(
     from raytsystem.webapp.reception_routes import create_reception_router
     from raytsystem.webapp.map_routes import create_map_router
     from raytsystem.webapp.senses_routes import create_senses_router
-    # Конвеєри — робочий стан фонових циклів. Читання файлів, нуль моделі.
+    # ФОРК uk-locale: сторінка «Конвеєри» — робочий стан фонових циклів.
+    # Читання файлів і git log, нуль моделі. Див. ФОРК-відхилення.md, п. 4.
     from raytsystem.webapp.conveyor_routes import create_conveyor_router
     app.include_router(create_reception_router(resolved_root, require_session=require_session))
     app.include_router(create_settings_router(resolved_root, require_session=require_session))

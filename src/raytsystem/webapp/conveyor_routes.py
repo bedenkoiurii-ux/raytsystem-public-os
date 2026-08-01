@@ -159,6 +159,74 @@ def _state(task: str, log: list[str]) -> dict[str, Any]:
     return {"code": "idle", "label": "не працює", "note": None}
 
 
+def _stage(task: str) -> str | None:
+    """Етап усередині прогону — рядок, який агент пише сам, Bash-ом, за НАКАЗом.
+
+    Порожній файл означає «цей прогін ще не доповів»: `wl-loop.sh` скидає його
+    перед кожним прогоном. Прогони, запущені до оновлення НАКАЗів, етапу не
+    пишуть узагалі — і тоді картка показує лише час, без вигаданої стадії.
+    """
+    try:
+        text = (STATE / f"{task}-stage").read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    return text[:120] or None
+
+
+def _timing(log: list[str], state_code: str) -> dict[str, Any] | None:
+    """Скільки триває поточний прогін проти звичайного для цієї задачі.
+
+    Тривалості беремо з рядків «завершено за Nс», які пише сам цикл, а НЕ як
+    різницю між заголовками прогонів: між заголовками лягають сни на ліміті
+    й на денному бюджеті, і «медіана» показувала б години там, де робота
+    йшла хвилини.
+
+    «Зазвичай» — це смуга p25–p75 останніх десяти, а не min–max: один
+    п'ятихвилинний викид розтягнув би діапазон так, що в нього влізло б усе
+    й він перестав би щось означати.
+    """
+    done: list[int] = []
+    last_header: datetime | None = None
+    header_is_open = False
+    for line in log:
+        m = re.search(r"прогін #\d+\s+(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)", line)
+        if m:
+            try:
+                last_header = datetime.strptime(m.group(1), "%Y-%m-%d %H:%M:%S")
+                header_is_open = True
+            except ValueError:
+                pass
+            continue
+        m = re.search(r"завершено за (\d+)с", line)
+        if m:
+            done.append(int(m.group(1)))
+            header_is_open = False
+
+    recent = done[-10:]
+    band = median = None
+    if recent:
+        s = sorted(recent)
+        median = s[len(s) // 2]
+        band = [s[len(s) // 4], s[(len(s) * 3) // 4]]
+
+    running_s = None
+    if state_code == "running" and header_is_open and last_header:
+        running_s = max(0, int((datetime.now() - last_header).total_seconds()))
+
+    if running_s is None and median is None:
+        return None
+    return {
+        "running_s": running_s,
+        "median_s": median,
+        "band_s": band,
+        "samples": len(recent),
+        # Детектор зависань. Поріг навмисно грубий: утричі довше за звичайне —
+        # це вже не «складніша картка», це щось не так. Менший поріг ловив би
+        # нормальний розкид (одній картці бракує хоста, іншій — усіх трьох).
+        "suspicious": bool(running_s and median and running_s > 3 * median),
+    }
+
+
 def _run_number(log: list[str]) -> int | None:
     for line in reversed(log):
         m = re.search(r"прогін #(\d+)", line)
@@ -360,10 +428,13 @@ def create_conveyor_router(root: Path, *, require_session: Callable[..., Any]) -
                 pass
             queue = (_queue_sources() if task == "sources"
                      else _queue_karty(repo) if task == "karty" else None)
+            state = _state(task, log)
             out.append({
                 **spec,
-                "state": _state(task, log),
+                "state": state,
                 "run": _run_number(log),
+                "stage": _stage(task),
+                "timing": _timing(log, state["code"]),
                 "queue": queue,
                 "budget": {"spent": spent, "max": _budget(root, task)},
                 "last_line": _last_meaningful(log),

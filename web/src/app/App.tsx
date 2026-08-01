@@ -73,7 +73,7 @@ const routeMeta: Record<RouteKey, { label: string; description: string; icon: ty
   timeline: { ...routeCopy.timeline, icon: CalendarClock },
   map: { ...routeCopy.map, icon: Map },
   senses: { ...routeCopy.senses, icon: Waves },
-  conveyors: { ...routeCopy.conveyors, icon: Cog },
+  conveyors: { ...routeCopy.conveyors, icon: Cog },   // ФОРК uk-locale: п. 4
   runs: { ...routeCopy.runs, icon: GitBranch },
   agents: { ...routeCopy.agents, icon: Bot },
   skills: { ...routeCopy.skills, icon: Wrench },

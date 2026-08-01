@@ -1,4 +1,4 @@
-import { CircleDot, Circle, CircleSlash, Moon, Terminal, GitBranch } from "lucide-react";
+import { CircleDot, Circle, CircleSlash, Moon, Terminal, GitBranch, AlertTriangle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { ErrorState, LoadingState } from "../components/StatePanel";
 import { getJson } from "../api";
@@ -23,10 +23,14 @@ interface Queue {
   missing?: number | null; current?: Current | null;
 }
 interface Commit { ago_min: number; at: string; subject: string }
+interface Timing {
+  running_s: number | null; median_s: number | null;
+  band_s: [number, number] | null; samples: number; suspicious: boolean;
+}
 interface Task {
   name: string; title: string; about: string;
   state: { code: string; label: string; note: string | null };
-  run: number | null; queue: Queue | null;
+  run: number | null; stage: string | null; timing: Timing | null; queue: Queue | null;
   budget: { spent: number; max: number };
   last_line: string | null; log_at: string | null;
   commit: Commit | null; unmerged: number | null; command: string;
@@ -68,6 +72,30 @@ function Bar({ closed, total }: { closed: number; total: number }) {
   );
 }
 
+/** Хвилини з секунд, але не «0 хв»: прогін коротший за хвилину чесніше
+ *  показати в секундах, ніж округлити в нуль і вдати, що нічого не йде. */
+const dur = (s: number) => (s < 90 ? `${s} с` : `${Math.round(s / 60)} хв`);
+
+function Timing({ timing, hasStage }: { timing: Timing | null; hasStage: boolean }) {
+  if (!timing || timing.running_s === null) return null;
+  const { running_s, band_s, samples, suspicious } = timing;
+  return (
+    <p className={`cv-timing${suspicious ? " cv-timing-long" : ""}`}>
+      {suspicious ? <AlertTriangle size={12} aria-hidden="true" /> : null}
+      <span>триває {dur(running_s)}</span>
+      {band_s ? (
+        <i>· зазвичай {dur(band_s[0])}–{dur(band_s[1])}</i>
+      ) : (
+        // Медіана з'явиться, коли цикл перезапустять на новому wl-loop.sh:
+        // тривалості пише він сам. Вдавати «зазвичай» з нуля замірів не можна.
+        <i>· медіани ще немає ({samples} замірів)</i>
+      )}
+      {suspicious ? <b>підозріло довго</b> : null}
+      {!hasStage && !suspicious ? <i className="cv-timing-hint">етап буде з наступного прогону</i> : null}
+    </p>
+  );
+}
+
 function TaskCard({ task }: { task: Task }) {
   const { queue, budget, state } = task;
   const current = queue?.current;
@@ -82,6 +110,10 @@ function TaskCard({ task }: { task: Task }) {
 
       {task.run !== null && state.code === "running" ? <p className="cv-run">прогін #{task.run}</p> : null}
       {state.note ? <p className="cv-note">{state.note}</p> : null}
+      {task.stage ? <p className="cv-stage">{task.stage}</p> : null}
+      <Timing timing={task.timing} hasStage={Boolean(task.stage)} />
+
+
 
       {current ? (
         <p className="cv-current">
