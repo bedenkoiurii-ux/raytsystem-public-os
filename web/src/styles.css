@@ -1780,6 +1780,50 @@ li.open .chev { transform: rotate(90deg); }
   border-radius: var(--radius); padding: 14px 16px 12px;
   display: flex; flex-direction: column; gap: 7px; min-width: 0;
 }
+
+/* ── Десять слотів сталої висоти ────────────────────────────────────────────
+   Висоту рядка задає СІТКА, а не вміст. Через це картка «працює» і картка
+   «добіг» однакові завдовжки, і десять підписів збігаються по горизонталі
+   через усю сторінку: око порівнює задачі поглядом упоперек, не перечитуючи
+   підписи в кожній картці окремо.
+
+   Слот не колапсує ніколи. Зникнення рядка зсуває всі наступні вгору, і
+   сусідні картки перестають бути порівнюваними — тому порожнє значення це
+   прочерк, а не відсутність. `overflow: hidden` на слоті обов'язковий: без
+   нього довгий рядок розсовує свою рядкову доріжку й ламає всю сітку.
+
+   Числа підібрані під найдовший реальний уміст кожного слота, не «на око»:
+   4-й тримає три рядки (підпис + індекс + назва), 9-й — три рядки логу. */
+.cv-slots {
+  display: grid;
+  grid-template-rows: 22px 18px 18px 56px 20px 20px 32px 18px 50px 18px;
+  gap: 8px;
+  align-content: start;
+}
+.cv-slot { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; }
+.cv-slot-head { gap: 8px; flex-wrap: nowrap; }
+.cv-slot-head b { white-space: nowrap; }
+.cv-slot-stage, .cv-slot-timing { flex-wrap: nowrap; white-space: nowrap; }
+.cv-slot-current { flex-direction: column; align-items: stretch; gap: 2px; justify-content: center;
+  border-left: 2px solid var(--tangerine); padding-left: 9px; }
+.cv-slot-commit { align-items: flex-start; }
+/* Коміт — рівно два рядки: повідомлення бува довге, а зрізати його до одного
+   означає щоразу губити те, ЩО саме зроблено. */
+.cv-slot-commit > span {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  overflow: hidden; font-size: 11.5px; color: var(--muted); line-height: 1.35;
+}
+.cv-commit-when { color: var(--muted-2); font-family: var(--mono); font-size: 10.5px; margin-right: 6px; }
+.cv-slot-unmerged { color: var(--periwinkle); font-size: 11.5px; }
+
+/* Прочерк порожнього слота — приглушений, щоб не читався як дані. */
+.cv-dash { color: var(--muted-2); opacity: .6; font-family: var(--mono); font-size: 11.5px; }
+.cv-muted { color: var(--muted-2); }
+.cv-bar-muted { opacity: .35; }
+.cv-bar-muted .cv-bar-fill { background: var(--muted-2); }
+/* Розбіжність черги з воротами — компактна позначка в самому слоті черги,
+   бо окремого рядка в сітці для неї немає й бути не повинно. */
+.cv-miss { font: 500 10px var(--mono); color: var(--gold); font-style: normal; }
 .cv-card header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .cv-card header b { font-size: 14px; color: var(--bone); }
 .cv-card header code { font: 11px var(--mono); color: var(--muted-2); }
@@ -1843,8 +1887,8 @@ li.open .chev { transform: rotate(90deg); }
 
 /* Етап усередині прогону — те, що агент доповів Bash-ом за НАКАЗом. */
 .cv-stage { font: 11.5px var(--mono); color: var(--cyan); }
-.cv-timing { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 11.5px; color: var(--muted); }
-.cv-timing i { font-style: normal; color: var(--muted-2); font-size: 11px; }
+.cv-slot-timing { font-size: 11.5px; color: var(--muted); }
+.cv-slot-timing i { font-style: normal; color: var(--muted-2); font-size: 11px; }
 .cv-timing-hint { opacity: .75; }
 /* Утричі довше за звичайне — це вже не «складніша картка». Позначку робимо
    помітною навмисно: вона ще й детектор зависань. */

@@ -63,10 +63,10 @@ function StateMark({ code }: { code: string }) {
   return <Circle size={size} aria-hidden="true" />;
 }
 
-function Bar({ closed, total }: { closed: number; total: number }) {
+function Bar({ closed, total, muted }: { closed: number; total: number; muted?: boolean }) {
   const pct = total > 0 ? Math.min(100, Math.round((closed / total) * 100)) : 0;
   return (
-    <span className="cv-bar" role="img" aria-label={`${closed} з ${total}`}>
+    <span className={`cv-bar${muted ? " cv-bar-muted" : ""}`} role="img" aria-label={`${closed} з ${total}`}>
       <span className="cv-bar-fill" style={{ width: `${pct}%` }} />
     </span>
   );
@@ -76,79 +76,119 @@ function Bar({ closed, total }: { closed: number; total: number }) {
  *  показати в секундах, ніж округлити в нуль і вдати, що нічого не йде. */
 const dur = (s: number) => (s < 90 ? `${s} с` : `${Math.round(s / 60)} хв`);
 
-function Timing({ timing, hasStage }: { timing: Timing | null; hasStage: boolean }) {
-  if (!timing || timing.running_s === null) return null;
-  const { running_s, band_s, samples, suspicious } = timing;
-  return (
-    <p className={`cv-timing${suspicious ? " cv-timing-long" : ""}`}>
-      {suspicious ? <AlertTriangle size={12} aria-hidden="true" /> : null}
-      <span>триває {dur(running_s)}</span>
-      {band_s ? (
-        <i>· зазвичай {dur(band_s[0])}–{dur(band_s[1])}</i>
-      ) : (
-        // Медіана з'явиться, коли цикл перезапустять на новому wl-loop.sh:
-        // тривалості пише він сам. Вдавати «зазвичай» з нуля замірів не можна.
-        <i>· медіани ще немає ({samples} замірів)</i>
-      )}
-      {suspicious ? <b>підозріло довго</b> : null}
-      {!hasStage && !suspicious ? <i className="cv-timing-hint">етап буде з наступного прогону</i> : null}
-    </p>
-  );
-}
+/** Порожній слот. Прочерк, а не зникнення: коли рядок просто щезає, сусідні
+ *  з'їжджають угору, і око вже не може порівняти дві картки поглядом упоперек —
+ *  доводиться щоразу перечитувати підписи. Прочерк тримає рядок на місці й
+ *  чесно каже «тут нічого», а не «тут щось інше». */
+const DASH = <span className="cv-dash">—</span>;
 
+/** Десять слотів у сталому порядку, однакові для БУДЬ-ЯКОГО стану задачі.
+ *  Висоти рядків задає CSS (`grid-template-rows`), а не вміст, тож картки
+ *  вирівнюються по горизонталі незалежно від того, що в них потрапило. */
 function TaskCard({ task }: { task: Task }) {
-  const { queue, budget, state } = task;
+  const { queue, budget, state, timing } = task;
   const current = queue?.current;
+  const isDone = state.code === "done";
+
   return (
-    <article className={`cv-card cv-${state.code}`}>
-      <header>
+    <article className={`cv-card cv-slots cv-${state.code}`}>
+      {/* 1 — заголовок і стан */}
+      <div className="cv-slot cv-slot-head">
         <StateMark code={state.code} />
         <b>{task.title}</b>
         <code>{task.name}</code>
         <span className={`cv-pill cv-pill-${state.code}`}>{state.label}</span>
-      </header>
+      </div>
 
-      {task.run !== null && state.code === "running" ? <p className="cv-run">прогін #{task.run}</p> : null}
-      {state.note ? <p className="cv-note">{state.note}</p> : null}
-      {task.stage ? <p className="cv-stage">{task.stage}</p> : null}
-      <Timing timing={task.timing} hasStage={Boolean(task.stage)} />
+      {/* 2 — прогін і етап усередині нього */}
+      <div className="cv-slot cv-slot-stage">
+        {task.run !== null ? <span className="cv-run">прогін #{task.run}</span> : DASH}
+        {task.stage ? <span className="cv-stage">{task.stage}</span> : <span className="cv-dash">· ЕТАП —</span>}
+      </div>
 
+      {/* 3 — тривалість проти звичайної */}
+      <div className={`cv-slot cv-slot-timing${timing?.suspicious ? " cv-timing-long" : ""}`}>
+        {timing?.running_s != null ? (
+          <>
+            {timing.suspicious ? <AlertTriangle size={12} aria-hidden="true" /> : null}
+            <span>триває {dur(timing.running_s)}</span>
+            {timing.band_s
+              ? <i>· зазвичай {dur(timing.band_s[0])}–{dur(timing.band_s[1])}</i>
+              : <i>· медіани ще немає ({timing.samples} замірів)</i>}
+            {timing.suspicious ? <b>підозріло довго</b> : null}
+          </>
+        ) : !isDone && state.note ? (
+          // Задача не меле — але «спить до 15:30» чи «бюджет вичерпано» це теж
+          // факт про час, і слот часу для нього рідний. Без цього пояснення
+          // зникало зовсім: у десяти слотах окремого рядка для нього немає.
+          <span className="cv-muted">{state.note}</span>
+        ) : DASH}
+      </div>
 
+      {/* 4 — що саме в роботі */}
+      <div className="cv-slot cv-slot-current">
+        <span className="cv-current-label">найпевніше зараз</span>
+        {current ? (
+          <>
+            <span className="cv-current-idx">{current.kind} {current.index} з {current.of}</span>
+            <span className="cv-current-name">{current.name}</span>
+          </>
+        ) : isDone ? (
+          <span className="cv-current-name cv-muted">{state.note ?? "робота вичерпана"}</span>
+        ) : (
+          <span className="cv-current-name">{DASH}</span>
+        )}
+      </div>
 
-      {current ? (
-        <p className="cv-current">
-          <span className="cv-current-label">найпевніше зараз</span>
-          <span className="cv-current-idx">{current.kind} {current.index} з {current.of}</span>
-          <span className="cv-current-name">{current.name}</span>
-        </p>
-      ) : null}
+      {/* 5 — черга. У добіглої задачі бар повний і приглушений: робота
+              вичерпана, і порожній бар брехав би про «нічого не зроблено». */}
+      <div className="cv-slot cv-metric">
+        <span>черга</span>
+        {queue ? (
+          <><Bar closed={queue.closed} total={queue.total} />
+            <b>{queue.closed} з {queue.total}</b> <i>{queue.unit}</i>
+            {queue.missing ? (
+              <em className="cv-miss" title={`у черзі на ${queue.missing} рядок більше, ніж бачать ворота — картку перейменували або перенесли`}>
+                −{queue.missing}
+              </em>
+            ) : null}</>
+        ) : isDone ? (
+          <><Bar closed={1} total={1} muted /><b className="cv-muted">вичерпана</b></>
+        ) : (
+          <><Bar closed={0} total={0} muted />{DASH}</>
+        )}
+      </div>
 
-      {queue ? (
-        <p className="cv-metric">
-          <span>черга</span><Bar closed={queue.closed} total={queue.total} />
-          <b>{queue.closed} з {queue.total}</b> <i>{queue.unit}</i>
-        </p>
-      ) : null}
-      <p className="cv-metric">
+      {/* 6 — денний бюджет прогонів */}
+      <div className="cv-slot cv-metric">
         <span>бюджет</span><Bar closed={budget.spent} total={budget.max} />
         <b>{budget.spent} з {budget.max}</b> <i>прогонів сьогодні</i>
-      </p>
+      </div>
 
-      {queue?.missing ? (
-        <p className="cv-warn">у черзі на {queue.missing} рядок більше, ніж бачать ворота — картку перейменували або перенесли</p>
-      ) : null}
+      {/* 7 — останній коміт гілки */}
+      <div className="cv-slot cv-slot-commit">
+        {task.commit ? (
+          <span title={task.commit.at}>
+            <span className="cv-commit-when">коміт {ago(task.commit.ago_min)}</span>
+            {task.commit.subject}
+          </span>
+        ) : DASH}
+      </div>
 
-      {task.commit ? (
-        <p className="cv-commit" title={task.commit.at}>
-          <span>коміт {ago(task.commit.ago_min)}</span> {task.commit.subject}
-        </p>
-      ) : null}
-      {task.unmerged ? (
-        <p className="cv-unmerged"><GitBranch size={12} aria-hidden="true" /> {task.unmerged} комітів чекають злиття в main</p>
-      ) : null}
+      {/* 8 — незібрана хвиля */}
+      <div className="cv-slot cv-slot-unmerged">
+        {task.unmerged
+          ? <><GitBranch size={12} aria-hidden="true" /> {task.unmerged} комітів чекають злиття в main</>
+          : DASH}
+      </div>
 
-      {task.last_line ? <p className="cv-log">{task.last_line}</p> : null}
-      <p className="cv-cmd"><Terminal size={12} aria-hidden="true" /> <code>{task.command} стан</code></p>
+      {/* 9 — сирий хвіст логу */}
+      <div className="cv-slot cv-log">{task.last_line ?? DASH}</div>
+
+      {/* 10 — команда для термінала */}
+      <div className="cv-slot cv-cmd">
+        <Terminal size={12} aria-hidden="true" /> <code>{task.command} стан</code>
+      </div>
     </article>
   );
 }
