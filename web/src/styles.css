@@ -1770,10 +1770,38 @@ li.open .chev { transform: rotate(90deg); }
 .cv-head p { color: var(--muted); font-size: 12.5px; max-width: 76ch; margin-top: 4px; }
 .cv-head p code { font: 11.5px var(--mono); color: var(--muted-2); }
 
-/* Рівно дві колонки (рішення Юрія): на широкому екрані auto-fill розсипав
-   картки на чотири вузькі смужки, і рядок логу переставав читатись. */
-.cv-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; max-width: 1180px; }
-@media (max-width: 900px) { .cv-grid { grid-template-columns: minmax(0, 1fr); } }
+/* Сітка бере всю доступну ширину. Стеля 1180 px лишала на моніторі 1920
+   майже 470 px простою — 28 % робочої зони ні на що.
+
+   Колонок стільки, скільки влізе при мінімумі 420 px на картку. Мінімум не
+   довільний: вужче за 420 рядок логу й повідомлення коміта перестають
+   читатись, а саме через це попередня спроба auto-fill і провалилась — вона
+   не мала нижньої межі й розсипала картки на чотири смужки. Тепер висоти
+   слотів фіксовані, тож ширша картка нічого не ламає. */
+.cv-grid {
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(var(--cv-cols, 3), minmax(0, 1fr));
+}
+/* Вибір Юрія діє, поки картка лишається читною. Нижче 420 px на колонку
+   рядок логу й повідомлення коміта перестають читатись, тож вузьке вікно
+   складає сітку саме́, не питаючи: краще менше колонок, ніж чотири смужки,
+   в яких нічого не розбереш. Це стеля довіри до вибору, а не спір із ним. */
+@media (max-width: 1500px) { .cv-grid { grid-template-columns: repeat(min(var(--cv-cols, 3), 3), minmax(0, 1fr)); } }
+@media (max-width: 1100px) { .cv-grid { grid-template-columns: repeat(min(var(--cv-cols, 3), 2), minmax(0, 1fr)); } }
+@media (max-width: 760px)  { .cv-grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* Перемикач колонок — кнопки-пігулки дизайн-системи. */
+.cv-cols { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
+.cv-cols > span { font: 520 10px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted-2); margin-right: 2px; }
+.cv-cols button {
+  display: inline-flex; align-items: center; gap: 5px;
+  font: 13px var(--sans); color: var(--muted);
+  background: transparent; border: 1px solid var(--line);
+  border-radius: var(--radius-xs); padding: 4px 10px; cursor: pointer;
+}
+.cv-cols button:hover { background: color-mix(in srgb, var(--bone) 7%, transparent); }
+.cv-cols button[aria-pressed="true"] { background: var(--carbon-soft); color: var(--bone); border-color: var(--cyan); }
+.cv-cols button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
 .cv-card {
   background: var(--surface); border: 1px solid var(--line-soft);
@@ -1883,7 +1911,7 @@ li.open .chev { transform: rotate(90deg); }
 .cv-cmd code { font: 11px var(--mono); color: var(--muted); user-select: all; }
 
 .cv-batch { display: flex; flex-direction: column; gap: 8px; }
-.cv-batch .cv-card { max-width: 560px; }
+.cv-batch .cv-card { max-width: 100%; }
 
 /* Етап усередині прогону — те, що агент доповів Bash-ом за НАКАЗом. */
 .cv-stage { font: 11.5px var(--mono); color: var(--cyan); }

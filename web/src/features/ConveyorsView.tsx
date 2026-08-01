@@ -1,4 +1,5 @@
-import { CircleDot, Circle, CircleSlash, Moon, Terminal, GitBranch, AlertTriangle } from "lucide-react";
+import { CircleDot, Circle, CircleSlash, Moon, Terminal, GitBranch, AlertTriangle, Columns3 } from "lucide-react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ErrorState, LoadingState } from "../components/StatePanel";
 import { getJson } from "../api";
@@ -193,7 +194,23 @@ function TaskCard({ task }: { task: Task }) {
   );
 }
 
+/** Скільки колонок. Вибір Юрія переживає перезапуск — сторінку відкривають
+ *  щодня, і щоразу перекладати її під свій монітор було б знущанням.
+ *  localStorage, а не sessionStorage: те саме рішення, що й для відновлення
+ *  сесії застосунку. */
+const COLS_KEY = "wl.conveyors.cols";
+const COLS = [2, 3, 4] as const;
+
+function useColumns(): [number, (n: number) => void] {
+  const [cols, set] = useState<number>(() => {
+    const saved = Number(localStorage.getItem(COLS_KEY));
+    return COLS.includes(saved as (typeof COLS)[number]) ? saved : 3;
+  });
+  return [cols, (n) => { localStorage.setItem(COLS_KEY, String(n)); set(n); }];
+}
+
 export function ConveyorsView() {
+  const [cols, setCols] = useColumns();
   const data = useConveyors();
   if (data.isError) return <ErrorState error={data.error as Error} onRetry={() => void data.refetch()} />;
   if (data.isLoading) return <LoadingState label="Читаємо стан конвеєрів…" />;
@@ -211,9 +228,23 @@ export function ConveyorsView() {
           Читання файлів і <code>git log</code> — нуль моделі. Оновлення кожні 30 с, зріз о {data.data?.at}.
           Керування лишається в терміналі: кнопка у вікні обірвала б прогін посеред запису.
         </p>
+        <div className="cv-cols" role="toolbar" aria-label="Кількість колонок">
+          <span>колонок</span>
+          {COLS.map((n) => (
+            <button
+              key={n}
+              type="button"
+              aria-pressed={cols === n}
+              onClick={() => setCols(n)}
+              title={`${n} колонки на екран`}
+            >
+              <Columns3 size={13} aria-hidden="true" />{n}
+            </button>
+          ))}
+        </div>
       </header>
 
-      <div className="cv-grid">
+      <div className="cv-grid" style={{ "--cv-cols": cols } as React.CSSProperties}>
         {tasks.map((task) => <TaskCard key={task.name} task={task} />)}
       </div>
 
