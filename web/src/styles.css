@@ -1760,3 +1760,83 @@ li.open .chev { transform: rotate(90deg); }
 /* Назва області під курсором — просто в заголовку блоку, тож її видно й
    тоді, коли блок згорнутий. */
 .map-block > summary .cnt b.hovered { color: var(--gold); font-weight: 500; font-family: var(--sans, inherit); font-size: 11.5px; }
+
+/* ── Конвеєри ───────────────────────────────────────────────────────────────
+   Сторінка робочого стану: що меле система і скільки лишилось. Кольору свого
+   не має — тільки семантичні токени, щоб «працює» тут значило те саме, що
+   «працює» будь-де в системі. */
+.route-conveyors { display: flex; flex-direction: column; gap: 18px; }
+.cv-head h1 .sub { font: 500 15px var(--mono); color: var(--mint); margin-left: 8px; }
+.cv-head p { color: var(--muted); font-size: 12.5px; max-width: 76ch; margin-top: 4px; }
+.cv-head p code { font: 11.5px var(--mono); color: var(--muted-2); }
+
+/* Рівно дві колонки (рішення Юрія): на широкому екрані auto-fill розсипав
+   картки на чотири вузькі смужки, і рядок логу переставав читатись. */
+.cv-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; max-width: 1180px; }
+@media (max-width: 900px) { .cv-grid { grid-template-columns: minmax(0, 1fr); } }
+
+.cv-card {
+  background: var(--surface); border: 1px solid var(--line-soft);
+  border-radius: var(--radius); padding: 14px 16px 12px;
+  display: flex; flex-direction: column; gap: 7px; min-width: 0;
+}
+.cv-card header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cv-card header b { font-size: 14px; color: var(--bone); }
+.cv-card header code { font: 11px var(--mono); color: var(--muted-2); }
+/* Стан задачі — колір самої позначки, не заливки: заливка кричала б із семи
+   карток одразу, а нам треба, щоб в очі впадала лише та, що працює. */
+.cv-running header > svg { color: var(--mint); }
+.cv-sleeping header > svg, .cv-budget header > svg { color: var(--gold); }
+.cv-stopped header > svg { color: var(--rose); }
+.cv-done header > svg, .cv-idle header > svg { color: var(--muted-2); }
+
+.cv-pill {
+  margin-left: auto; font: 500 10px var(--mono); letter-spacing: .06em;
+  text-transform: uppercase; padding: 3px 8px; border-radius: var(--radius-xs);
+  border: 1px solid var(--line); color: var(--muted-2);
+}
+.cv-pill-running { color: var(--mint); border-color: color-mix(in srgb, var(--mint) 40%, var(--line)); }
+.cv-pill-sleeping, .cv-pill-budget { color: var(--gold); border-color: color-mix(in srgb, var(--gold) 40%, var(--line)); }
+.cv-pill-stopped { color: var(--rose); border-color: color-mix(in srgb, var(--rose) 40%, var(--line)); }
+.cv-pill-window { margin-left: auto; color: var(--periwinkle); border-color: color-mix(in srgb, var(--periwinkle) 40%, var(--line)); }
+
+.cv-run { font: 11.5px var(--mono); color: var(--muted-2); }
+.cv-note { font-size: 11.5px; color: var(--muted-2); }
+
+/* Що саме в роботі. Виділене рамкою зліва, бо це головне питання сторінки:
+   смужка каже «скільки», а цей рядок — «що». */
+.cv-current {
+  display: flex; flex-direction: column; gap: 2px;
+  border-left: 2px solid var(--tangerine); padding: 2px 0 2px 9px;
+}
+.cv-current-label { font: 500 9.5px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted-2); }
+.cv-current-idx { font: 11px var(--mono); color: var(--tangerine); }
+.cv-current-name { font-size: 12.5px; color: var(--bone); line-height: 1.35; }
+
+.cv-metric { display: flex; align-items: center; gap: 8px; font-size: 12px; min-width: 0; }
+.cv-metric > span:first-child { color: var(--muted-2); min-width: 6.5em; }
+.cv-metric b { font: 500 11.5px var(--mono); color: var(--bone); white-space: nowrap; }
+.cv-metric i { color: var(--muted-2); font-style: normal; font-size: 11px; }
+
+.cv-bar { flex: 1; height: 5px; min-width: 40px; border-radius: 3px; background: var(--raised); overflow: hidden; }
+.cv-bar-fill { display: block; height: 100%; background: var(--cyan); }
+
+.cv-warn { font-size: 11px; color: var(--gold); line-height: 1.35; }
+.cv-commit { font-size: 11.5px; color: var(--muted); line-height: 1.35; }
+.cv-commit span { color: var(--muted-2); font-family: var(--mono); font-size: 10.5px; margin-right: 6px; }
+.cv-unmerged { display: flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--periwinkle); }
+
+/* Останній рядок логу — моно й приглушено: це сирий вивід, не наша мова. */
+/* Обрізаємо по цілих рядках, а не по висоті: overflow:hidden різав літери
+   навпіл, і обрубок читався як зіпсований текст, а не як «далі є ще». */
+.cv-log {
+  font: 11px/1.45 var(--mono); color: var(--muted-2);
+  background: var(--carbon-soft); border-radius: var(--radius-xs);
+  padding: 7px 9px; overflow: hidden;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3;
+}
+.cv-cmd { display: flex; align-items: center; gap: 6px; color: var(--muted-2); margin-top: auto; padding-top: 3px; }
+.cv-cmd code { font: 11px var(--mono); color: var(--muted); user-select: all; }
+
+.cv-batch { display: flex; flex-direction: column; gap: 8px; }
+.cv-batch .cv-card { max-width: 560px; }

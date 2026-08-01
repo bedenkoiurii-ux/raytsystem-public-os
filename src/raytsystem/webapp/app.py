@@ -124,6 +124,7 @@ _SPA_ROUTES = frozenset(
         "timeline",
         "map",
         "senses",
+        "conveyors",
         "runs",
         "agents",
         "skills",
@@ -1833,10 +1834,13 @@ def create_app(
     from raytsystem.webapp.reception_routes import create_reception_router
     from raytsystem.webapp.map_routes import create_map_router
     from raytsystem.webapp.senses_routes import create_senses_router
+    # Конвеєри — робочий стан фонових циклів. Читання файлів, нуль моделі.
+    from raytsystem.webapp.conveyor_routes import create_conveyor_router
     app.include_router(create_reception_router(resolved_root, require_session=require_session))
     app.include_router(create_settings_router(resolved_root, require_session=require_session))
     app.include_router(create_map_router(resolved_root, require_session=require_session))
     app.include_router(create_senses_router(resolved_root, require_session=require_session))
+    app.include_router(create_conveyor_router(resolved_root, require_session=require_session))
 
     # Агенти живуть усередині системи, а не в launchd (рішення Юрія 2026-07-27):
     # стеження працює, поки працює Writer-Lab — видимо й передбачувано.

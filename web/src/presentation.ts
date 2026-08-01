@@ -51,6 +51,11 @@ export const routeCopy = {
     description: "Наскрізні мотиви крізь століття",
     group: "Оркестрація"
   },
+  conveyors: {
+    label: "Конвеєри",
+    description: "Що меле система і скільки лишилось",
+    group: "Оркестрація"
+  },
   map: {
     label: "Мапа",
     description: "Місця бібліотеки в просторі й часі",
