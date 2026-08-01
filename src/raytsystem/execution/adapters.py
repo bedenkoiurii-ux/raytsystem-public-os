@@ -48,6 +48,12 @@ _RUNTIME_ENV_ALLOWLIST = (
     "LC_ALL",
     "PATH",
     "SSL_CERT_FILE",
+    # ФОРК uk-locale: на macOS облікові дані Claude Code лежать у Keychain, і
+    # пошук у ньому ключується на $USER. Без цієї змінної `claude auth status`
+    # у зрізаному середовищі відповідає `loggedIn: false`, хоч сесія чинна —
+    # перевірено бісекцією по одній змінній 2026-08-01. Ізоляція лишається
+    # списком, а не «успадкувати все». Див. ФОРК-відхилення.md, п. 5.
+    "USER",
 )
 
 ExecutableResolver = Callable[[str], str | None]
@@ -628,7 +634,10 @@ class ClaudeLocalAdapter:
         argv = [
             executable,
             "--print",
-            "--bare",
+            # ФОРК uk-locale: `--bare` прибрано. Він не читає сесію з Keychain
+            # і відповідає «Not logged in» навіть при чинному логіні — окремо
+            # перевірено голою командою 2026-08-01. Решта прапорців лишається
+            # незмінною. Див. ФОРК-відхилення.md, п. 5.
             "--output-format",
             "stream-json",
             "--input-format",
