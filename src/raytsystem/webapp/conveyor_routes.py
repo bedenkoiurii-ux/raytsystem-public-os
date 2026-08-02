@@ -173,6 +173,23 @@ def _stage(task: str) -> str | None:
     return text[:120] or None
 
 
+def _leak(task: str) -> list[str] | None:
+    """Файли, які останній прогін написав у головне дерево повз свою гілку.
+
+    Пише цей список `wl-loop.sh` (`check_leak`) після кожного прогону. У лозі
+    він теж є, але лог ніхто не читає до біди: пастка worktree тринадцять разів
+    поспіль лишалася непоміченою саме тому, що мовчала. Порожній файл означає
+    «останній прогін чистий» — це не те саме, що відсутній файл (прогонів ще
+    не було або цикл старіший за запобіжник).
+    """
+    try:
+        found = [l.strip() for l in (STATE / f"{task}-leak.txt").read_text(
+            encoding="utf-8", errors="ignore").splitlines() if l.strip()]
+    except OSError:
+        return None
+    return found[:10] or None
+
+
 def _timing(log: list[str], state_code: str) -> dict[str, Any] | None:
     """Скільки триває поточний прогін проти звичайного для цієї задачі.
 
@@ -434,6 +451,7 @@ def create_conveyor_router(root: Path, *, require_session: Callable[..., Any]) -
                 "state": state,
                 "run": _run_number(log),
                 "stage": _stage(task),
+                "leak": _leak(task),
                 "timing": _timing(log, state["code"]),
                 "queue": queue,
                 "budget": {"spent": spent, "max": _budget(root, task)},

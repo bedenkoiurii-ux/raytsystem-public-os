@@ -1844,6 +1844,17 @@ li.open .chev { transform: rotate(90deg); }
 .cv-commit-when { color: var(--muted-2); font-family: var(--mono); font-size: 10.5px; margin-right: 6px; }
 .cv-slot-unmerged { color: var(--periwinkle); font-size: 11.5px; }
 
+/* Витік у головне дерево — єдиний слот картки, що з'являється тільки в біді.
+   Rose і рамка, а не приглушений текст: пастка worktree тринадцять разів
+   лишалась непоміченою саме тому, що виглядала як звичайний рядок логу. */
+.cv-leak {
+  display: flex; align-items: flex-start; gap: 6px;
+  padding: 6px 8px; border-radius: 6px;
+  border: 1px solid rgba(255, 112, 133, .4); background: rgba(255, 112, 133, .1);
+  color: var(--rose); font-size: 11.5px; line-height: 1.45;
+}
+.cv-leak > svg { flex: none; margin-top: 2px; }
+
 /* Прочерк порожнього слота — приглушений, щоб не читався як дані. */
 .cv-dash { color: var(--muted-2); opacity: .6; font-family: var(--mono); font-size: 11.5px; }
 .cv-muted { color: var(--muted-2); }

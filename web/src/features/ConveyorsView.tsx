@@ -31,7 +31,7 @@ interface Timing {
 interface Task {
   name: string; title: string; about: string;
   state: { code: string; label: string; note: string | null };
-  run: number | null; stage: string | null; timing: Timing | null; queue: Queue | null;
+  run: number | null; stage: string | null; leak: string[] | null; timing: Timing | null; queue: Queue | null;
   budget: { spent: number; max: number };
   last_line: string | null; log_at: string | null;
   commit: Commit | null; unmerged: number | null; command: string;
@@ -182,6 +182,17 @@ function TaskCard({ task }: { task: Task }) {
           ? <><GitBranch size={12} aria-hidden="true" /> {task.unmerged} комітів чекають злиття в main</>
           : DASH}
       </div>
+
+      {/* 8б — витік у головне дерево. Мовчазна пастка worktree ловилась
+          тринадцять разів постфактум; тепер вона видима, поки не розібрана. */}
+      {task.leak ? (
+        <div className="cv-slot cv-leak" role="alert">
+          <AlertTriangle size={12} aria-hidden="true" />
+          <span>
+            прогін написав у main повз гілку: {task.leak.join(", ")}
+          </span>
+        </div>
+      ) : null}
 
       {/* 9 — сирий хвіст логу */}
       <div className="cv-slot cv-log">{task.last_line ?? DASH}</div>
