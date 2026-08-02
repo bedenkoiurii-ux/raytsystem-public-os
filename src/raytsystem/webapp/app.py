@@ -391,6 +391,7 @@ def create_app(
     execution_service_lock = asyncio.Lock()
     from raytsystem.webapp.agents import watcher as inbox_watcher
     from raytsystem.webapp.agents import originals as originals_watcher
+    from raytsystem.webapp.agents import resume as conveyor_resume
 
     app = FastAPI(
         title="raytsystem local control plane",
@@ -1849,11 +1850,13 @@ def create_app(
     async def _start_agents() -> None:
         inbox_watcher.start()
         originals_watcher.start()
+        conveyor_resume.start()
 
     @app.on_event("shutdown")
     async def _stop_agents() -> None:
         await inbox_watcher.stop()
         await originals_watcher.stop()
+        await conveyor_resume.stop()
 
     app.include_router(create_feature_router(resolved_root, require_session=require_session))
 

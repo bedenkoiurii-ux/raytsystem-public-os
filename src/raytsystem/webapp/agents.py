@@ -36,6 +36,7 @@ import os
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 STORE = Path.home() / ".writer-lab"
 WATCH_LIST = STORE / "inbox-watch.txt"
@@ -54,6 +55,19 @@ INTERVAL_SECONDS = 300          # перевірка дешева; частіш�
 for _bin in (str(Path.home() / ".local/bin"), "/opt/homebrew/bin"):
     if _bin not in os.environ.get("PATH", "").split(":"):
         os.environ["PATH"] = f"{_bin}:{os.environ.get('PATH', '')}"
+
+
+def _alive(pid_file: Path) -> bool:
+    """Чи живий процес за pid-файлом — та сама формула, що `kill -0` у wl-loop.sh.
+
+    Убитий процес лишає застарілий pid-файл (`rm -f "$PIDF"` є лише на чистому
+    виході), тож наявності файла замало — питаємо ядро.
+    """
+    try:
+        os.kill(int(pid_file.read_text().strip()), 0)
+        return True
+    except (OSError, ValueError):
+        return False
 
 
 class InboxWatcher:
@@ -89,14 +103,7 @@ class InboxWatcher:
 
     @staticmethod
     def _varta_running() -> bool:
-        pid_file = STORE / "inbox-loop.pid"
-        if not pid_file.is_file():
-            return False
-        try:
-            os.kill(int(pid_file.read_text().strip()), 0)
-            return True
-        except (OSError, ValueError):
-            return False
+        return _alive(STORE / "inbox-loop.pid")
 
     @staticmethod
     def _count(status: str) -> int:
@@ -275,5 +282,174 @@ class OriginalsWatcher:
                 pass
 
 
+RESUME_INTERVAL_SECONDS = 300    # перевірка — самі стати файлів, коштує нуль
+
+
+class ConveyorResume:
+    """Підіймач конвеєрів. Машину вимкнули посеред роботи — застосунок веде далі.
+
+    Клас збоїв, проти якого це зроблено: `wl-loop` спить до півночі на вичерпаному
+    бюджеті або чекає скидання ліміту, машину вимикають — і процес зникає разом зі
+    сном. Ніхто його не підніме: варта інбоксу будиться на нові файли в теках, а не
+    на впалий цикл. Так `sources` пролежав із живою чергою на 141 тезу, застарілим
+    pid-файлом і без сентинела.
+
+    П'ять умов разом, і жодна з них не вгадується:
+      черга не порожня · немає сентинела `.done` · немає `-loop.stop` ·
+      денний бюджет не вичерпано · процес не живий.
+
+    **Сентинели й стоп-прапорці — священні.** Агент їх лише читає. Це різниця з
+    `wl-watchdog.sh`, який безумовно стирав `inbox.done`: доведена до кінця задача
+    не має воскресати сама, а ручний «стоп» означає «не чіпай», а не «поки що».
+
+    Список задач для автопідйому веде Юрій — `conveyors.auto_resume` у
+    `90-Meta/config.yaml`. Немає секції — не піднімається ніщо: мовчазна відмова
+    безпечніша за мовчазний запуск.
+    """
+
+    def __init__(self) -> None:
+        self.enabled = True
+        self.last_check: str | None = None
+        self.last_event: str | None = None
+        self.checked: dict[str, str] = {}     # задача → чому не піднято (або «піднято»)
+        self._task: asyncio.Task[None] | None = None
+
+    def state(self) -> dict[str, object]:
+        return {
+            "enabled": self.enabled,
+            "alive": bool(self._task and not self._task.done()),
+            "interval_seconds": RESUME_INTERVAL_SECONDS,
+            "last_check": self.last_check,
+            "last_event": self.last_event,
+            "tasks": self.checked,
+        }
+
+    @staticmethod
+    def _config() -> dict[str, Any]:
+        """config.yaml бібліотеки. Зіпсовано чи недоступний — порожньо, тобто нічого
+        не піднімаємо: це та сама fail-soft логіка, що в loop_budget.py."""
+        try:
+            import yaml
+            data = yaml.safe_load((LIBRARY / "90-Meta/config.yaml").read_text(encoding="utf-8"))
+            return data if isinstance(data, dict) else {}
+        except Exception:
+            return {}
+
+    @staticmethod
+    def _lines(path: Path) -> set[str]:
+        if not path.is_file():
+            return set()
+        return {l.strip() for l in path.read_text(encoding="utf-8", errors="ignore").splitlines()
+                if l.strip() and not l.startswith("#")}
+
+    @classmethod
+    def _queue_left(cls, task: str) -> int | None:
+        """Скільки одиниць лишилось у черзі задачі.
+
+        Черги влаштовані однаково: список у `<задача>-seed.txt` (чи `-worklist.txt`)
+        мінус зроблене в `<задача>-done.txt`, якщо такий файл ведеться. Немає жодного
+        списку — повертаємо None: черги не видно, а вгадувати роботу за нас не можна.
+        """
+        for name in (f"{task}-seed.txt", f"{task}-worklist.txt"):
+            seed = STORE / name
+            if seed.is_file():
+                return len(cls._lines(seed) - cls._lines(STORE / f"{task}-done.txt"))
+        return None
+
+    def _blocked(self, task: str, config: dict[str, Any]) -> str | None:
+        """Чому цю задачу не піднімаємо. None — можна піднімати."""
+        if (STORE / f"{task}.done").exists():
+            return "сентинел: робота вичерпана"
+        if (STORE / f"{task}-loop.stop").exists():
+            return "стоп-прапорець"
+        if _alive(STORE / f"{task}-loop.pid"):
+            return "уже працює"
+
+        left = self._queue_left(task)
+        if left is None:
+            return "черги не видно"
+        if left == 0:
+            return "черга порожня"
+
+        budget = config.get("loop_budget") or {}
+        try:
+            limit = int(budget.get(task, budget.get("default", 60)))
+        except (TypeError, ValueError):
+            limit = 60
+        # Доба тут місцева, як `date '+%F'` у wl-loop.sh — інакше під ранок ми
+        # рахували б бюджет із чужого дня.
+        stamp = datetime.now().strftime("%Y-%m-%d")
+        try:
+            spent = int((STORE / f"{task}-runs-{stamp}").read_text(encoding="utf-8").strip())
+        except (OSError, ValueError):
+            spent = 0
+        if spent >= limit:
+            return f"денний бюджет вичерпано ({spent} із {limit})"
+        return None
+
+    @staticmethod
+    def _lift(task: str) -> bool:
+        """Підняти конвеєр і залишити слід у його ж лозі — щоб автор бачив, що це не він."""
+        STORE.mkdir(parents=True, exist_ok=True)
+        log = STORE / f"{task}-loop.log"
+        with log.open("a", encoding="utf-8") as out:
+            out.write(f"=== [{task}] піднято автоматично застосунком "
+                      f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===\n")
+        done = subprocess.run(["/bin/bash", str(LOOP), task, "старт"],
+                              capture_output=True, text=True, timeout=120)
+        if done.returncode != 0:
+            with log.open("a", encoding="utf-8") as out:
+                out.write(f"!! автопідйом не вдався: "
+                          f"{(done.stderr or done.stdout).strip()[:200]}\n")
+            return False
+        return True
+
+    async def _tick(self) -> None:
+        self.last_check = datetime.now(UTC).isoformat(timespec="seconds")
+        config = self._config()
+        tasks = (config.get("conveyors") or {}).get("auto_resume") or []
+        checked: dict[str, str] = {}
+        lifted: list[str] = []
+        for task in tasks:
+            why = self._blocked(task, config)
+            if why:
+                checked[task] = why
+                continue
+            if not LOOP.is_file():
+                checked[task] = "wl-loop.sh не знайдено"
+                continue
+            ok = await asyncio.to_thread(self._lift, task)
+            checked[task] = "піднято" if ok else "підняти не вдалося"
+            if ok:
+                lifted.append(task)
+        self.checked = checked
+        if lifted:
+            self.last_event = f"{self.last_check} — піднято: {', '.join(lifted)}"
+
+    async def _loop(self) -> None:
+        while True:
+            try:
+                if self.enabled:
+                    await self._tick()
+            except asyncio.CancelledError:
+                raise
+            except Exception as error:          # одна задача не валить підіймач
+                self.last_event = f"помилка автопідйому: {error}"
+            await asyncio.sleep(RESUME_INTERVAL_SECONDS)
+
+    def start(self) -> None:
+        if self._task is None or self._task.done():
+            self._task = asyncio.create_task(self._loop())
+
+    async def stop(self) -> None:
+        if self._task and not self._task.done():
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
+
+
 watcher = InboxWatcher()
 originals = OriginalsWatcher()
+resume = ConveyorResume()

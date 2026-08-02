@@ -125,9 +125,9 @@ def create_settings_router(root: Path, *, require_session: Callable[..., Any]) -
     @router.get("/settings/watchdog")
     def watchdog_state(_session=Depends(require_session)) -> dict[str, Any]:
         """Стан внутрішніх агентів-сторожів. Читається без моделі."""
-        from raytsystem.webapp.agents import originals, watcher
+        from raytsystem.webapp.agents import originals, resume, watcher
         # Агент оригіналів іде окремим ключем, щоб не ламати наявних читачів поля.
-        return {**watcher.state(), "originals": originals.state()}
+        return {**watcher.state(), "originals": originals.state(), "resume": resume.state()}
 
     @router.post("/settings/watchdog/toggle")
     def watchdog_toggle(_session=Depends(require_session)) -> Any:
