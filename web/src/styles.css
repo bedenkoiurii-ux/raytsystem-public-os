@@ -1855,6 +1855,10 @@ li.open .chev { transform: rotate(90deg); }
 }
 .cv-leak > svg { flex: none; margin-top: 2px; }
 
+/* Автозлиття спинилось на конфлікті — чекає рук. Rose, а не periwinkle
+   звичайного лічильника: доки конфлікт стоїть, число саме не зменшиться. */
+.cv-conflict { display: inline-flex; align-items: center; gap: 5px; color: var(--rose); }
+
 /* Прочерк порожнього слота — приглушений, щоб не читався як дані. */
 .cv-dash { color: var(--muted-2); opacity: .6; font-family: var(--mono); font-size: 11.5px; }
 .cv-muted { color: var(--muted-2); }

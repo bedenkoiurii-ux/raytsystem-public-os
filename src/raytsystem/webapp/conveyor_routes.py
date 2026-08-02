@@ -190,6 +190,21 @@ def _leak(task: str) -> list[str] | None:
     return found[:10] or None
 
 
+def _merge_conflict(task: str) -> str | None:
+    """Чому автозлиття спинилось і чекає рук.
+
+    Чисте злиття цикл робить сам і мовчки — воно не подія. Подія тут одна:
+    конфлікт, який машина не має права розв'язувати. Тоді гілка лишається як
+    була, а причина лежить тут і світиться на картці, поки її не розберуть.
+    """
+    try:
+        text = (STATE / f"{task}-merge-conflict.txt").read_text(
+            encoding="utf-8", errors="ignore").strip()
+    except OSError:
+        return None
+    return text[:300] or None
+
+
 def _timing(log: list[str], state_code: str) -> dict[str, Any] | None:
     """Скільки триває поточний прогін проти звичайного для цієї задачі.
 
@@ -452,6 +467,7 @@ def create_conveyor_router(root: Path, *, require_session: Callable[..., Any]) -
                 "run": _run_number(log),
                 "stage": _stage(task),
                 "leak": _leak(task),
+                "merge_conflict": _merge_conflict(task),
                 "timing": _timing(log, state["code"]),
                 "queue": queue,
                 "budget": {"spent": spent, "max": _budget(root, task)},

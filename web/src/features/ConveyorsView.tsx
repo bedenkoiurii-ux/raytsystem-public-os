@@ -31,7 +31,8 @@ interface Timing {
 interface Task {
   name: string; title: string; about: string;
   state: { code: string; label: string; note: string | null };
-  run: number | null; stage: string | null; leak: string[] | null; timing: Timing | null; queue: Queue | null;
+  run: number | null; stage: string | null; leak: string[] | null;
+  merge_conflict: string | null; timing: Timing | null; queue: Queue | null;
   budget: { spent: number; max: number };
   last_line: string | null; log_at: string | null;
   commit: Commit | null; unmerged: number | null; command: string;
@@ -178,9 +179,13 @@ function TaskCard({ task }: { task: Task }) {
 
       {/* 8 — незібрана хвиля */}
       <div className="cv-slot cv-slot-unmerged">
-        {task.unmerged
-          ? <><GitBranch size={12} aria-hidden="true" /> {task.unmerged} комітів чекають злиття в main</>
-          : DASH}
+        {task.merge_conflict
+          // Конфлікт важливіший за лічильник: доки він стоїть, число не
+          // зменшиться саме, і «28 чекають» без причини вводило б в оману.
+          ? <span className="cv-conflict"><GitBranch size={12} aria-hidden="true" /> злиття спинилось: {task.merge_conflict}</span>
+          : task.unmerged
+            ? <><GitBranch size={12} aria-hidden="true" /> {task.unmerged} комітів чекають злиття в main</>
+            : DASH}
       </div>
 
       {/* 8б — витік у головне дерево. Мовчазна пастка worktree ловилась
