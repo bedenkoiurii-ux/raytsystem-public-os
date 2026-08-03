@@ -33,8 +33,18 @@ function commonPrefix(a: string, b: string): number {
   return i;
 }
 
-/** Чи це те саме слово в різних відмінках. */
-export function sameLexeme(a: string, b: string): boolean {
+/** Чи це те саме слово в різних відмінках.
+ *
+ *  `strict` — для форм-прізвищ: слово в тексті не буває КОРОТШИМ за прізвище,
+ *  бо відмінок додає закінчення, а не відрізає. Без цього «Богу» лягало на
+ *  «Богун» 44 рази (замір 03.08).
+ */
+export function sameLexeme(a: string, b: string, strict = false): boolean {
+  if (strict && a !== b && a.length < b.length) return false;
+  return looseLexeme(a, b);
+}
+
+function looseLexeme(a: string, b: string): boolean {
   if (a === b) return true;
   if (a.length < MIN_ROOT || b.length < MIN_ROOT) return false;   // короткі — лише дослівно
   // Числа зіставляються лише дослівно. Інакше «1169» ставало посиланням на
@@ -64,10 +74,10 @@ export function words(text: string): string[] {
 }
 
 /** Чи послідовність слів тексту є тією самою назвою, що й слова форми. */
-export function sameWords(got: string[], want: string[]): boolean {
+export function sameWords(got: string[], want: string[], strict = false): boolean {
   if (got.length !== want.length) return false;
   for (let i = 0; i < got.length; i += 1) {
-    if (!sameLexeme(got[i], want[i])) return false;
+    if (!sameLexeme(got[i], want[i], strict)) return false;
   }
   return true;
 }

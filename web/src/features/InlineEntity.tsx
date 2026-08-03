@@ -39,7 +39,7 @@ export function useEntityForms(enabled: boolean) {
     queryKey: ["entity", "forms"],
     enabled,
     staleTime: Infinity,
-    queryFn: () => getJson<{ forms: Record<string, string>; proper?: string[]; count: number }>("/api/v1/entities/forms")
+    queryFn: () => getJson<{ forms: Record<string, string>; proper?: string[]; surnames?: string[]; count: number }>("/api/v1/entities/forms")
   });
 }
 
@@ -97,7 +97,7 @@ function tokenize(piece: string): Array<{ at: number; end: number; raw: string; 
   return out;
 }
 
-export function autolink(text: string, forms: Record<string, string>, proper?: Set<string>): string {
+export function autolink(text: string, forms: Record<string, string>, proper?: Set<string>, surnames?: Set<string>): string {
   const map = buckets(forms);
   if (!map.size) return text;
   const maxWords = cachedMaxWords;
@@ -137,7 +137,7 @@ export function autolink(text: string, forms: Record<string, string>, proper?: S
         // інакше «Київ» і «Русь» з різних речень злиплися б в одну назву.
         const between = piece.slice(span[0].end, span[n - 1].at);
         if (n > 1 && /[^\s-]/.test(between)) continue;
-        if (!sameWords(span.map((token) => token.low), entry.words)) continue;
+        if (!sameWords(span.map((token) => token.low), entry.words, surnames?.has(entry.key))) continue;
 
         const matched = piece.slice(span[0].at, span[n - 1].end);
         if (proper?.has(entry.key)) {
@@ -350,8 +350,9 @@ export function Prose({ content, autoLink = true, onOpenWikilinkOverride, onOpen
     () => new Set(forms.data?.proper ?? []),
     [forms.data?.proper]
   );
+  const surnameForms = useMemo(() => new Set(forms.data?.surnames ?? []), [forms.data?.surnames]);
   const prepared = autoLink && forms.data?.forms
-    ? autolink(content, forms.data.forms, properForms)
+    ? autolink(content, forms.data.forms, properForms, surnameForms)
     : content;
   const blocks = prepared.split(/\n{2,}/);
   const shown = new Set<string>();

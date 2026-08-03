@@ -312,6 +312,7 @@ def create_map_router(root: Path, *, require_session: Callable[..., Any]) -> API
         cards = index.get("cards", {})
         out: dict[str, str] = {}
         proper: list[str] = []
+        surnames = set(index.get("surnames", []))
         for form, uids in index.get("forms", {}).items():
             if len(uids) != 1 or len(form) < 4:
                 continue
@@ -329,7 +330,8 @@ def create_map_router(root: Path, *, require_session: Callable[..., Any]) -> API
             # Тому людей, місця й події лінкуємо лише при великій літері.
             if any(f"/{folder}/" in card.get("path", "") for folder in ("People", "Places", "Events")):
                 proper.append(form)
-        return {"forms": out, "proper": proper, "count": len(out)}
+        return {"forms": out, "proper": proper,
+                "surnames": sorted(surnames & set(out)), "count": len(out)}
 
     @router.get("/map/card")
     def map_card(name: str, context: str = "", _session=Depends(require_session)) -> dict[str, Any]:
