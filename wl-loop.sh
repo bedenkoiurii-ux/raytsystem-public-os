@@ -155,6 +155,37 @@ leak_snapshot() { ( cd "$MAIN" && git -c core.quotepath=false status --porcelain
 # й коміту не має.
 committed_in_main() { ( cd "$MAIN" && git log -1 --format=%H -- "$1" 2>/dev/null | grep -q . ); }
 
+# Старий вердикт не переживає правила, за яким його винесено. Розрізнювач
+# вище з'явився 03.08 о 18-й, а `sources-leak.txt` лежав із 10:50 — і сторінка
+# «Джерела» світилася червоним цілий день по причині, якої вже не існувало.
+# Файл переписується лише наприкінці прогону, тож без цього вердикт живе, доки
+# конвеєр не добіжить наступного разу. Судимо заново на старті, тим самим
+# розрізнювачем.
+rejudge_leak() {
+  local file real=""
+  [ -s "$LEAK" ] || return 0
+  while IFS= read -r file; do
+    [ -z "$file" ] && continue
+    if committed_in_main "$file"; then
+      echo "   (знято зі старого вердикту: «$file» має власний коміт у main)" >>"$LOG"
+      continue
+    fi
+    real="${real}${file}"$'\n'
+  done <"$LEAK"
+  printf '%s' "$real" | sed '/^$/d' >"$LEAK"
+}
+
+# Похідні артефакти не зливаються, а перебудовуються (рішення Юрія 03.08).
+# `entity-index.json` збирає `entity_index.py` з карток; його перебудовує і
+# гілка (після кожного прогону карток), і головне дерево (хук, руки). Дві
+# перебудови того самого файлу — не дві правки, а один наслідок, порахований
+# двічі, і git не має способу це знати: 03.08 сім комітів `wl-karty` стали
+# «розбирати руками» рівно через нього. Тому перед злиттям локальна версія в
+# main відкидається (вона наслідок, не джерело), а після злиття індекс
+# перебудовується заново — результат детермінований, тож у main лягає
+# правильний індекс незалежно від того, чию версію взяв git.
+DERIVED_FILES="90-Meta/entity-index.json"
+
 check_leak() {
   local before="$1" now added file real=""
   now="$(leak_snapshot)"
@@ -218,6 +249,30 @@ rebuild_entity_index() {
   return 0
 }
 
+# Похідне в головному дереві не боронимо: git відмовляється зливати, коли
+# незакомічена правка потрапила б під запис, а тут «правка» — це вчорашній
+# результат того самого скрипта. Саме на цьому спинилось злиття 7 комітів
+# wl-karty 03.08: конфлікту вмісту не було взагалі, був незакомічений
+# entity-index.json у main.
+drop_derived_in_main() {
+  local d
+  for d in $DERIVED_FILES; do
+    ( cd "$MAIN" && git checkout -- "$d" ) 2>/dev/null || true
+  done
+}
+
+# Після злиття індекс у main збирається з ОБ'ЄДНАНОГО набору карток. Версія,
+# яку приніс merge, зібрана з набору гілки — вона застаріла в ту саму мить,
+# коли злиття відбулось.
+rebuild_derived_in_main() {
+  local script="$MAIN/90-Meta/scripts/entity_index.py"
+  [ -f "$script" ] || return 0
+  ( cd "$MAIN" && uv run python3 "$script" >>"$LOG" 2>&1 ) || {
+    echo "!! індекс імен у main не перебудувався після злиття" >>"$LOG"; return 0; }
+  ( cd "$MAIN" && git diff --quiet -- $DERIVED_FILES ) && return 0
+  ( cd "$MAIN" && git commit -q -m "індекс імен: перебудова після злиття $BRANCH" -- $DERIVED_FILES ) >>"$LOG" 2>&1 || true
+}
+
 auto_merge() {
   [ "$AUTO_MERGE" = "так" ] || return 0
   local ahead
@@ -230,9 +285,11 @@ auto_merge() {
   # Незакомічену правку захищає сам git: якщо merge мав би її затерти, він
   # відмовляється ДО того, як щось змінить. Нижче ця відмова обробляється
   # так само, як конфлікт, — гілку не чіпаємо, чекаємо рук.
+  drop_derived_in_main
   if ( cd "$MAIN" && git merge --no-edit "$BRANCH" ) >>"$LOG" 2>&1; then
     : >"$CONFLICT"
     echo "──── автозлиття: $ahead комітів у main" >>"$LOG"
+    rebuild_derived_in_main
     if ( cd "$MAIN" && git push --quiet origin main ) >>"$LOG" 2>&1; then
       echo "──── push: віддано" >>"$LOG"
     else
@@ -277,6 +334,7 @@ reset_in() {
 loop() {
   mkdir -p "$S"; rm -f "$STOP"; ensure_worktree; cd "$VAULT"
   echo "=== wl-loop [$TASK] піднято $(date '+%F %T') ===" >>"$LOG"
+  rejudge_leak
   local n=0 fails=0 pause
   while :; do
     [ -f "$STOP" ] && { echo "--- стоп $(date '+%T') ---" >>"$LOG"; break; }
@@ -367,6 +425,11 @@ case "${1:-}" in
     n=$(cd "$VAULT" && git rev-list --count --no-merges "main..$BRANCH" 2>/dev/null || echo 0)
     [ "$n" = "0" ] && { echo "[$TASK] нема чого зливати"; exit 0; }
     echo "[$TASK] зливаю $n комітів…"
-    ( cd "$MAIN" && git merge --no-edit "$BRANCH" ) && echo "злито." ;;
+    # Той самий хвіст, що в циклі: похідне відкидаємо перед злиттям і
+    # перебудовуємо після. Ручний шлях, який цього не робить, спиняється рівно
+    # там само, де спинилось автозлиття.
+    drop_derived_in_main
+    ( cd "$MAIN" && git merge --no-edit "$BRANCH" ) \
+      && { rebuild_derived_in_main; echo "злито."; } ;;
   *) echo "вживання: $0 $TASK {старт|стоп|стан|лог|раз|злити}"; exit 1 ;;
 esac
