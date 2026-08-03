@@ -87,14 +87,15 @@ describe("три рубежі «схоже вже є»", () => {
     // Виділено «Великому терору», а показано «Великий терор» — під цим іменем
     // сутність живе в бібліотеці.
     expect(await screen.findByText("Великий терор")).not.toBeNull();
-    expect(screen.getByText("Картка є")).not.toBeNull();
+    expect(screen.getByText("Схоже, вже є")).not.toBeNull();
   });
 
-  it("знайдене закриває «Нову сутність»", async () => {
+  it("знайдене НЕ закриває «Нову сутність» — перевірка це підказка, не брама", () => {
+    // Рішення Юрія 03.08: омоніми існують, і система не має права вирішувати
+    // за автора. Юрій не зміг завести поняття «максима» саме через це.
     vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(answer({ inflected: [VELYKYI] })));
     show("Великому терору");
-    await screen.findByText("Великий терор");
-    expect(screen.getByRole("button", { name: "Нова сутність" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Нова сутність" })).not.toBeDisabled();
   });
 
   it("дві дії на знайденій картці: відкрити й дописати alias", async () => {
@@ -114,7 +115,7 @@ describe("три рубежі «схоже вже є»", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(answer({ fuzzy: [VELYKYI] })));
     show("терор великий сталінський");
     expect(await screen.findByText("Можливо, це")).not.toBeNull();
-    expect(screen.queryByText("Картка є")).toBeNull();
+    expect(screen.queryByText("Схоже, вже є")).toBeNull();
   });
 
   it("порожні всі три рубежі — і лише тоді «Нова сутність» доступна", async () => {

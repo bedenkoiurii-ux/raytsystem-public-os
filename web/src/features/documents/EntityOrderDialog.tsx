@@ -93,8 +93,8 @@ export function EntityOrderDialog({ request, onClose, onDone, onOpenCard }: {
   // нечіткий ключ — лише «можливо». Змішати їх означало б видати здогад за факт.
   const certain = [...(known?.exact ?? []), ...(known?.inflected ?? [])];
   const guesses = known?.fuzzy ?? [];
-  // «Нова сутність» лишається доступною, лише коли порожні всі три рубежі.
-  const isNew = Boolean(known) && certain.length === 0 && guesses.length === 0;
+  // Чи бібліотека взагалі щось знайшла — лише для підпису, НЕ для заборони.
+  const nothingFound = Boolean(known) && certain.length === 0 && guesses.length === 0;
 
   return (
     <Dialog className="doc-action-dialog doc-entity-dialog" backdropClassName="doc-modal-backdrop"
@@ -136,7 +136,7 @@ export function EntityOrderDialog({ request, onClose, onDone, onOpenCard }: {
 
         {certain.length ? (
           <section className="doc-entity-known">
-            <strong>Картка є</strong>
+            <strong>Схоже, вже є</strong>
             <ul>
               {certain.map((card) => (
                 <li key={card.uid}>
@@ -182,19 +182,25 @@ export function EntityOrderDialog({ request, onClose, onDone, onOpenCard }: {
           </section>
         ) : null}
 
-        {isNew ? (
+        {nothingFound ? (
           <p className="doc-entity-hint">Бібліотека такого не знає — це справді нова сутність.</p>
+        ) : null}
+        {!nothingFound && (certain.length > 0 || guesses.length > 0) ? (
+          <p className="doc-entity-hint">
+            Це підказка, не заборона: якщо ваш термін — інша сутність (омонім), заводьте нову.
+          </p>
         ) : null}
 
         {error ? <p className="doc-entity-error" role="alert">{error}</p> : null}
 
         <footer>
           <button type="button" onClick={onClose} disabled={pending}>Скасувати</button>
-          {/* «Нова сутність» — лише коли порожні всі три рубежі. Поки бібліотека
-              щось знайшла, замовляти другу картку тієї самої сутності нема чого;
-              треба або відкрити наявну, або дописати форму як alias. */}
-          <button type="submit" className="primary" disabled={pending || term.trim().length < 2 || !isNew}
-                  title={isNew ? undefined : "Бібліотека вже щось знає про цей термін — гляньте список вище"}>
+          {/* «Нова сутність» доступна ЗАВЖДИ (рішення Юрія 2026-08-03).
+              Перевірка на дублікат — підказка, а не брама: омоніми існують, і
+              система не має права вирішувати за автора. Юрій не зміг завести
+              поняття «максима», бо форма «максима» лежить в індексі як родовий
+              відмінок митрополита Максима — і кнопка була згашена. */}
+          <button type="submit" className="primary" disabled={pending || term.trim().length < 2}>
             Нова сутність
           </button>
         </footer>

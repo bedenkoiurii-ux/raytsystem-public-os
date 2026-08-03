@@ -330,7 +330,18 @@ def create_map_router(root: Path, *, require_session: Callable[..., Any]) -> API
             # Тому людей, місця й події лінкуємо лише при великій літері.
             if any(f"/{folder}/" in card.get("path", "") for folder in ("People", "Places", "Events")):
                 proper.append(form)
-        return {"forms": out, "proper": proper,
+        # Омоніми «загальна ↔ власна»: форму лишаємо в словнику з ЗАГАЛЬНИМ
+        # значенням, а власне подаємо поруч — вибір робить регістр у тексті,
+        # не сервер. Раніше така форма просто випадала як неоднозначна, і
+        # обидві сутності гасли.
+        homonyms: dict[str, dict[str, str]] = {}
+        for form, pair in (index.get("homonyms") or {}).items():
+            common, proper_uid = cards.get(pair["common"]), cards.get(pair["proper"])
+            if not common or not proper_uid:
+                continue
+            homonyms[form] = {"common": common["title"], "proper": proper_uid["title"]}
+            out.setdefault(form, common["title"])
+        return {"forms": out, "proper": proper, "homonyms": homonyms,
                 "surnames": sorted(surnames & set(out)), "count": len(out)}
 
     @router.get("/map/card")

@@ -39,7 +39,7 @@ export function useEntityForms(enabled: boolean) {
     queryKey: ["entity", "forms"],
     enabled,
     staleTime: Infinity,
-    queryFn: () => getJson<{ forms: Record<string, string>; proper?: string[]; surnames?: string[]; count: number }>("/api/v1/entities/forms")
+    queryFn: () => getJson<{ forms: Record<string, string>; proper?: string[]; surnames?: string[]; homonyms?: Record<string, Homonym>; count: number }>("/api/v1/entities/forms")
   });
 }
 
@@ -97,7 +97,21 @@ function tokenize(piece: string): Array<{ at: number; end: number; raw: string; 
   return out;
 }
 
-export function autolink(text: string, forms: Record<string, string>, proper?: Set<string>, surnames?: Set<string>): string {
+export interface Homonym { common: string; proper: string }
+
+/** Чи стоїть слово на початку речення. Там регістр не означає нічого: з великої
+ *  пишуть і власну назву, і звичайне слово. */
+function atSentenceStart(piece: string, at: number): boolean {
+  for (let i = at - 1; i >= 0; i -= 1) {
+    const ch = piece[i];
+    if (/\s/.test(ch)) continue;
+    if (/[.!?…:;»"'\])]/.test(ch)) return /[.!?…]/.test(ch);
+    return false;
+  }
+  return true;                                   // початок відрізка тексту
+}
+
+export function autolink(text: string, forms: Record<string, string>, proper?: Set<string>, surnames?: Set<string>, homonyms?: Record<string, Homonym>): string {
   const map = buckets(forms);
   if (!map.size) return text;
   const maxWords = cachedMaxWords;
@@ -140,6 +154,25 @@ export function autolink(text: string, forms: Record<string, string>, proper?: S
         if (!sameWords(span.map((token) => token.low), entry.words, surnames?.has(entry.key))) continue;
 
         const matched = piece.slice(span[0].at, span[n - 1].end);
+
+        // Омонім «загальна ↔ власна»: вибирає РЕГІСТР у тексті (рішення Юрія
+        // 2026-08-03). З малої — поняття; з великої посеред речення — ім'я;
+        // на початку речення регістр мовчить, і ми мовчимо разом із ним.
+        // Шукаємо і за словом у ТЕКСТІ, і за ключем форми. Без першого «Максима»
+        // ловилось формою «максим» (називний людини), якої в списку омонімів
+        // немає, — і правило регістру мовчки не спрацьовувало.
+        const twin = homonyms?.[matched.toLowerCase()] ?? homonyms?.[entry.key];
+        if (twin) {
+          const capital = /^\p{Lu}/u.test(matched);
+          if (capital && atSentenceStart(piece, span[0].at)) continue;
+          const title = capital ? twin.proper : twin.common;
+          out.push(piece.slice(cursor, span[0].at));
+          out.push(title === matched ? `[[${matched}]]` : `[[${title}|${matched}]]`);
+          cursor = span[n - 1].end;
+          chosen = null;
+          break;
+        }
+
         if (proper?.has(entry.key)) {
           // Власна назва з малої літери — омонім, а не сутність: «на максимі»
           // (принцип) не веде на Максима-митрополита, «вільно» (як) — на Вільно.
@@ -162,7 +195,7 @@ export function autolink(text: string, forms: Record<string, string>, proper?: S
       // Неоднозначність не вгадуємо (той самий закон, що в `entity_index`):
       // «Берестечком» однаково добре стелиться на місто й на битву, і мовчання
       // тут чесніше за випадковий вибір за порядком сортування.
-      if (!chosen || rivals > 1) continue;
+      if (!chosen || rivals > 1) continue;      // омонім уже розв'язано вище
 
       out.push(piece.slice(cursor, chosen.span[0].at));
       out.push(chosen.entry.title === chosen.matched
@@ -352,7 +385,7 @@ export function Prose({ content, autoLink = true, onOpenWikilinkOverride, onOpen
   );
   const surnameForms = useMemo(() => new Set(forms.data?.surnames ?? []), [forms.data?.surnames]);
   const prepared = autoLink && forms.data?.forms
-    ? autolink(content, forms.data.forms, properForms, surnameForms)
+    ? autolink(content, forms.data.forms, properForms, surnameForms, forms.data.homonyms)
     : content;
   const blocks = prepared.split(/\n{2,}/);
   const shown = new Set<string>();
