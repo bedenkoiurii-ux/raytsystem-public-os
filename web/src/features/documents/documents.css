@@ -465,3 +465,15 @@
 .doc-entity-error { margin: 0; color: var(--rose, #e0698a); font-size: 11px; }
 .doc-entity-actions { display: inline-flex; flex: none; gap: 5px; }
 .doc-entity-guess > strong { color: var(--gold, #d9a441); }
+
+/* Шапка peek-картки — службовий темний UI, і токени аркуша на неї не діють.
+   `.sheet-light` перефарбовує `--muted` у майже чорний (#33312b), а `--surface`
+   лишає темним: кнопка закриття ставала темним квадратом із невидимою іконкою
+   (скарга Юрія 03.08 — «чорний квадрат»). Іконка резолвилась завжди; її не було
+   видно на власному тлі. Тому в шапці повертаємо службові значення. */
+.doc-peek.sheet-light > header {
+  --bone: #f2eee6;
+  --muted: #a6afbb;
+  --muted-2: #808b97;
+  --carbon-soft: #1b1e24;
+}

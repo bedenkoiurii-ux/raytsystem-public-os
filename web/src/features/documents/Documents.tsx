@@ -441,18 +441,48 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
     return () => observer.disconnect();
   }, []);
 
+  // Врізки сутностей, розгорнуті в тілі документа. Живуть рівно доти, доки
+  // відкритий той самий документ.
+  const [inline, setInline] = useState<string[]>([]);
   const closeCard1 = useCallback(() => { setCard1(null); setC2Hist([]); setC2Pos(-1); }, []);
   const closeCard2 = useCallback(() => { setC2Hist([]); setC2Pos(-1); }, []);
   const card2Back = useCallback(() => setC2Pos((p) => Math.max(0, p - 1)), []);
   const card2Forward = useCallback(() => setC2Pos((p) => (p < c2Hist.length - 1 ? p + 1 : p)), [c2Hist.length]);
-  useEffect(() => { closeCard1(); }, [activeId, closeCard1]);
+  // Тимчасовий стан прив'язаний до ДОКУМЕНТА, а не до застосунку (рішення
+  // Юрія 2026-08-03). Врізка сутності («Максим (митрополит)») висіла поверх
+  // будь-якого наступного документа: `card1` скидався, а `inline` — ніколи.
+  useEffect(() => { closeCard1(); setInline([]); setNotice(null); }, [activeId, closeCard1]);
   useEffect(() => {
-    if (!card1) return;
-    // Esc: спершу закрити картку 2 (термінальну), потім картку 1.
-    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") { event.stopPropagation(); if (c2Pos >= 0) closeCard2(); else closeCard1(); } };
+    if (!card1 && !inline.length) return;
+    // Esc: спершу картка 2 (термінальна), потім картка 1, потім врізки.
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      if (c2Pos >= 0) closeCard2();
+      else if (card1) closeCard1();
+      else setInline([]);
+    };
+    // Клік повз: усе, що не сама панель і не підсвічене слово, закриває врізки.
+    const onAway = (event: PointerEvent) => {
+      const target = event.target as Element | null;
+      if (target?.closest?.(".map-inline, .doc-peek, .doc-wikilink, .doc-entity")) return;
+      setInline([]);
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [card1, c2Pos, closeCard1, closeCard2]);
+    document.addEventListener("pointerdown", onAway, true);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onAway, true);
+    };
+  }, [card1, inline.length, c2Pos, closeCard1, closeCard2]);
+
+  // Банер повідомлення гасне сам: він каже про подію, а не про стан, і не має
+  // переживати ні перехід між документами, ні наступну дію автора.
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(null), 6000);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -604,7 +634,6 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
     try { window.localStorage.setItem("wl_autolink", next ? "1" : "0"); } catch { /* noop */ }
     return next;
   });
-  const [inline, setInline] = useState<string[]>([]);
   const openInline = (target: WikilinkTarget) => {
     const name = target.target.trim();
     if (name) setInline((s) => (s.includes(name) ? s.filter((x) => x !== name) : [...s, name]));
