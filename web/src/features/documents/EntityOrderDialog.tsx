@@ -1,7 +1,8 @@
 import { Sparkles, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Dialog } from "../../components/Dialog";
 import { getJson, postJson } from "../../api";
+import { cleanTerm } from "./entityTerm";
 
 /** Що бібліотека вже знає про це слово — щоб не плодити другу картку тому,
  *  що термін стоїть у відмінку або під псевдонімом. */
@@ -33,10 +34,22 @@ export function EntityOrderDialog({ request, onClose, onDone }: {
   onClose: () => void;
   onDone: (message: string) => void;
 }) {
-  const [term, setTerm] = useState(request.term);
+  // Очищення на вході, не на виході: людина бачить готову назву й може її
+  // виправити. Оригінал виділення лишається в цитаті-контексті реєстру.
+  const [term, setTerm] = useState(() => cleanTerm(request.term));
   const [known, setKnown] = useState<Known | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const field = useRef<HTMLTextAreaElement | null>(null);
+
+  // Висота поля = висота вмісту. Спершу `auto`, інакше `scrollHeight` міряв би
+  // від уже роздутої висоти й поле росло б лише в один бік.
+  useEffect(() => {
+    const node = field.current;
+    if (!node) return;
+    node.style.height = "auto";
+    node.style.height = `${node.scrollHeight}px`;
+  }, [term]);
 
   useEffect(() => {
     let alive = true;
@@ -74,32 +87,51 @@ export function EntityOrderDialog({ request, onClose, onDone }: {
   const matches = [...(known?.exact ?? []), ...(known?.similar ?? [])];
 
   return (
-    <Dialog className="doc-dialog-shell" onClose={onClose} labelledBy="entity-order-title">
-      <div className="doc-dialog">
-        <header>
-          <h2 id="entity-order-title"><Sparkles size={17} aria-hidden="true" /> У сутності</h2>
-          <button type="button" className="icon-button" onClick={onClose} aria-label="Закрити"><X size={16} /></button>
-        </header>
+    <Dialog className="doc-action-dialog doc-entity-dialog" backdropClassName="doc-modal-backdrop"
+            labelledBy="entity-order-title" busy={pending} onClose={onClose}>
+      <header>
+        <Sparkles size={20} aria-hidden="true" />
+        <h2 id="entity-order-title">У сутності</h2>
+        <button type="button" onClick={onClose} disabled={pending} aria-label="Закрити"><X size={18} /></button>
+      </header>
 
-        <label className="doc-field">
+      <form onSubmit={(event) => { event.preventDefault(); order(); }}>
+        <label>
           <span>Термін</span>
-          <input value={term} onChange={(event) => setTerm(event.target.value)} autoFocus />
+          {/* Багаторядкове поле, що росте під вміст: довга назва мусить бути
+              видима цілком. Внутрішнього скролу немає навмисно — обрізаного
+              терміна не видно, а невидиме не перевіриш.
+              Enter відправляє, Shift+Enter дає новий рядок. */}
+          <textarea
+            ref={field}
+            className="doc-term-input"
+            rows={1}
+            value={term}
+            onChange={(event) => setTerm(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                if (term.trim().length >= 2 && !pending) order();
+              }
+            }}
+            autoFocus
+          />
         </label>
 
-        <p className="doc-hint">
+        <p className="doc-entity-hint">
           З документа <code>{request.document}</code>. Текст документа не змінюється —
           замовлення тримається на шляху й цитаті.
         </p>
-        {request.context ? <blockquote className="doc-quote">{request.context}</blockquote> : null}
+        {request.context ? <blockquote className="doc-entity-quote">{request.context}</blockquote> : null}
 
         {matches.length ? (
-          <section className="doc-known">
+          <section className="doc-entity-known">
             <strong>Схоже, вже є</strong>
             <ul>
               {matches.map((card) => (
                 <li key={card.uid}>
                   <span>{card.title}</span>
-                  <button type="button" className="text-button" disabled={pending} onClick={() => alias(card)}>
+                  <button type="button" disabled={pending} onClick={() => alias(card)}>
                     це alias наявної
                   </button>
                 </li>
@@ -107,18 +139,18 @@ export function EntityOrderDialog({ request, onClose, onDone }: {
             </ul>
           </section>
         ) : known ? (
-          <p className="doc-hint">Бібліотека такого не знає — це справді нова сутність.</p>
+          <p className="doc-entity-hint">Бібліотека такого не знає — це справді нова сутність.</p>
         ) : null}
 
-        {error ? <p className="doc-error" role="alert">{error}</p> : null}
+        {error ? <p className="doc-entity-error" role="alert">{error}</p> : null}
 
         <footer>
-          <button type="button" className="text-button" onClick={onClose}>Скасувати</button>
-          <button type="button" className="primary-button" disabled={pending || term.trim().length < 2} onClick={order}>
+          <button type="button" onClick={onClose} disabled={pending}>Скасувати</button>
+          <button type="submit" className="primary" disabled={pending || term.trim().length < 2}>
             Нова сутність
           </button>
         </footer>
-      </div>
+      </form>
     </Dialog>
   );
 }

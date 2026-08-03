@@ -429,3 +429,37 @@
   font-size: 11px;
   color: var(--muted-2, #8a8f98);
 }
+
+/* Діалог «У сутності» — на скелеті .doc-action-dialog, свого тут лише те,
+   чого там немає. Ширина йде під поле, а не поле під ширину: довгий термін
+   мусить бути видимий цілком, без внутрішнього скролу. */
+.doc-entity-dialog { width: min(680px, 100%); }
+.doc-entity-dialog .doc-term-input {
+  min-height: 38px;
+  resize: none;                 /* висоту веде вміст, не рука */
+  overflow: hidden;             /* скролу немає: обрізаного терміна не видно */
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre-wrap;        /* переносимо, а не ховаємо */
+  overflow-wrap: anywhere;      /* довге слово без пробілів теж переноситься */
+}
+.doc-entity-hint { margin: 0; color: var(--muted-2); font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; }
+.doc-entity-hint code { font: 10px var(--mono); color: var(--muted); }
+.doc-entity-quote {
+  margin: 0;
+  padding: 8px 11px;
+  border-left: 2px solid var(--line);
+  background: color-mix(in srgb, var(--carbon-soft) 70%, transparent);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.55;
+  white-space: pre-wrap;        /* довгий контекст переноситься, а не тікає за край */
+  overflow-wrap: anywhere;
+}
+.doc-entity-known { display: grid; gap: 6px; }
+.doc-entity-known > strong { color: var(--muted); font-size: 10px; font-weight: 600; }
+.doc-entity-known ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.doc-entity-known li { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; }
+.doc-entity-known li > span { min-width: 0; overflow-wrap: anywhere; font-size: 12px; color: var(--bone); }
+.doc-entity-known li > button { flex: none; min-height: 28px; padding: 0 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--muted); font-size: 10px; }
+.doc-entity-error { margin: 0; color: var(--rose, #e0698a); font-size: 11px; }

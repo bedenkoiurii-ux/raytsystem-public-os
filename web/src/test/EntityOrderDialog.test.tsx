@@ -1,0 +1,76 @@
+// Поле «Термін» у діалозі «У сутності» — скарга Юрія 03.08: довгий термін
+// обрізався («Правила мистецтва», 1992 було видно шматком).
+//
+// Перевіряємо три речі, які видно з коду, а не з ока: термін приходить у поле
+// вже очищеним; поле багаторядкове й без внутрішнього скролу; довгий контекст
+// переноситься, а не тікає за край.
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { EntityOrderDialog } from "../features/documents/EntityOrderDialog";
+
+const LONG = "«Правила мистецтва: генезис і структура поля літератури», П'єр Бурдьє, 1992";
+const CONTEXT = "У «Правилах мистецтва» Бурдьє показує, що поле літератури має власну "
+  + "економіку престижу, і саме вона визначає, хто в ньому має право говорити від імені мистецтва.";
+
+beforeEach(() => {
+  vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    new Response(JSON.stringify({ exact: [], similar: [], stale: false }),
+      { status: 200, headers: { "content-type": "application/json" } }));
+});
+// Автоочищення RTL у цьому наборі не ввімкнене — попередній діалог лишався
+// в DOM, і другий тест бачив два поля «Термін».
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+
+const show = (term: string, context = "") => render(
+  <EntityOrderDialog
+    request={{ term, document: "20-Essays/ЕСЕЙ №5 Основа.md", context }}
+    onClose={() => {}}
+    onDone={() => {}}
+  />
+);
+
+const termField = () => screen.getByLabelText("Термін") as HTMLTextAreaElement;
+
+describe("діалог «У сутності»", () => {
+  it("термін приходить у поле вже очищеним", () => {
+    show("(«Правила мистецтва», 1992");
+    expect(termField().value).toBe("«Правила мистецтва», 1992");
+  });
+
+  it("сміття на краях знято, а вміст лишився", () => {
+    show(" Маслоу, ");
+    expect(termField().value).toBe("Маслоу");
+  });
+
+  it("поле багаторядкове — довгий термін не обрізається", () => {
+    show(LONG);
+    const field = termField();
+    expect(field.tagName).toBe("TEXTAREA");
+    expect(field.value).toBe(LONG);
+    expect(field.value.length).toBeGreaterThan(60);
+    // Значення не вкорочене: у полі рівно те, що прийшло.
+    expect(field.value.endsWith("1992")).toBe(true);
+  });
+
+  it("короткий термін не роздуває поле — висоту веде вміст", () => {
+    show("Маслоу");
+    // rows=1 як стартова висота; далі її задає ефект за scrollHeight.
+    expect(termField().rows).toBe(1);
+  });
+
+  it("довгий контекст показується цілком", () => {
+    show("Бурдьє", CONTEXT);
+    expect(screen.getByText(CONTEXT)).not.toBeNull();
+  });
+
+  it("порожній контекст не малює порожню цитату", () => {
+    const view = show("Бурдьє", "");
+    expect(view.container.querySelector(".doc-entity-quote")).toBeNull();
+  });
+
+  it("кнопка замовлення неактивна, поки термін закороткий", () => {
+    show("«»");                       // після очищення лишається порожньо
+    expect(termField().value).toBe("");
+    expect(screen.getByRole("button", { name: "Нова сутність" })).toBeDisabled();
+  });
+});
