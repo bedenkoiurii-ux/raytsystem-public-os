@@ -393,3 +393,33 @@
   .doc-tab-pin, .doc-tab-close, .doc-reopen-tab, .doc-editor-toolbar button, .doc-action-dialog header button, .doc-conflict-dialog header > button, .doc-restore-dialog header > button { width: 44px; min-width: 44px; height: 44px; min-height: 44px; }
   .doc-restore-confirm { min-height: 44px; }
 }
+
+/* Сутності в документах (рішення Юрія 2026-08-03) --------------------------
+   Кнопка замовлення плаває над виділенням, тому позиція — з JS, а вигляд
+   звідси. Тон тихий: вона зʼявляється поверх тексту, який читають. */
+.doc-entity-order {
+  position: fixed;
+  z-index: 40;
+  transform: translate(-50%, -100%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--carbon-line, rgba(255, 255, 255, 0.14));
+  background: var(--carbon-soft, #1b1e24);
+  color: var(--bone, #e9e6df);
+  font-size: 12px;
+  line-height: 1;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+}
+.doc-entity-order:hover { border-color: var(--cyan, #5ec8d8); }
+
+/* Замовлення в черзі конвеєра — приписка біля смужки, не окремий блок. */
+.cv-orders {
+  margin-left: 10px;
+  font-style: normal;
+  font-size: 11px;
+  color: var(--muted-2, #8a8f98);
+}

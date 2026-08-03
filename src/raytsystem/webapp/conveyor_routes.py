@@ -312,7 +312,7 @@ def _queue_sources() -> dict[str, Any] | None:
             "current": current}
 
 
-def _queue_karty(repo: Path) -> dict[str, Any] | None:
+def _queue_karty(repo: Path, main: Path) -> dict[str, Any] | None:
     """Черга карток — ворота card_order.py по шляхах із karty-seed.txt.
 
     Рахуємо у ГІЛЦІ конвеєра: він комітить туди, і до злиття хвилі бібліотека
@@ -357,7 +357,31 @@ def _queue_karty(repo: Path) -> dict[str, Any] | None:
     missing = len(paths) - seen
     return {"total": len(paths), "closed": passed, "unit": "карток",
             "how": "ворота card_order.py у гілці конвеєра",
-            "missing": missing or None, "current": current}
+            "missing": missing or None, "current": current,
+            "orders": _entity_orders(main)}
+
+
+def _entity_orders(main: Path) -> int | None:
+    """Скільки сутностей замовлено з читання й ще чекає картки.
+
+    Рахуємо в ГОЛОВНОМУ дереві, а не в гілці конвеєра — на відміну від решти
+    черги. Причина не в охайності: реєстр наповнює застосунок, тобто `main`, а
+    конвеєр підтягує його `sync_from_main` аж на початку свого прогону. Рахунок
+    у гілці показував би нуль одразу після замовлення — тобто саме тоді, коли
+    автор дивиться, чи його слово прийнято.
+
+    Порожній файл і відсутній — різні речі: None означає «реєстру немає»,
+    0 — «усе розібрано».
+    """
+    registry = main / "00-Inbox" / "ЗАМОВЛЕННЯ-СУТНОСТЕЙ.md"
+    if not registry.is_file():
+        return None
+    try:
+        lines = registry.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    return sum(1 for line in lines
+               if line.startswith("| ") and line.rstrip().endswith("замовлено |"))
 
 
 def _retriage_tail() -> list[dict[str, Any]]:
@@ -459,7 +483,7 @@ def create_conveyor_router(root: Path, *, require_session: Callable[..., Any]) -
             except (OSError, ValueError):
                 pass
             queue = (_queue_sources() if task == "sources"
-                     else _queue_karty(repo) if task == "karty" else None)
+                     else _queue_karty(repo, root) if task == "karty" else None)
             state = _state(task, log)
             out.append({
                 **spec,

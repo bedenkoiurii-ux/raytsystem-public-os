@@ -78,6 +78,8 @@ import { headingId, SafeMarkdownView, safeImageUrl, type WikilinkTarget } from "
 import { CardScope, InlineStack, Prose } from "../InlineEntity";
 
 import { DocumentPeek } from "./DocumentPeek";
+import { EntityOrderDialog, type EntityOrderRequest } from "./EntityOrderDialog";
+import { EntitySelectionAction } from "./EntitySelectionAction";
 import "./documents.css";
 
 const SourceEditor = lazy(() => import("./SourceEditor"));
@@ -227,6 +229,8 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
   const [action, setAction] = useState<DocumentActionKind | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // Замовлення сутності з виділення: тримаємо запит, поки відкритий діалог.
+  const [entityOrder, setEntityOrder] = useState<EntityOrderRequest | null>(null);
   const [conflict, setConflict] = useState<DocumentConflictDetails | null>(null);
   const [revisionTarget, setRevisionTarget] = useState<DocumentHistoryEntry | null>(null);
   const [pendingHeading, setPendingHeading] = useState<{ documentId: string; heading: string } | null>(null);
@@ -766,6 +770,15 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
                 {activeIsImage && detail.data ? <DocumentImageView detail={detail.data} /> : null}
                 {activeUnsupported ? <div className="doc-visual-unavailable" role="status"><strong>Для цього формату немає безпечного viewer</strong><p>Файл видно в керованому workspace, але його вміст не передано браузеру.</p></div> : null}
                 {!activeIsImage && !activeUnsupported && activeTab.mode === "read" ? <Prose content={activeDraft.content} autoLink={autoLink} onOpenWikilinkOverride={resolveWikilink} onOpenSource={() => dispatch({ type: "mode", documentId: activeId, mode: "source" })} onOpenRelativeLink={(target) => { const match = links.data?.items.find((link) => link.target === target); if (match?.target_document_id) openById(match.target_document_id, match.heading); else setNotice("Відносне посилання не дозволене або не знайдене."); }} resolveImage={(target) => { const asset = detail.data?.assets?.[target]; return typeof asset === "string" ? asset : asset?.url ?? (target.startsWith("/api/v1/documents/") ? target : null); }} /> : null}
+                {/* «У сутності» — замовлення картки з виділення в читанні
+                    (рішення Юрія 2026-08-03). Кнопка плаває над текстом, поки
+                    є виділення; текст документа не змінюється ніколи. */}
+                {!activeIsImage && !activeUnsupported && activeTab.mode === "read" ? (
+                  <EntitySelectionAction
+                    documentPath={detail.data?.document.path ?? activeTab.title}
+                    onOrder={setEntityOrder}
+                  />
+                ) : null}
                 {!activeIsImage && !activeUnsupported && activeTab.mode === "read" && inline.length ? <InlineStack names={inline} setNames={setInline} onOpenDocument={openById} onOpenPanel={(id) => { setCard1({ id }); setC2Hist([]); setC2Pos(-1); }} /> : null}
                 
                 {!activeIsImage && !activeUnsupported && activeTab.mode === "source" ? <Suspense fallback={<LoadingState label="Завантажуємо Source editor…" />}><SourceEditor key={`${activeId}:${activeDraft.baseSha256}:${detail.data?.line_ending ?? "unknown"}`} value={activeDraft.content} readOnly={activeTab.readOnly} issues={inspectMarkdownForVisualEditing(activeDraft.content)} lineNumbers onChange={(content) => changeDraft(content)} onSave={() => saveContent()} onToggleVisual={() => dispatch({ type: "mode", documentId: activeId, mode: "visual" })} /></Suspense> : null}
@@ -775,6 +788,13 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
             </section>
             </CardScope>
           ) : null}
+        {entityOrder ? (
+          <EntityOrderDialog
+            request={entityOrder}
+            onClose={() => setEntityOrder(null)}
+            onDone={(message) => setNotice(message)}
+          />
+        ) : null}
         </section>
 
           {card1 ? <DocumentPeek key="card1" sheetLight={sheetLight} sheetTone={sheetTone} documentId={card1.id} heading={card1.heading} index={0} showNav={false} snapshotId={snapshotId || null} onClose={closeCard1} onOpenFull={(id, heading) => { closeCard1(); openById(id, heading); }} onOpenLink={(_i, id, heading) => openFromCard1(id, heading)} /> : null}

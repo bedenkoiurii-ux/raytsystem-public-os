@@ -1838,6 +1838,9 @@ def create_app(
     # ФОРК uk-locale: сторінка «Конвеєри» — робочий стан фонових циклів.
     # Читання файлів і git log, нуль моделі. Див. ФОРК-відхилення.md, п. 4.
     from raytsystem.webapp.conveyor_routes import create_conveyor_router
+    # ФОРК uk-locale: сутності в документах — підсвітка покриття і замовлення.
+    from raytsystem.webapp.entity_routes import create_entity_router
+    app.include_router(create_entity_router(resolved_root, require_session=require_session))
     app.include_router(create_reception_router(resolved_root, require_session=require_session))
     app.include_router(create_settings_router(resolved_root, require_session=require_session))
     app.include_router(create_map_router(resolved_root, require_session=require_session))

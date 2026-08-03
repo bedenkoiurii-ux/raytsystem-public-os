@@ -58,7 +58,14 @@ export function autolink(text: string, forms: Record<string, string>, proper?: S
   if (!keys.length) return text;
   const sorted = keys.sort((a, b) => b.length - a.length);
   const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const pattern = new RegExp(`(?<![\\p{L}\\p{N}])(${sorted.map(escape).join("|")})(?![\\p{L}\\p{N}])`, "giu");
+  // Відмінок, якого автор жодного разу не підписав руками, теж мусить світитись:
+  // індекс знає «Вишгород», а есей уживає «Вишгороді» й «Вишгорода» — і слово
+  // стояло темним, ніби картки немає. Це і є та брехня, проти якої підсвітка
+  // існує (рішення Юрія 2026-08-03). Хвіст до трьох літер і лише для форм від
+  // пʼяти знаків — межі заміряні на трьох документах 03.08: без них «рим»
+  // усередині «чотирма» і «твер» у «затвердили» дали 37 хибних збігів на один
+  // транскрипт.
+  const pattern = new RegExp(`(?<![\\p{L}\\p{N}])(${sorted.map(escape).join("|")})(\\p{L}{0,3})(?![\\p{L}\\p{N}])`, "giu");
 
   // Ділимо на «недоторкані» шматки й решту: вже наявні вікілінки, код, URL,
   // рядки заголовків і frontmatter лишаються як є.
@@ -67,14 +74,17 @@ export function autolink(text: string, forms: Record<string, string>, proper?: S
   return parts
     .map((piece, i) => {
       if (i % 2 === 1 || !piece) return piece;          // непарні — недоторкані
-      return piece.replace(pattern, (match: string, _group: string, offset: number, whole: string) => {
-        const key = match.toLowerCase();
+      return piece.replace(pattern, (match: string, stem: string, tail: string, offset: number, whole: string) => {
+        const key = stem.toLowerCase();
         const title = forms[key];
         if (!title) return match;
+        // Хвіст дозволений лише довгим формам: інакше коротке слово всередині
+        // чужого («максима» в «максимально») пролізло б як сутність.
+        if (tail && stem.length < 5) return match;
         if (proper?.has(key)) {
           // Власна назва з малої літери — омонім, а не сутність: «на максимі»
           // (принцип) не веде на Максима-митрополита, «вільно» (як) — на Вільно.
-          if (/^\p{Ll}/u.test(match)) return match;
+          if (/^\p{Ll}/u.test(stem)) return match;
           // І не рвати складене ім'я: «Йону Ельстеру» — норвезький теоретик,
           // а не митрополит Йона, якому дісталося перше слово (скарга Юрія
           // 2026-07-31). Якщо праворуч стоїть іще одне слово з великої, а

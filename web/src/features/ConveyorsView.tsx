@@ -22,6 +22,8 @@ interface Current { name: string; kind: string; index: number; of: number }
 interface Queue {
   total: number; closed: number; unit: string; how: string;
   missing?: number | null; current?: Current | null;
+  /** Сутності, замовлені з читання документа й ще без картки. */
+  orders?: number | null;
 }
 interface Commit { ago_min: number; at: string; subject: string }
 interface Timing {
@@ -152,6 +154,14 @@ function TaskCard({ task }: { task: Task }) {
             {queue.missing ? (
               <em className="cv-miss" title={`у черзі на ${queue.missing} рядок більше, ніж бачать ворота — картку перейменували або перенесли`}>
                 −{queue.missing}
+              </em>
+            ) : null}
+            {/* Замовлення з читання — окрема черга того самого конвеєра: не
+                картки з недобором джерел, а сутності, яких у бібліотеці ще
+                немає зовсім. Показуємо поруч, а не в сумі: це різна робота. */}
+            {queue.orders ? (
+              <em className="cv-orders" title="сутності, замовлені з читання документа — чекають картки">
+                замовлень сутностей: {queue.orders} у черзі
               </em>
             ) : null}</>
         ) : isDone ? (
