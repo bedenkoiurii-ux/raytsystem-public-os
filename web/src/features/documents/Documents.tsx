@@ -793,6 +793,22 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
             request={entityOrder}
             onClose={() => setEntityOrder(null)}
             onDone={(message) => setNotice(message)}
+            onOpenCard={(path) => {
+              // Картку знаємо за шляхом, а відкриваємо за id — беремо його
+              // пошуком, як робить решта переходів у Документах.
+              void (async () => {
+                try {
+                  const found = await documentGet<{ items: Array<{ path: string; document_id: string }> }>(
+                    `/api/v1/documents/search?q=${encodeURIComponent(path.split("/").pop()?.replace(/\.md$/, "") ?? path)}`
+                  );
+                  const hit = found.items.find((item) => item.path === path) ?? found.items[0];
+                  if (hit) openById(hit.document_id);
+                  else setNotice("Картку знайдено в індексі імен, але не в дереві документів.");
+                } catch {
+                  setNotice("Не вдалося відкрити картку.");
+                }
+              })();
+            }}
           />
         ) : null}
         </section>

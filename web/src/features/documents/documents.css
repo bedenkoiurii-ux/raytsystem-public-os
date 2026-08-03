@@ -463,3 +463,5 @@
 .doc-entity-known li > span { min-width: 0; overflow-wrap: anywhere; font-size: 12px; color: var(--bone); }
 .doc-entity-known li > button { flex: none; min-height: 28px; padding: 0 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--muted); font-size: 10px; }
 .doc-entity-error { margin: 0; color: var(--rose, #e0698a); font-size: 11px; }
+.doc-entity-actions { display: inline-flex; flex: none; gap: 5px; }
+.doc-entity-guess > strong { color: var(--gold, #d9a441); }

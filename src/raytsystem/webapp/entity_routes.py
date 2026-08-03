@@ -31,6 +31,8 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from raytsystem.webapp.entity_match import find as entity_find
+
 INDEX = "90-Meta/entity-index.json"
 ORDERS = "00-Inbox/ЗАМОВЛЕННЯ-СУТНОСТЕЙ.md"
 STATUSES = ("замовлено", "картка є", "у sources", "відкладено", "закрито")
@@ -115,30 +117,19 @@ def create_entity_router(root: Path, *, require_session: Callable[..., Any]) -> 
 
         Окремо від `/entities/forms` (`map_routes`), який віддає словник для
         підсвітки: там потрібні всі форми одразу, тут — відповідь про одне
-        слово, з підказками. Дублювати підсвітку тут було б помилкою: механізм
-        автопідсвітки живе з 28.07 і працює.
+        слово. Зіставлення — `entity_match`, три рубежі: точна форма, збіг
+        основ (відмінок), нечіткий ключ.
+
+        Перша редакція шукала підрядком і на «Великому терору» відповідала
+        «немає», хоча картка «Великий терор» існує: індекс тримає поверхневі
+        форми, а давального ніхто руками не писав.
         """
         try:
             data = json.loads(index_path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
-            return {"exact": [], "similar": [], "stale": True}
-        cards, forms = data.get("cards", {}), data.get("forms", {})
-        key = _norm(term)
-        card = lambda uid: {"uid": uid, **{k: cards[uid][k] for k in ("title", "path")}} if uid in cards else None
-        exact = [c for c in (card(u) for u in forms.get(key, [])) if c]
-        similar = []
-        if not exact:
-            for form, uids in forms.items():
-                if key in form or form in key:
-                    similar += [c for c in (card(u) for u in uids) if c]
-                if len(similar) >= 8:
-                    break
-        seen, unique = set(), []
-        for c in similar:
-            if c["uid"] not in seen:
-                seen.add(c["uid"])
-                unique.append(c)
-        return {"exact": exact, "similar": unique[:8], "stale": False}
+            return {"exact": [], "inflected": [], "fuzzy": [], "stale": True}
+        found = entity_find(term, data.get("forms", {}), data.get("cards", {}))
+        return {**found, "stale": False}
 
     def _rows() -> list[dict[str, str]]:
         if not orders_path.is_file():

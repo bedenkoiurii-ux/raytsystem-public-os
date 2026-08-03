@@ -12,10 +12,15 @@ const LONG = "«Правила мистецтва: генезис і струк�
 const CONTEXT = "У «Правилах мистецтва» Бурдьє показує, що поле літератури має власну "
   + "економіку престижу, і саме вона визначає, хто в ньому має право говорити від імені мистецтва.";
 
+/** Відповідь `/entities/known`: три рубежі. За замовчуванням — нічого не знайдено. */
+const answer = (body: Record<string, unknown> = {}) =>
+  new Response(JSON.stringify({ exact: [], inflected: [], fuzzy: [], stale: false, ...body }),
+    { status: 200, headers: { "content-type": "application/json" } });
+
+const VELYKYI = { uid: "ent-vt", title: "Великий терор", path: "30-Research/Events/Великий терор.md" };
+
 beforeEach(() => {
-  vi.spyOn(globalThis, "fetch").mockResolvedValue(
-    new Response(JSON.stringify({ exact: [], similar: [], stale: false }),
-      { status: 200, headers: { "content-type": "application/json" } }));
+  vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(answer()));
 });
 // Автоочищення RTL у цьому наборі не ввімкнене — попередній діалог лишався
 // в DOM, і другий тест бачив два поля «Термін».
@@ -72,5 +77,49 @@ describe("діалог «У сутності»", () => {
     show("«»");                       // після очищення лишається порожньо
     expect(termField().value).toBe("");
     expect(screen.getByRole("button", { name: "Нова сутність" })).toBeDisabled();
+  });
+});
+
+describe("три рубежі «схоже вже є»", () => {
+  it("відмінок знайденої сутності показує КАНОНІЧНУ назву картки", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(answer({ inflected: [VELYKYI] })));
+    show("Великому терору");
+    // Виділено «Великому терору», а показано «Великий терор» — під цим іменем
+    // сутність живе в бібліотеці.
+    expect(await screen.findByText("Великий терор")).not.toBeNull();
+    expect(screen.getByText("Картка є")).not.toBeNull();
+  });
+
+  it("знайдене закриває «Нову сутність»", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(answer({ inflected: [VELYKYI] })));
+    show("Великому терору");
+    await screen.findByText("Великий терор");
+    expect(screen.getByRole("button", { name: "Нова сутність" })).toBeDisabled();
+  });
+
+  it("дві дії на знайденій картці: відкрити й дописати alias", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(answer({ inflected: [VELYKYI] })));
+    render(
+      <EntityOrderDialog
+        request={{ term: "Великому терору", document: "a.md", context: "" }}
+        onClose={() => {}} onDone={() => {}} onOpenCard={() => {}}
+      />
+    );
+    await screen.findByText("Великий терор");
+    expect(screen.getByRole("button", { name: "відкрити картку" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "додати форму як alias" })).not.toBeNull();
+  });
+
+  it("нечіткий збіг подається як здогад, а не як факт", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(answer({ fuzzy: [VELYKYI] })));
+    show("терор великий сталінський");
+    expect(await screen.findByText("Можливо, це")).not.toBeNull();
+    expect(screen.queryByText("Картка є")).toBeNull();
+  });
+
+  it("порожні всі три рубежі — і лише тоді «Нова сутність» доступна", async () => {
+    show("Незнанославльському вивертові");
+    expect(await screen.findByText(/справді нова сутність/)).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Нова сутність" })).not.toBeDisabled();
   });
 });

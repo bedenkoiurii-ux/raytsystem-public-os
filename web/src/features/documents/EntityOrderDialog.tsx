@@ -6,9 +6,12 @@ import { cleanTerm } from "./entityTerm";
 
 /** Що бібліотека вже знає про це слово — щоб не плодити другу картку тому,
  *  що термін стоїть у відмінку або під псевдонімом. */
+interface Card { uid: string; title: string; path: string }
+/** Три рубежі зіставлення: точна форма · відмінок · здогад. Див. `entity_match`. */
 interface Known {
-  exact: { uid: string; title: string; path: string }[];
-  similar: { uid: string; title: string; path: string }[];
+  exact: Card[];
+  inflected: Card[];
+  fuzzy: Card[];
 }
 
 export interface EntityOrderRequest {
@@ -29,10 +32,12 @@ export interface EntityOrderRequest {
  *
  * Документ-джерело не редагується ні в тому, ні в тому випадку.
  */
-export function EntityOrderDialog({ request, onClose, onDone }: {
+export function EntityOrderDialog({ request, onClose, onDone, onOpenCard }: {
   request: EntityOrderRequest;
   onClose: () => void;
   onDone: (message: string) => void;
+  /** Відкрити наявну картку — коли виявилось, що сутність уже є. */
+  onOpenCard?: (path: string) => void;
 }) {
   // Очищення на вході, не на виході: людина бачить готову назву й може її
   // виправити. Оригінал виділення лишається в цитаті-контексті реєстру.
@@ -84,7 +89,12 @@ export function EntityOrderDialog({ request, onClose, onDone }: {
       document: request.document, context: request.context },
     `Пропозиція alias у Приймальні: ${card.title}`);
 
-  const matches = [...(known?.exact ?? []), ...(known?.similar ?? [])];
+  // Певне окремо від здогаду: точна форма й відмінок — це та сама сутність,
+  // нечіткий ключ — лише «можливо». Змішати їх означало б видати здогад за факт.
+  const certain = [...(known?.exact ?? []), ...(known?.inflected ?? [])];
+  const guesses = known?.fuzzy ?? [];
+  // «Нова сутність» лишається доступною, лише коли порожні всі три рубежі.
+  const isNew = Boolean(known) && certain.length === 0 && guesses.length === 0;
 
   return (
     <Dialog className="doc-action-dialog doc-entity-dialog" backdropClassName="doc-modal-backdrop"
@@ -124,21 +134,55 @@ export function EntityOrderDialog({ request, onClose, onDone }: {
         </p>
         {request.context ? <blockquote className="doc-entity-quote">{request.context}</blockquote> : null}
 
-        {matches.length ? (
+        {certain.length ? (
           <section className="doc-entity-known">
-            <strong>Схоже, вже є</strong>
+            <strong>Картка є</strong>
             <ul>
-              {matches.map((card) => (
+              {certain.map((card) => (
                 <li key={card.uid}>
+                  {/* Канонічна назва картки, а не те, що виділили: людина має
+                      бачити, під яким іменем сутність живе в бібліотеці. */}
                   <span>{card.title}</span>
-                  <button type="button" disabled={pending} onClick={() => alias(card)}>
-                    це alias наявної
-                  </button>
+                  <span className="doc-entity-actions">
+                    {onOpenCard ? (
+                      <button type="button" disabled={pending} onClick={() => { onOpenCard(card.path); onClose(); }}>
+                        відкрити картку
+                      </button>
+                    ) : null}
+                    <button type="button" disabled={pending} onClick={() => alias(card)}>
+                      додати форму як alias
+                    </button>
+                  </span>
                 </li>
               ))}
             </ul>
           </section>
-        ) : known ? (
+        ) : null}
+
+        {guesses.length ? (
+          <section className="doc-entity-known doc-entity-guess">
+            <strong>Можливо, це</strong>
+            <ul>
+              {guesses.map((card) => (
+                <li key={card.uid}>
+                  <span>{card.title}</span>
+                  <span className="doc-entity-actions">
+                    {onOpenCard ? (
+                      <button type="button" disabled={pending} onClick={() => { onOpenCard(card.path); onClose(); }}>
+                        відкрити картку
+                      </button>
+                    ) : null}
+                    <button type="button" disabled={pending} onClick={() => alias(card)}>
+                      додати форму як alias
+                    </button>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+
+        {isNew ? (
           <p className="doc-entity-hint">Бібліотека такого не знає — це справді нова сутність.</p>
         ) : null}
 
@@ -146,7 +190,11 @@ export function EntityOrderDialog({ request, onClose, onDone }: {
 
         <footer>
           <button type="button" onClick={onClose} disabled={pending}>Скасувати</button>
-          <button type="submit" className="primary" disabled={pending || term.trim().length < 2}>
+          {/* «Нова сутність» — лише коли порожні всі три рубежі. Поки бібліотека
+              щось знайшла, замовляти другу картку тієї самої сутності нема чого;
+              треба або відкрити наявну, або дописати форму як alias. */}
+          <button type="submit" className="primary" disabled={pending || term.trim().length < 2 || !isNew}
+                  title={isNew ? undefined : "Бібліотека вже щось знає про цей термін — гляньте список вище"}>
             Нова сутність
           </button>
         </footer>
