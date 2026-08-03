@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import { useQuery } from "@tanstack/react-query";
 import { getJson, postJson } from "../api";
 import { focusEntity } from "./entityFocus";
+import { bucketKey, sameWords, words } from "./documents/entityStem";
 import { SafeMarkdownView, type WikilinkTarget } from "./documents/SafeMarkdownView";
 
 /** Розгортання сутності просто в тілі тексту — універсальний принцип системи.
@@ -53,52 +54,125 @@ export function useEntityForms(enabled: boolean) {
  *  · те, що вже в [[…]], не чіпаємо, як і код, посилання й заголовки;
  *  · кожну сутність підсвічуємо ЛИШЕ доти, доки вона не стала суцільним
  *    рябінням: обмеження на повтори немає, бо саме цього Юрій і хотів. */
+interface FormEntry { words: string[]; key: string; title: string }
+
+/** Форми, розкладені по відрах за початком першого слова. Будується раз на
+ *  словник і кешується: словник живе весь сеанс, а документів відкривають багато. */
+let cachedSource: Record<string, string> | null = null;
+let cachedBuckets: Map<string, FormEntry[]> | null = null;
+let cachedMaxWords = 1;
+
+function buckets(forms: Record<string, string>): Map<string, FormEntry[]> {
+  if (cachedSource === forms && cachedBuckets) return cachedBuckets;
+  const map = new Map<string, FormEntry[]>();
+  let maxWords = 1;
+  for (const [key, title] of Object.entries(forms)) {
+    const parts = words(key);
+    if (!parts.length) continue;
+    maxWords = Math.max(maxWords, parts.length);
+    const bucket = bucketKey(parts[0]);
+    const list = map.get(bucket);
+    const entry: FormEntry = { words: parts, key, title };
+    if (list) list.push(entry); else map.set(bucket, [entry]);
+  }
+  // Порядок вибору: довші назви перші («Київська Русь» перед «Київ»), а серед
+  // однакових — та, чия форма збігається дослівно. Без другого правила
+  // «Берестечко» діставалось «Берестецькій битві» через форму «берестечка»,
+  // хоча в індексі є точна форма власної картки міста (контроль 03.08).
+  for (const list of map.values()) list.sort((a, b) => b.words.length - a.words.length);
+  cachedSource = forms;
+  cachedBuckets = map;
+  cachedMaxWords = maxWords;
+  return map;
+}
+
+/** Токени-слова відрізка тексту з позиціями — щоб зіставляти по межах слова. */
+function tokenize(piece: string): Array<{ at: number; end: number; raw: string; low: string }> {
+  const out: Array<{ at: number; end: number; raw: string; low: string }> = [];
+  const re = /[\p{L}\p{N}'’-]+/gu;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(piece)) !== null) {
+    out.push({ at: m.index, end: m.index + m[0].length, raw: m[0], low: m[0].toLowerCase() });
+  }
+  return out;
+}
+
 export function autolink(text: string, forms: Record<string, string>, proper?: Set<string>): string {
-  const keys = Object.keys(forms);
-  if (!keys.length) return text;
-  const sorted = keys.sort((a, b) => b.length - a.length);
-  const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  // Відмінок, якого автор жодного разу не підписав руками, теж мусить світитись:
-  // індекс знає «Вишгород», а есей уживає «Вишгороді» й «Вишгорода» — і слово
-  // стояло темним, ніби картки немає. Це і є та брехня, проти якої підсвітка
-  // існує (рішення Юрія 2026-08-03). Хвіст до трьох літер і лише для форм від
-  // пʼяти знаків — межі заміряні на трьох документах 03.08: без них «рим»
-  // усередині «чотирма» і «твер» у «затвердили» дали 37 хибних збігів на один
-  // транскрипт.
-  const pattern = new RegExp(`(?<![\\p{L}\\p{N}])(${sorted.map(escape).join("|")})(\\p{L}{0,3})(?![\\p{L}\\p{N}])`, "giu");
+  const map = buckets(forms);
+  if (!map.size) return text;
+  const maxWords = cachedMaxWords;
 
   // Ділимо на «недоторкані» шматки й решту: вже наявні вікілінки, код, URL,
   // рядки заголовків і frontmatter лишаються як є.
   const guard = /(\[\[[^\]]*\]\]|`[^`]*`|```[\s\S]*?```|\[[^\]]*\]\([^)]*\)|https?:\/\/\S+|^#{1,6} .*$)/gm;
-  const parts = text.split(guard);
-  return parts
-    .map((piece, i) => {
-      if (i % 2 === 1 || !piece) return piece;          // непарні — недоторкані
-      return piece.replace(pattern, (match: string, stem: string, tail: string, offset: number, whole: string) => {
-        const key = stem.toLowerCase();
-        const title = forms[key];
-        if (!title) return match;
-        // Хвіст дозволений лише довгим формам: інакше коротке слово всередині
-        // чужого («максима» в «максимально») пролізло б як сутність.
-        if (tail && stem.length < 5) return match;
-        if (proper?.has(key)) {
+  return text.split(guard).map((piece, index) => {
+    if (index % 2 === 1 || !piece) return piece;        // непарні — недоторкані
+    const tokens = tokenize(piece);
+    if (!tokens.length) return piece;
+    const out: string[] = [];
+    let cursor = 0;                                     // скільки вже перенесено з piece
+
+    for (let i = 0; i < tokens.length; i += 1) {
+      if (tokens[i].at < cursor) continue;              // цей токен уже всередині збігу
+      const list = map.get(bucketKey(tokens[i].low));
+      if (!list) continue;
+
+      // Дослівний збіг має пріоритет над збігом за основою — на кожній довжині.
+      const ordered = [...list].sort((a, b) => {
+        if (a.words.length !== b.words.length) return b.words.length - a.words.length;
+        const exactA = a.words[0] === tokens[i].low ? 0 : 1;
+        const exactB = b.words[0] === tokens[i].low ? 0 : 1;
+        return exactA - exactB;
+      });
+
+      let chosen: { entry: FormEntry; span: typeof tokens; matched: string } | null = null;
+      let rivals = 0;                        // скільки РІЗНИХ карток претендує на ту саму довжину
+
+      for (const entry of ordered) {
+        const n = entry.words.length;
+        if (n > maxWords || i + n > tokens.length) continue;
+        if (chosen && n < chosen.entry.words.length) break;   // довша назва вже виграла
+        const span = tokens.slice(i, i + n);
+        // Слова назви мусять стояти поспіль: між ними лише пробіли й дефіси,
+        // інакше «Київ» і «Русь» з різних речень злиплися б в одну назву.
+        const between = piece.slice(span[0].end, span[n - 1].at);
+        if (n > 1 && /[^\s-]/.test(between)) continue;
+        if (!sameWords(span.map((token) => token.low), entry.words)) continue;
+
+        const matched = piece.slice(span[0].at, span[n - 1].end);
+        if (proper?.has(entry.key)) {
           // Власна назва з малої літери — омонім, а не сутність: «на максимі»
           // (принцип) не веде на Максима-митрополита, «вільно» (як) — на Вільно.
-          if (/^\p{Ll}/u.test(stem)) return match;
+          if (/^\p{Ll}/u.test(matched)) continue;
           // І не рвати складене ім'я: «Йону Ельстеру» — норвезький теоретик,
           // а не митрополит Йона, якому дісталося перше слово (скарга Юрія
           // 2026-07-31). Якщо праворуч стоїть іще одне слово з великої, а
-          // пари немає у словнику — це чуже повне ім'я. Лікується не тут, а
-          // аліасом у картці: щойно пара стане відомою формою, довша виграє
-          // за довжиною й підсвітиться цілком.
-          const tail = whole.slice(offset + match.length);
-          const next = tail.match(/^[  ]+(\p{Lu}[\p{L}'’-]+)/u);
-          if (next && !forms[`${key} ${next[1].toLowerCase()}`]) return match;
+          // пари немає у словнику — це чуже повне ім'я.
+          const rest = piece.slice(span[n - 1].end);
+          const next = rest.match(/^[  ]+(\p{Lu}[\p{L}'’-]+)/u);
+          if (next && !forms[`${entry.key} ${next[1].toLowerCase()}`]) continue;
         }
-        return title === match ? `[[${match}]]` : `[[${title}|${match}]]`;
-      });
-    })
-    .join("");
+
+        if (!chosen) { chosen = { entry, span, matched }; rivals = 1; continue; }
+        // Дослівна форма вже виграла — суперники за основою її не хитають.
+        if (chosen.entry.words[0] === tokens[i].low && entry.words[0] !== tokens[i].low) break;
+        if (entry.title !== chosen.entry.title) rivals += 1;
+      }
+
+      // Неоднозначність не вгадуємо (той самий закон, що в `entity_index`):
+      // «Берестечком» однаково добре стелиться на місто й на битву, і мовчання
+      // тут чесніше за випадковий вибір за порядком сортування.
+      if (!chosen || rivals > 1) continue;
+
+      out.push(piece.slice(cursor, chosen.span[0].at));
+      out.push(chosen.entry.title === chosen.matched
+        ? `[[${chosen.matched}]]`
+        : `[[${chosen.entry.title}|${chosen.matched}]]`);
+      cursor = chosen.span[chosen.span.length - 1].end;
+    }
+    out.push(piece.slice(cursor));
+    return out.join("");
+  }).join("");
 }
 
 /** Документ, у якому стоїть посилання. Картка знає, чим вона важить у кожному
