@@ -102,8 +102,13 @@ def _wake_karty() -> None:
 
 
 def _cell(text: str) -> str:
-    """Рядок таблиці не має права зламати таблицю: труби й переноси знешкоджуємо."""
-    return re.sub(r"\s+", " ", text).replace("|", "¦").strip()
+    """Значення для клітинки markdown-таблиці.
+
+    Труба екранується (`\\|`), а не підмінюється схожим символом: підміна
+    мовчки псує дані — шлях `a|b.md` перестає бути шляхом. Переноси рядків
+    стають пробілом, бо рядок таблиці живе в одному рядку файла.
+    """
+    return re.sub(r"\s+", " ", text).replace("|", r"\|").strip()
 
 
 def create_entity_router(root: Path, *, require_session: Callable[..., Any]) -> APIRouter:

@@ -97,6 +97,28 @@ function tokenize(piece: string): Array<{ at: number; end: number; raw: string; 
   return out;
 }
 
+/** Чи ця позиція стоїть у рядку markdown-таблиці.
+ *
+ *  Вікілінк із трубою всередині клітинки розриває рядок на зайві колонки:
+ *  `[[Василь-Костянтин Острозький|Острозької]]` у шляху документа зробив із
+ *  одного рядка реєстру п'ять (скарга Юрія 03.08). Рендер таблиць уже вміє
+ *  екрановану трубу — лишалось її ставити.
+ */
+function inTableRow(piece: string, at: number): boolean {
+  let start = at;
+  while (start > 0 && piece[start - 1] !== "\n") start -= 1;
+  let i = start;
+  while (i < piece.length && (piece[i] === " " || piece[i] === "\t")) i += 1;
+  return piece[i] === "|";
+}
+
+/** Вікілінк для вставки в копію тексту. У таблиці труба екранується — інакше
+ *  вона стає роздільником колонки й ламає рядок. */
+function wikilink(title: string, matched: string, inTable: boolean): string {
+  if (title === matched) return `[[${matched}]]`;
+  return inTable ? `[[${title}\\|${matched}]]` : `[[${title}|${matched}]]`;
+}
+
 export interface Homonym { common: string; proper: string }
 
 /** Чи стоїть слово на початку речення. Там регістр не означає нічого: з великої
@@ -167,7 +189,7 @@ export function autolink(text: string, forms: Record<string, string>, proper?: S
           if (capital && atSentenceStart(piece, span[0].at)) continue;
           const title = capital ? twin.proper : twin.common;
           out.push(piece.slice(cursor, span[0].at));
-          out.push(title === matched ? `[[${matched}]]` : `[[${title}|${matched}]]`);
+          out.push(wikilink(title, matched, inTableRow(piece, span[0].at)));
           cursor = span[n - 1].end;
           chosen = null;
           break;
@@ -198,9 +220,7 @@ export function autolink(text: string, forms: Record<string, string>, proper?: S
       if (!chosen || rivals > 1) continue;      // омонім уже розв'язано вище
 
       out.push(piece.slice(cursor, chosen.span[0].at));
-      out.push(chosen.entry.title === chosen.matched
-        ? `[[${chosen.matched}]]`
-        : `[[${chosen.entry.title}|${chosen.matched}]]`);
+      out.push(wikilink(chosen.entry.title, chosen.matched, inTableRow(piece, chosen.span[0].at)));
       cursor = chosen.span[chosen.span.length - 1].end;
     }
     out.push(piece.slice(cursor));
