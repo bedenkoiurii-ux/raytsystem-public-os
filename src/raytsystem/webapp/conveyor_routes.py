@@ -112,11 +112,18 @@ def _last_commit(repo: Path, branch: str) -> dict[str, Any] | None:
 
 
 def _ahead(repo: Path, branch: str) -> int | None:
-    """Скільки комітів гілки ще не злито в main — це і є незібрана хвиля."""
+    """Скільки комітів РОБОТИ ще не злито в main — це і є незібрана хвиля.
+
+    `--no-merges` не косметика. `sync_from_main` штампує «Merge branch main into
+    …» перед кожним прогоном, і в `wl-inbox` вони склали 11 із 13: картка кричала
+    про тринадцять незлитих комітів там, де роботи було два. **Тривога, яка
+    здебільшого не тривога, вимикає увагу** — а лічильник існує рівно для того,
+    щоб на нього дивились.
+    """
     if not repo.is_dir():
         return None
     try:
-        out = subprocess.run(["git", "rev-list", "--count", f"main..{branch}"],
+        out = subprocess.run(["git", "rev-list", "--count", "--no-merges", f"main..{branch}"],
                              cwd=repo, capture_output=True, text=True, timeout=10).stdout.strip()
         return int(out)
     except (OSError, subprocess.SubprocessError, ValueError):

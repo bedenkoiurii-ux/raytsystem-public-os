@@ -140,10 +140,36 @@ sync_from_main() {
 # і рядок про витік у бібліотеці, де все українською, стає нечитабельним.
 leak_snapshot() { ( cd "$MAIN" && git -c core.quotepath=false status --porcelain --untracked-files=all 2>/dev/null | sed -n 's/^?? //p' | sed 's/^"\(.*\)"$/\1/' | sort ); }
 
+# Розрізнювач: чиє це нове в головному дереві (хибна тривога №6, 03.08).
+#
+# Знімок бачить лише «з'явився новий нетрекований файл» і не знає, ХТО його
+# написав. Сесія Юрія працює в main паралельно з прогоном, тож її файли
+# потрапляли в те саме вікно — сторож двічі називав витоком `ЗАМОВЛЕННЯ-
+# СУТНОСТЕЙ.md` і `entity_orders.py`, які того ж дня лягли в main іменними
+# комітами.
+#
+# Розрізняє не послаблення, а факт: **прогін НЕ комітить у main** — його коміти
+# живуть у гілці, а автозлиття йде ПІСЛЯ цієї перевірки. Тож якщо файл на
+# момент звірки вже має коміт у main, автор у нього хтось інший, і витоком він
+# не є. Витік — те, що прогін лишив у main поза своєю гілкою: воно нетрековане
+# й коміту не має.
+committed_in_main() { ( cd "$MAIN" && git log -1 --format=%H -- "$1" 2>/dev/null | grep -q . ); }
+
 check_leak() {
-  local before="$1" now added
+  local before="$1" now added file real=""
   now="$(leak_snapshot)"
   added="$(comm -13 <(printf '%s\n' "$before") <(printf '%s\n' "$now"))"
+  if [ -n "$added" ]; then
+    while IFS= read -r file; do
+      [ -z "$file" ] && continue
+      if committed_in_main "$file"; then
+        echo "   (не витік: «$file» має власний коміт у main — чужа робота поруч)" >>"$LOG"
+        continue
+      fi
+      real="${real}${file}"$'\n'
+    done <<< "$added"
+  fi
+  added="$(printf '%s' "$real" | sed '/^$/d')"
   [ -z "$added" ] && { : >"$LEAK"; return 0; }
   printf '%s\n' "$added" >"$LEAK"
   {
@@ -195,7 +221,7 @@ rebuild_entity_index() {
 auto_merge() {
   [ "$AUTO_MERGE" = "так" ] || return 0
   local ahead
-  ahead=$(cd "$MAIN" && git rev-list --count "main..$BRANCH" 2>/dev/null || echo 0)
+  ahead=$(cd "$MAIN" && git rev-list --count --no-merges "main..$BRANCH" 2>/dev/null || echo 0)
   [ "$ahead" = "0" ] && return 0
 
   # Брудне головне дерево НЕ блокує злиття, і це навмисно: gdoc-sync.log
@@ -334,11 +360,11 @@ case "${1:-}" in
   стан|status)
     if [ -f "$PIDF" ] && kill -0 "$(cat "$PIDF")" 2>/dev/null; then echo "[$TASK] живий (pid $(cat "$PIDF"))"; else echo "[$TASK] не працює"; fi
     [ -f "$DONE" ] && echo "  сентинел: РОБОТА ВИЧЕРПАНА"
-    [ -d "$VAULT" ] && echo "  у гілці $BRANCH: $(cd "$VAULT" && git rev-list --count "main..$BRANCH" 2>/dev/null || echo 0) комітів"
+    [ -d "$VAULT" ] && echo "  у гілці $BRANCH: $(cd "$VAULT" && git rev-list --count --no-merges "main..$BRANCH" 2>/dev/null || echo 0) комітів"
     [ -f "$LOG" ] && { echo "  --- лог ---"; tail -5 "$LOG"; } ;;
   лог|log) tail -f "$LOG" ;;
   злити|merge)
-    n=$(cd "$VAULT" && git rev-list --count "main..$BRANCH" 2>/dev/null || echo 0)
+    n=$(cd "$VAULT" && git rev-list --count --no-merges "main..$BRANCH" 2>/dev/null || echo 0)
     [ "$n" = "0" ] && { echo "[$TASK] нема чого зливати"; exit 0; }
     echo "[$TASK] зливаю $n комітів…"
     ( cd "$MAIN" && git merge --no-edit "$BRANCH" ) && echo "злито." ;;
