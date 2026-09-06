@@ -96,6 +96,9 @@ ensure_worktree() {
     ( cd "$MAIN" && git worktree add -b "$BRANCH" "$VAULT" HEAD ) >>"$LOG" 2>&1 \
       || ( cd "$MAIN" && git worktree add "$VAULT" "$BRANCH" ) >>"$LOG" 2>&1
   fi
+  # KI-13: headless claude -p ніколи не бачить діалог довіри — без цього
+  # .claude/settings.json worktree мовчки ігнорується щопрогону.
+  uv run python3 "$MAIN/90-Meta/scripts/ensure_trust.py" "$VAULT" >>"$LOG" 2>&1 || true
   sync_from_main
 }
 
