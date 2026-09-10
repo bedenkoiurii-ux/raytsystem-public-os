@@ -1253,6 +1253,7 @@ button.table-row:hover { background: var(--surface-2); color: var(--bone); }
 .document-content.sheet-light .safe-markdown .doc-markdown { padding: 0; }
 .document-content.sheet-light .milkdown .editor { padding: 52px 60px; }
 :is(.document-content, .doc-peek).sheet-light .doc-wikilink { color: var(--cyan); border-bottom: 1px dotted var(--cyan); background: none; }
+:is(.document-content, .doc-peek).sheet-light .doc-wikilink.doc-finding { color: var(--rose); border-bottom: 1px dotted var(--rose); }
 :is(.document-content, .doc-peek).sheet-light .doc-frontmatter,
 :is(.document-content, .doc-peek).sheet-light .doc-code-block { background: var(--carbon-soft); color: var(--muted); border: 1px solid rgba(0,0,0,.08); }
 :is(.document-content, .doc-peek).sheet-light .safe-markdown blockquote { background: rgba(26,86,160,.07); border-left-color: var(--cyan); }
