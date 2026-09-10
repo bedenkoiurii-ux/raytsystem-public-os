@@ -1563,6 +1563,9 @@ li.open .chev { transform: rotate(90deg); }
 .prose > .doc-markdown:has(+ .inline-aside) p:last-child { margin-bottom: .35em; }
 .prose > .inline-aside + .doc-markdown p:first-child { margin-top: 0; }
 .prose > .doc-markdown + .inline-aside { margin-top: .35em; }
+.prose > .doc-markdown:has(+ .opponent-aside) p:last-child { margin-bottom: .35em; }
+.prose > .opponent-aside + .doc-markdown p:first-child { margin-top: 0; }
+.prose > .doc-markdown + .opponent-aside { margin-top: .35em; }
 /* Врізка — продовження тексту, не обʼєкт у тексті. Тло замість рамки; назва
    інлайном; дії дрібним текстом у кінці. Юрій: «зроби це як продовження
    тексту, а не як картка всередині тексту». */

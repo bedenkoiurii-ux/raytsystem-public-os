@@ -84,3 +84,40 @@ export function computeWordDiff(before: string, after: string): WordToken[] {
   out.push(...b.slice(b.length - suffix).map((text) => ({ kind: "context" as const, text })));
   return out;
 }
+
+/** Розбиває токени на абзаци — межа: токен-пробіл із подвійним переносом рядка. */
+export function groupParagraphs(tokens: WordToken[]): WordToken[][] {
+  const paragraphs: WordToken[][] = [[]];
+  for (const token of tokens) {
+    if (token.kind === "context" && /\n\s*\n/.test(token.text)) { paragraphs.push([]); continue; }
+    paragraphs[paragraphs.length - 1].push(token);
+  }
+  return paragraphs.filter((p) => p.some((t) => t.text.trim()));
+}
+
+const reconstruct = (paragraph: WordToken[], drop: WordDiffKind) =>
+  paragraph.filter((t) => t.kind !== drop).map((t) => t.text).join("").trim();
+
+/** Абзац(и), що містять цитату знахідки — canon-текст як є (для заміни) і
+ *  «чистий» проєкт нового тексту (контекст + додане, як стартове значення
+ *  для редагування). Сусідні змінені абзаци приєднуються — суцільна правка,
+ *  що зачепила два абзаци поспіль (як новий підрозділ), лишається одним
+ *  блоком, а не розривається. */
+export function extractChangedRegion(
+  canonBody: string, variantBody: string, quote: string
+): { oldText: string; newText: string } | null {
+  const paragraphs = groupParagraphs(computeWordDiff(canonBody, variantBody));
+  const seed = paragraphs.findIndex((p) => reconstruct(p, "added").includes(quote));
+  if (seed < 0) return null;
+
+  let start = seed;
+  while (start > 0 && paragraphs[start - 1].some((t) => t.kind !== "context")) start -= 1;
+  let end = seed;
+  while (end < paragraphs.length - 1 && paragraphs[end + 1].some((t) => t.kind !== "context")) end += 1;
+
+  const region = paragraphs.slice(start, end + 1);
+  return {
+    oldText: region.map((p) => reconstruct(p, "added")).filter(Boolean).join("\n\n"),
+    newText: region.map((p) => reconstruct(p, "removed")).filter(Boolean).join("\n\n"),
+  };
+}

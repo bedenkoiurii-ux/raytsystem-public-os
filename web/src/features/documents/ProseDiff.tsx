@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef } from "react";
-import { computeWordDiff, type WordToken } from "./wordDiff";
+import { computeWordDiff, groupParagraphs } from "./wordDiff";
 
 /** Читання-діф: слова, не рядки коду. Абзаци лишаються абзацами, `**жирне**`
  *  лишається жирним — той самий вигляд, що й у звичайному читанні, тільки
@@ -18,11 +18,7 @@ export function ProseDiff({ original, current }: { original: string; current: st
     mark?.scrollIntoView({ block: "center" });
   }, [tokens]);
 
-  const paragraphs: WordToken[][] = [[]];
-  for (const token of tokens) {
-    if (token.kind === "context" && /\n\s*\n/.test(token.text)) { paragraphs.push([]); continue; }
-    paragraphs[paragraphs.length - 1].push(token);
-  }
+  const paragraphs = groupParagraphs(tokens);
 
   return (
     <div className="prose-diff">
@@ -33,7 +29,7 @@ export function ProseDiff({ original, current }: { original: string; current: st
         {added === 0 && removed === 0 ? <span className="prose-diff-same">без відмінностей</span> : null}
       </header>
       <div className="prose-diff-body sheet-light" data-sheet-tone="warm" ref={host}>
-        {paragraphs.filter((p) => p.some((t) => t.text.trim())).map((paragraph, index) => {
+        {paragraphs.map((paragraph, index) => {
           let bold = false;
           return (
             <p key={index}>

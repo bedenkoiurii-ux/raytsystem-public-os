@@ -493,3 +493,31 @@
 .prose-diff-body p { margin: 0 0 18px; }
 .prose-diff-removed { color: var(--rose); font-weight: 600; text-decoration: line-through; text-decoration-thickness: 2px; background: color-mix(in srgb, var(--rose) 16%, transparent); border-radius: 2px; }
 .prose-diff-added { color: var(--mint); font-weight: 600; text-decoration: underline; text-decoration-thickness: 2px; background: color-mix(in srgb, var(--mint) 24%, transparent); border-radius: 2px; }
+
+/* Врізка знахідки опонента — той самий принцип, що .inline-aside (продовження
+   тексту, тло замість рамки), тон rose замість cyan: тут не довідка, а те, що
+   потребує вердикту. */
+.opponent-aside { display: block; background: color-mix(in srgb, var(--rose) 9%, transparent);
+  box-shadow: 0 0 0 .35em color-mix(in srgb, var(--rose) 9%, transparent);
+  border-radius: 2px; margin: .3em 0 .9em; padding: .1em 0; }
+.opponent-aside .aside-name { color: var(--rose); font-weight: 500; }
+.opponent-aside-hint { display: block; color: var(--muted-2); font-size: 12px; margin: .2em 0 .5em; }
+.opponent-aside-text {
+  display: block; width: 100%; box-sizing: border-box; resize: vertical;
+  /* На папері (аркуш) --surface лишається темним — тут явно змішуємо з
+     --sheet-paper, інакше поле темне-на-темному (перевірено вживу 10.09). */
+  background: color-mix(in srgb, var(--mint) 14%, var(--sheet-paper, var(--surface)));
+  color: var(--bone);
+  border: 1px solid color-mix(in srgb, var(--mint) 40%, var(--line)); border-radius: 6px;
+  padding: 10px 12px; font: 14px/1.6 var(--display); margin: .3em 0;
+}
+.opponent-aside-text:focus { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.opponent-aside-error { display: block; color: var(--rose); font-size: 12.5px; margin-bottom: .3em; }
+.opponent-aside .aside-tail { display: block; margin-top: .35em; }
+.opponent-aside .aside-tail button {
+  border: 1px solid var(--line); background: var(--carbon-soft); border-radius: 7px;
+  padding: 5px 12px; margin-right: 8px; color: var(--bone); font: 500 12.5px var(--display); cursor: pointer;
+}
+.opponent-aside .aside-tail button.opponent-accept { background: var(--mint); border-color: var(--mint); color: var(--on-accent); }
+.opponent-aside .aside-tail button:disabled { opacity: .5; cursor: default; }
+.opponent-aside.loading, .opponent-aside.missing { color: var(--muted-2); font-style: italic; padding: .2em .4em; }

@@ -70,7 +70,6 @@ import { inspectMarkdownForVisualEditing, visualEditorBlockReason, type Markdown
 import { DocumentActionDialog, type DocumentActionKind, type DocumentActionValue, type DocumentRootOption } from "./DocumentActionDialog";
 import { DocumentConflictDialog } from "./DocumentConflictDialog";
 import { DocumentDiff } from "./DocumentDiff";
-import { ProseDiff } from "./ProseDiff";
 import { DocumentInspector } from "./DocumentInspector";
 import { DocumentRestoreDialog } from "./DocumentRestoreDialog";
 import { DocumentTabs } from "./DocumentTabs";
@@ -235,10 +234,6 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
   const [entityOrder, setEntityOrder] = useState<EntityOrderRequest | null>(null);
   const [conflict, setConflict] = useState<DocumentConflictDetails | null>(null);
   const [revisionTarget, setRevisionTarget] = useState<DocumentHistoryEntry | null>(null);
-  // Diff-режим для знахідки опонента: не історична ревізія, а варіант із
-  // Версії/ — той самий DocumentDiff, інше джерело "current".
-  const [variantCompare, setVariantCompare] = useState<{ title: string; content: string } | null>(null);
-  const [variantLoading, setVariantLoading] = useState(false);
   const [pendingHeading, setPendingHeading] = useState<{ documentId: string; heading: string } | null>(null);
   const [restoreRevision, setRestoreRevision] = useState<DocumentHistoryEntry | null>(null);
   const [restorePreview, setRestorePreview] = useState<DocumentRestorePreviewEnvelope | null>(null);
@@ -409,31 +404,12 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
     () => findingsForDocument(opponentFindings.data?.items ?? [], detail.data?.document.path ?? ""),
     [opponentFindings.data, detail.data?.document.path]
   );
+  // Юрій (2026-09-10): «як розкриття сутностей» — врізка правки просто в
+  // тексті, не окремий Diff-режим. `opponentTargets` резолвить назву
+  // варіанта в document_id (для підвантаження тіла й кліку); саме
+  // авто-відкриття першої знахідки (з банера) — усередині Prose, через
+  // key={activeId} воно й так спрацьовує рівно раз на документ.
   const opponentTargets = useOpponentTargets(docFindings);
-  // Юрій (2026-09-10): клік по банеру знахідок опонента мусить одразу
-  // показувати, що саме потребує правки — не читання й ручний пошук
-  // підсвітки, а Diff при самому відкритті. Спрацьовує РАЗ на документ
-  // (ref, не state). Режим при відкритті може бути будь-яким відновленим
-  // зі старої сесії (read/diff/markdown) — саме тому проблема була
-  // непомітна на моїй перевірці й видима на живому вікні Юрія: відновлений
-  // "diff" з local-changes блокував спрацювання. Не займаємо лише
-  // source/visual — там користувач свідомо редагує.
-  const autoOpenedFindingRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!activeId || activeTab?.mode === "source" || activeTab?.mode === "visual" || !docFindings.length) return;
-    if (autoOpenedFindingRef.current === activeId) return;
-    const targetId = opponentTargets.data?.get(docFindings[0].variant_title);
-    if (!targetId) return;
-    autoOpenedFindingRef.current = activeId;
-    setVariantCompare(null);
-    setVariantLoading(true);
-    documentGet<{ document: { title: string }; content: string }>(`/api/v1/documents/${targetId}`)
-      .then((doc) => setVariantCompare({ title: doc.document.title, content: doc.content }))
-      .catch(() => setNotice("Не вдалося завантажити варіант опонента."))
-      .finally(() => setVariantLoading(false));
-    setRevisionTarget(null);
-    dispatch({ type: "mode", documentId: activeId, mode: "diff" });
-  }, [activeId, activeTab?.mode, docFindings, opponentTargets.data]);
   const history = useDocumentHistory(activeId, snapshotId || null);
   const revisionDetail = useDocumentRevisionDetail(activeId, revisionTarget?.history_id ?? null, snapshotId || null);
   const activeDraft = activeId ? workspace.drafts[activeId] : undefined;
@@ -591,7 +567,6 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
     dispatch({ type: "open", tab: tabFor(document) });
     setPendingHeading(null);
     setRevisionTarget(null);
-    setVariantCompare(null);
   }, []);
 
   const openById = useCallback((documentId: string, heading?: string | null) => {
@@ -599,7 +574,6 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
     dispatch({ type: "open", tab: known ? tabFor(known) : placeholderTab(documentId) });
     setPendingHeading(heading ? { documentId, heading } : null);
     setRevisionTarget(null);
-    setVariantCompare(null);
   }, [documents]);
 
   const closeTab = (documentId: string) => {
@@ -670,23 +644,8 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
   // униз, картка з'являлась, а Юрій бачив «нічого не відбулось».
   const resolveWikilink = (target: WikilinkTarget, event?: { altKey: boolean }): boolean => {
     if (event?.altKey) return false;
-    // Знахідка опонента першою: ціль — назва варіанта, якого в графі посилань
-    // ЦЬОГО документа немає (вікілінк вставлений при рендері, у файлі його
-    // нема) — тож звичайний matchingDocumentLink тут завжди мовчав би.
-    // Відкриваємо не картку, а Diff: показати САМУ заміну (канон/варіант),
-    // а не сирий вміст файла — той самий компонент, що й для ревізій історії.
-    const opponentId = opponentTargets.data?.get(target.target);
-    if (opponentId) {
-      setVariantCompare(null);
-      setVariantLoading(true);
-      documentGet<{ document: { title: string }; content: string }>(`/api/v1/documents/${opponentId}`)
-        .then((doc) => setVariantCompare({ title: doc.document.title, content: doc.content }))
-        .catch(() => setNotice("Не вдалося завантажити варіант опонента."))
-        .finally(() => setVariantLoading(false));
-      setRevisionTarget(null);
-      dispatch({ type: "mode", documentId: activeId!, mode: "diff" });
-      return true;
-    }
+    // Знахідки опонента сюди не доходять узагалі — Prose перехоплює клік по
+    // них раніше (findingByTitle) і розкриває свою врізку, не цей каскад.
     const match = matchingDocumentLink(target, links.data?.items ?? []);
     const id = match?.target_document_id ?? (match?.candidates?.length === 1 ? match.candidates[0].document_id : null);
     if (!id) return false;
@@ -845,12 +804,12 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
             <CardScope value={activeTab.title}>
             <section className="document-stage" aria-label={activeTab.title}>
               <header className="document-stage-header"><div><span>{detail.data?.document.path ?? activeTab.title}</span><h2>{activeTab.title}</h2><small>{activeTab.readOnly ? <><Shield size={13} /> лише читання</> : activeTab.dirty ? "Є незбережені зміни" : "Збережено"}</small></div><div><button type="button" onClick={() => setFavoriteIds((current) => { const next = new Set(current); if (next.has(activeId)) next.delete(activeId); else if (next.size < 100) next.add(activeId); else setNotice("Можна зберігати не більше 100 обраних документів у session preferences."); return next; })} aria-label={favoriteIds.has(activeId) ? "Прибрати з обраного" : "Додати в обране"}><Star size={14} fill={favoriteIds.has(activeId) ? "currentColor" : "none"} /></button><button type="button" onClick={() => setAction("rename")} disabled={activeTab.readOnly}><Pencil size={14} />Перейменувати</button><button type="button" onClick={() => setAction("move")} disabled={activeTab.readOnly}><Move size={14} />Перемістити</button><button type="button" className="document-save" onClick={() => saveContent()} disabled={activeTab.readOnly || !activeTab.dirty || updateDocument.isPending}><Save size={15} />{updateDocument.isPending ? "Зберігаємо…" : "Зберегти"}</button></div></header>
-              <div className="document-modebar" role="toolbar" aria-label="Режим документа">{modes.map(({ id, label, icon: Icon }) => <button type="button" aria-pressed={activeTab.mode === id} key={id} disabled={((activeIsImage || activeUnsupported) && id !== "read") || (id === "visual" && Boolean(visualBlockReason))} title={(activeIsImage || activeUnsupported) && id !== "read" ? "Вкладення доступні лише для читання" : id === "visual" ? visualBlockReason ?? undefined : undefined} onClick={() => { dispatch({ type: "mode", documentId: activeId, mode: id }); if (id !== "diff") { setRevisionTarget(null); setVariantCompare(null); } }}><Icon size={14} aria-hidden="true" />{label}</button>)}<button type="button" className="sheet-light-toggle" aria-pressed={autoLink} title="Підсвічувати сутності, які мають картку, навіть якщо в тексті немає посилання" onClick={toggleAutoLink}><Link2 size={14} aria-hidden="true" />Сутності</button><button type="button" className="sheet-light-toggle" aria-pressed={sheetLight} title="Світлий аркуш: тіло документа на світлому тлі (легше очам)" onClick={toggleSheetLight}><Sun size={14} aria-hidden="true" />Аркуш</button>{sheetLight ? <select className="sheet-tone-select" aria-label="Тон паперу" value={sheetTone} onChange={(event) => changeSheetTone(event.target.value)}><option value="warm">Теплий</option><option value="white">Білий</option><option value="sepia">Сепія</option></select> : null}{(activeTab.mode === "read" || activeTab.mode === "visual") ? <select className="sheet-format-select" aria-label="Формат сторінки" value={sheetFormat} onChange={(event) => changeSheetFormat(event.target.value)} title="Формат читання: А4 вертикальний / А4 горизонтальний / вільний простір на всю ширину (для сценаріїв і широких таблиць)"><option value="a4">А4 ▯</option><option value="a4-land">А4 ▭</option><option value="free">Вільний ⟷</option></select> : null}{(activeTab.mode === "read" || activeTab.mode === "visual") ? <span className="sheet-font-control" role="group" aria-label="Розмір шрифта"><button type="button" onClick={() => bumpFontScale(-0.1)} disabled={fontScale <= 0.7} aria-label="Менший шрифт" title="Менший шрифт">A−</button><button type="button" onClick={() => bumpFontScale(0.1)} disabled={fontScale >= 1.8} aria-label="Більший шрифт" title="Більший шрифт">A+</button></span> : null}</div>
+              <div className="document-modebar" role="toolbar" aria-label="Режим документа">{modes.map(({ id, label, icon: Icon }) => <button type="button" aria-pressed={activeTab.mode === id} key={id} disabled={((activeIsImage || activeUnsupported) && id !== "read") || (id === "visual" && Boolean(visualBlockReason))} title={(activeIsImage || activeUnsupported) && id !== "read" ? "Вкладення доступні лише для читання" : id === "visual" ? visualBlockReason ?? undefined : undefined} onClick={() => { dispatch({ type: "mode", documentId: activeId, mode: id }); if (id !== "diff") setRevisionTarget(null); }}><Icon size={14} aria-hidden="true" />{label}</button>)}<button type="button" className="sheet-light-toggle" aria-pressed={autoLink} title="Підсвічувати сутності, які мають картку, навіть якщо в тексті немає посилання" onClick={toggleAutoLink}><Link2 size={14} aria-hidden="true" />Сутності</button><button type="button" className="sheet-light-toggle" aria-pressed={sheetLight} title="Світлий аркуш: тіло документа на світлому тлі (легше очам)" onClick={toggleSheetLight}><Sun size={14} aria-hidden="true" />Аркуш</button>{sheetLight ? <select className="sheet-tone-select" aria-label="Тон паперу" value={sheetTone} onChange={(event) => changeSheetTone(event.target.value)}><option value="warm">Теплий</option><option value="white">Білий</option><option value="sepia">Сепія</option></select> : null}{(activeTab.mode === "read" || activeTab.mode === "visual") ? <select className="sheet-format-select" aria-label="Формат сторінки" value={sheetFormat} onChange={(event) => changeSheetFormat(event.target.value)} title="Формат читання: А4 вертикальний / А4 горизонтальний / вільний простір на всю ширину (для сценаріїв і широких таблиць)"><option value="a4">А4 ▯</option><option value="a4-land">А4 ▭</option><option value="free">Вільний ⟷</option></select> : null}{(activeTab.mode === "read" || activeTab.mode === "visual") ? <span className="sheet-font-control" role="group" aria-label="Розмір шрифта"><button type="button" onClick={() => bumpFontScale(-0.1)} disabled={fontScale <= 0.7} aria-label="Менший шрифт" title="Менший шрифт">A−</button><button type="button" onClick={() => bumpFontScale(0.1)} disabled={fontScale >= 1.8} aria-label="Більший шрифт" title="Більший шрифт">A+</button></span> : null}</div>
               {notice ? <div className="documents-notice" role="status">{notice}<button type="button" onClick={() => setNotice(null)} aria-label="Приховати повідомлення"><X size={14} /></button></div> : null}
               <div className={`document-content${sheetLight && (activeTab.mode === "read" || activeTab.mode === "visual") ? " sheet-light" : ""}`} data-sheet-tone={sheetLight ? sheetTone : undefined} data-sheet-format={sheetFormat}>
                 {activeIsImage && detail.data ? <DocumentImageView detail={detail.data} /> : null}
                 {activeUnsupported ? <div className="doc-visual-unavailable" role="status"><strong>Для цього формату немає безпечного viewer</strong><p>Файл видно в керованому workspace, але його вміст не передано браузеру.</p></div> : null}
-                {!activeIsImage && !activeUnsupported && activeTab.mode === "read" ? <Prose key={activeId} content={activeDraft.content} autoLink={autoLink} findings={docFindings} onOpenWikilinkOverride={resolveWikilink} onOpenDocument={openCascade} onOpenPanel={openCascade} onOpenSource={() => dispatch({ type: "mode", documentId: activeId, mode: "source" })} onOpenRelativeLink={(target) => { const match = links.data?.items.find((link) => link.target === target); if (match?.target_document_id) openById(match.target_document_id, match.heading); else setNotice("Відносне посилання не дозволене або не знайдене."); }} resolveImage={(target) => { const asset = detail.data?.assets?.[target]; return typeof asset === "string" ? asset : asset?.url ?? (target.startsWith("/api/v1/documents/") ? target : null); }} /> : null}
+                {!activeIsImage && !activeUnsupported && activeTab.mode === "read" ? <Prose key={activeId} content={activeDraft.content} autoLink={autoLink} findings={docFindings} canonPath={detail.data?.document.path} findingsTargets={opponentTargets.data} autoOpenFirstFinding={docFindings.length > 0} onFindingAccepted={() => { void opponentFindings.refetch(); void detail.refetch(); }} onOpenWikilinkOverride={resolveWikilink} onOpenDocument={openCascade} onOpenPanel={openCascade} onOpenSource={() => dispatch({ type: "mode", documentId: activeId, mode: "source" })} onOpenRelativeLink={(target) => { const match = links.data?.items.find((link) => link.target === target); if (match?.target_document_id) openById(match.target_document_id, match.heading); else setNotice("Відносне посилання не дозволене або не знайдене."); }} resolveImage={(target) => { const asset = detail.data?.assets?.[target]; return typeof asset === "string" ? asset : asset?.url ?? (target.startsWith("/api/v1/documents/") ? target : null); }} /> : null}
                 {/* «У сутності» — замовлення картки з виділення в читанні
                     (рішення Юрія 2026-08-03). Кнопка плаває над текстом, поки
                     є виділення; текст документа не змінюється ніколи. */}
@@ -862,7 +821,7 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
                 ) : null}
                 {!activeIsImage && !activeUnsupported && activeTab.mode === "source" ? <Suspense fallback={<LoadingState label="Завантажуємо Source editor…" />}><SourceEditor key={`${activeId}:${activeDraft.baseSha256}:${detail.data?.line_ending ?? "unknown"}`} value={activeDraft.content} readOnly={activeTab.readOnly} issues={inspectMarkdownForVisualEditing(activeDraft.content)} lineNumbers onChange={(content) => changeDraft(content)} onSave={() => saveContent()} onToggleVisual={() => dispatch({ type: "mode", documentId: activeId, mode: "visual" })} /></Suspense> : null}
                 {!activeIsImage && !activeUnsupported && activeTab.mode === "visual" ? visualBlockReason ? <div className="doc-visual-unavailable" role="alert"><strong>Візуальний редактор не відкрито</strong><p>{visualBlockReason}</p><button type="button" onClick={() => dispatch({ type: "mode", documentId: activeId, mode: "source" })}>Відкрити Source mode</button></div> : <Suspense fallback={<LoadingState label="Завантажуємо візуальний editor…" />}><VisualEditor key={`${activeId}:${activeDraft.baseSha256}`} value={activeDraft.content} readOnly={activeTab.readOnly} qualification={detail.data?.visual_qualification} onChange={changeDraft} onSave={() => saveContent()} onToggleSource={() => dispatch({ type: "mode", documentId: activeId, mode: "source" })} /></Suspense> : null}
-                {!activeIsImage && !activeUnsupported && activeTab.mode === "diff" ? variantCompare ? <ProseDiff original={activeDraft.content} current={variantCompare.content} /> : variantLoading ? <LoadingState label="Завантажуємо варіант опонента…" /> : revisionTarget ? revisionDetail.isLoading ? <LoadingState label="Завантажуємо immutable revision…" /> : revisionDetail.isError ? <ErrorState error={revisionDetail.error} onRetry={() => void revisionDetail.refetch()} /> : revisionDetail.data ? <DocumentDiff original={revisionDetail.data.content} current={activeDraft.content} /> : null : <DocumentDiff original={activeDraft.baseContent} current={activeDraft.content} /> : null}
+                {!activeIsImage && !activeUnsupported && activeTab.mode === "diff" ? revisionTarget ? revisionDetail.isLoading ? <LoadingState label="Завантажуємо immutable revision…" /> : revisionDetail.isError ? <ErrorState error={revisionDetail.error} onRetry={() => void revisionDetail.refetch()} /> : revisionDetail.data ? <DocumentDiff original={revisionDetail.data.content} current={activeDraft.content} /> : null : <DocumentDiff original={activeDraft.baseContent} current={activeDraft.content} /> : null}
               </div>
             </section>
             </CardScope>

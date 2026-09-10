@@ -1,6 +1,6 @@
 // computeWordDiff — LCS на словах, не рядках; читання прозою (Юрій, 10.09).
 import { describe, expect, it } from "vitest";
-import { computeWordDiff, stripApparatus, stripFrontmatter } from "../features/documents/wordDiff";
+import { computeWordDiff, extractChangedRegion, stripApparatus, stripFrontmatter } from "../features/documents/wordDiff";
 
 describe("stripFrontmatter", () => {
   it("зрізає паспорт, лишає тіло", () => {
@@ -51,5 +51,28 @@ describe("computeWordDiff", () => {
     expect(tokens.some((t) => t.kind === "removed" && t.text === "проєкт.")).toBe(true);
     expect(tokens.some((t) => t.kind === "added" && t.text === "задум.")).toBe(true);
     expect(tokens.filter((t) => t.text === "Кінець")[0].kind).toBe("context");
+  });
+});
+
+describe("extractChangedRegion", () => {
+  it("бере лише абзац із цитатою, ігноруючи решту документа", () => {
+    const canon = "Перший абзац, незмінний.\n\nДругий абзац зі старою фразою тут.\n\nТретій абзац, теж незмінний.";
+    const variant = "Перший абзац, незмінний.\n\nДругий абзац із новою фразою тут.\n\nТретій абзац, теж незмінний.";
+    const region = extractChangedRegion(canon, variant, "зі старою фразою");
+    expect(region).not.toBeNull();
+    expect(region!.oldText).toContain("зі старою фразою");
+    expect(region!.oldText).not.toContain("Перший абзац");
+    expect(region!.newText).toContain("із новою фразою");
+  });
+
+  it("сусідні змінені абзаци — один блок", () => {
+    const canon = "Незмінний вступ.\n\nАбзац зі старим текстом.\n\nЩе один незмінний абзац.";
+    const variant = "Незмінний вступ.\n\nАбзац із новим текстом.\n\nНовий абзац посередині.\n\nЩе один незмінний абзац.";
+    const region = extractChangedRegion(canon, variant, "зі старим текстом");
+    expect(region!.newText).toContain("Новий абзац посередині");
+  });
+
+  it("цитата не знайдена — null", () => {
+    expect(extractChangedRegion("Текст.", "Текст.", "Немає такого")).toBeNull();
   });
 });

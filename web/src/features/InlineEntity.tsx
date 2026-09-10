@@ -5,6 +5,7 @@ import { getJson, postJson } from "../api";
 import { focusEntity } from "./entityFocus";
 import { bucketKey, sameWords, words } from "./documents/entityStem";
 import { markFindings, type OpponentFinding } from "./documents/opponentFindings";
+import { extractChangedRegion } from "./documents/wordDiff";
 import { SafeMarkdownView, type WikilinkTarget } from "./documents/SafeMarkdownView";
 
 /** Розгортання сутності просто в тілі тексту — універсальний принцип системи.
@@ -376,7 +377,7 @@ export function InlineCard({ name, onClose, onOpen, onOpenDocument, onOpenPanel 
  *  Механіка проста навмисно: розбиваємо прозу на абзаци й рендеримо кожен
  *  окремо; картка йде після того абзацу, де посилання трапилось уперше.
  *  Без порталів і вимірювань DOM — вставка живе в самій розмітці тексту. */
-export function Prose({ content, autoLink = true, findings, onOpenWikilinkOverride, onOpenDocument, onOpenPanel, onOpenSource, onOpenRelativeLink, resolveImage }: {
+export function Prose({ content, autoLink = true, findings, onOpenWikilinkOverride, onOpenDocument, onOpenPanel, onOpenSource, onOpenRelativeLink, resolveImage, canonPath, findingsTargets, onFindingAccepted, autoOpenFirstFinding }: {
   content: string;
   /** Підсвічувати сутності, яких автор не позначив руками. */
   autoLink?: boolean;
@@ -395,6 +396,16 @@ export function Prose({ content, autoLink = true, findings, onOpenWikilinkOverri
   onOpenSource?: () => void;
   onOpenRelativeLink?: (target: string) => void;
   resolveImage?: (target: string) => string | null;
+  /** Шлях канону (для «Прийняти варіант» — де саме писати) і мапа
+   *  назва-варіанта → document_id (щоб врізка знахідки могла підвантажити
+   *  тіло варіанта для локального діфу абзацу). */
+  canonPath?: string;
+  findingsTargets?: Map<string, string>;
+  /** Перезапит findings/детальної інформації документа після «Прийняти». */
+  onFindingAccepted?: () => void;
+  /** Відкрити першу знахідку одразу при відкритті документа (з банера) —
+   *  не чекати кліку по підсвітці. */
+  autoOpenFirstFinding?: boolean;
 }) {
   // Стан ВЛАСНИЙ у кожного шматка тексту: спільний на всі секції відкривав
   // врізку в кожному місці, де трапилось те саме слово («йосифлян» і в «Що
@@ -403,12 +414,27 @@ export function Prose({ content, autoLink = true, findings, onOpenWikilinkOverri
   // клікнули. Без нього врізка ставала на першому входженні: клік по «Острог»
   // у третьому абзаці відкривав довідку вгорі тексту (скарга Юрія).
   const [open, setOpen] = useState<string[]>([]);
+  // Знахідки опонента — окремий список відкритих, окремий рендер
+  // (OpponentAside), той самий пошук місця в абзаці, що й для сутностей.
+  const [openFindings, setOpenFindings] = useState<string[]>([]);
   const host = useRef<HTMLDivElement | null>(null);
+
+  const findingByTitle = useMemo(
+    () => new Map((findings ?? []).map((f) => [f.variant_title, f])),
+    [findings]
+  );
 
   // Запис у списку відкритих: «слово_в_тексті\u0000uid». Слово потрібне, щоб
   // знайти МІСЦЕ врізки в абзаці; uid — щоб показати саме ту сутність, коли
   // ім'я неоднозначне. Друга частина зʼявляється лише після вибору.
   const toggle = (link: WikilinkTarget, event?: { altKey?: boolean; node?: HTMLElement }) => {
+    const findingName = link.target.trim();
+    // Знахідка опонента — своя гілка, і одразу: клік по підсвіченій цитаті
+    // ЗАВЖДИ розкриває врізку правки, не йде в каскад карток документа.
+    if (findingName && findingByTitle.has(findingName)) {
+      setOpenFindings((s) => (s.includes(findingName) ? s.filter((x) => x !== findingName) : [...s, findingName]));
+      return;
+    }
     if (onOpenWikilinkOverride) {
       const handled = onOpenWikilinkOverride(link, { altKey: Boolean(event?.altKey), node: event?.node });
       if (handled !== false) return;
@@ -470,6 +496,21 @@ export function Prose({ content, autoLink = true, findings, onOpenWikilinkOverri
       if (findingTitles.has(btn.dataset.target ?? "")) btn.classList.add("doc-finding");
     });
   }, [findingTitles, prepared]);
+
+  // Банер веде сюди — і документ мусить одразу показати, що потребує
+  // правки, не чекати другого кліка по підсвітці (Юрій, 2026-09-10).
+  const autoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (!autoOpenFirstFinding || autoOpenedRef.current || !findings?.length) return;
+    autoOpenedRef.current = true;
+    const first = findings[0].variant_title;
+    setOpenFindings((s) => (s.includes(first) ? s : [...s, first]));
+  }, [autoOpenFirstFinding, findings]);
+  useEffect(() => {
+    if (!openFindings.length) return;
+    host.current?.querySelector(".opponent-aside")?.scrollIntoView({ block: "center" });
+  }, [openFindings.length > 0]);
+
   const blocks = prepared.split(/\n{2,}/);
   const shown = new Set<string>();
   const pieces: React.ReactNode[] = [];
@@ -482,24 +523,32 @@ export function Prose({ content, autoLink = true, findings, onOpenWikilinkOverri
     let rest = block;
     let guard = 0;
     while (guard++ < 12) {
-      // Найближче входження будь-якого відкритого слова в залишку абзацу.
-      const candidates = open
+      // Найближче входження будь-якого відкритого слова чи знахідки в залишку абзацу.
+      const entityCandidates = open
         .filter((entry) => !shown.has(entry))
         .map((entry) => {
-          const word = entry.split("\u0000")[0];
+          const word = entry.split(" ")[0];
           const safe = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
           // Шукаємо і за ціллю (`[[Максим (митрополит)|…`), і за написанням
           // (`[[…|максимі]]`). Без другого врізка не знаходила собі місця й
           // падала в кінець документа, за межі тіла — а їй там не місце
           // (Юрій 2026-07-31: «відкривається врізка не в тілі документа»).
           const at = rest.search(new RegExp(`\\[\\[(?:${safe}(?:\\||\\]\\])|[^\\]|]*\\|${safe}\\]\\])`));
-          return { entry, word, at };
-        })
+          return { entry, word, at, kind: "entity" as const };
+        });
+      const findingCandidates = openFindings
+        .filter((entry) => !shown.has(entry))
+        .map((entry) => {
+          const safe = entry.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          const at = rest.search(new RegExp(`\\[\\[${safe}\\|`));
+          return { entry, word: entry, at, kind: "finding" as const };
+        });
+      const candidates = [...entityCandidates, ...findingCandidates]
         .filter((x) => x.at >= 0)
         .sort((a, b) => a.at - b.at);
       if (!candidates.length) break;
       const hit = candidates[0];
-      const wanted = Number(hit.entry.split("\u0000")[2] ?? 0);
+      const wanted = hit.kind === "entity" ? Number(hit.entry.split(" ")[2] ?? 0) : 0;
       const passed = seenCount.get(hit.word) ?? 0;
       const close = rest.indexOf("]]", hit.at);
       const head = rest.slice(0, close + 2);
@@ -518,9 +567,19 @@ export function Prose({ content, autoLink = true, findings, onOpenWikilinkOverri
         <SafeMarkdownView key={`${bi}-h-${hit.entry}`} content={head} onOpenWikilink={toggle}
                           onOpenSource={bi === 0 && !pieces.length ? onOpenSource : undefined} {...props} />
       );
-      pieces.push(<Aside key={`${bi}-a-${hit.entry}`} entry={hit.entry} onOpen={toggle} onPick={pick}
-                         onOpenDocument={onOpenDocument} onOpenPanel={onOpenPanel}
-                         onClose={() => setOpen((s) => s.filter((x) => x !== hit.entry))} />);
+      if (hit.kind === "finding") {
+        const finding = findingByTitle.get(hit.entry);
+        if (finding) {
+          pieces.push(<OpponentAside key={`${bi}-o-${hit.entry}`} finding={finding}
+                             canonBody={content} canonPath={canonPath} variantDocumentId={findingsTargets?.get(hit.entry)}
+                             onClose={() => setOpenFindings((s) => s.filter((x) => x !== hit.entry))}
+                             onAccepted={onFindingAccepted} />);
+        }
+      } else {
+        pieces.push(<Aside key={`${bi}-a-${hit.entry}`} entry={hit.entry} onOpen={toggle} onPick={pick}
+                           onOpenDocument={onOpenDocument} onOpenPanel={onOpenPanel}
+                           onClose={() => setOpen((s) => s.filter((x) => x !== hit.entry))} />);
+      }
     }
     if (rest.trim()) {
       pieces.push(
@@ -531,6 +590,7 @@ export function Prose({ content, autoLink = true, findings, onOpenWikilinkOverri
   });
 
   const orphans = open.filter((name) => !shown.has(name));
+  const orphanFindings = openFindings.filter((name) => !shown.has(name));
   // Один контейнер на весь текст: обгортка на кожен фрагмент подвоювала
   // відступи, і текст розсипався на купу абзаців (Юрій: «текст повинен
   // залишатись текстом»).
@@ -541,6 +601,14 @@ export function Prose({ content, autoLink = true, findings, onOpenWikilinkOverri
         <Aside key={`o-${entry}`} entry={entry} onOpen={toggle} onPick={pick} onOpenDocument={onOpenDocument} onOpenPanel={onOpenPanel}
                onClose={() => setOpen((s) => s.filter((x) => x !== entry))} />
       ))}
+      {orphanFindings.map((entry) => {
+        const finding = findingByTitle.get(entry);
+        return finding ? (
+          <OpponentAside key={`of-${entry}`} finding={finding} canonBody={content} canonPath={canonPath}
+                 variantDocumentId={findingsTargets?.get(entry)} onClose={() => setOpenFindings((s) => s.filter((x) => x !== entry))}
+                 onAccepted={onFindingAccepted} />
+        ) : null;
+      })}
     </div>
   );
 }
@@ -593,6 +661,84 @@ function Aside({ entry, onClose, onOpen, onPick, onOpenDocument, onOpenPanel }: 
         {data.document_id && onOpenPanel ? <button type="button" onClick={() => onOpenPanel(data.document_id!)}>у панель</button> : null}
         {data.document_id ? <button type="button" onClick={() => onOpenDocument?.(data.document_id!)}>відкрити картку</button> : null}
         <button type="button" onClick={onClose}>згорнути</button>
+      </span>
+    </span>
+  );
+}
+
+/** Врізка знахідки опонента — той самий принцип, що Aside (продовження
+ *  тексту, не картка), тільки зміст інший: пропозиція правки, редагована,
+ *  з Прийняти/Скасувати. Юрій (2026-09-10): «щоб я міг сам редактувати і
+ *  вписати свій варіант» — тому textarea, а не готовий текст. */
+function OpponentAside({ finding, canonBody, canonPath, variantDocumentId, onClose, onAccepted }: {
+  finding: OpponentFinding;
+  canonBody: string;
+  canonPath?: string;
+  variantDocumentId?: string;
+  onClose: () => void;
+  onAccepted?: () => void;
+}) {
+  const variant = useQuery({
+    queryKey: ["opponent", "variant-content", variantDocumentId],
+    enabled: Boolean(variantDocumentId),
+    queryFn: () => getJson<{ content: string }>(`/api/v1/documents/${variantDocumentId}`)
+  });
+
+  const region = useMemo(
+    () => (variant.data ? extractChangedRegion(canonBody, variant.data.content, finding.quote) : null),
+    [canonBody, variant.data, finding.quote]
+  );
+
+  // Стартове значення — «чистий» проєкт нового тексту з діфу; звідти Юрій
+  // редагує вільно. null, доки регіон не порахований.
+  const [draft, setDraft] = useState<string | null>(null);
+  useEffect(() => { if (region && draft === null) setDraft(region.newText); }, [region, draft]);
+
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const accept = () => {
+    if (!region || !canonPath || draft === null || !draft.trim()) return;
+    setSaving(true); setError(null);
+    postJson<{ ok: boolean }>("/api/v1/opponent/accept", {
+      canon_path: canonPath,
+      variant_path: finding.variant_path,
+      old_text: region.oldText,
+      new_text: draft,
+    })
+      .then(() => { onAccepted?.(); onClose(); })
+      .catch((e: unknown) => { setSaving(false); setError(e instanceof Error ? e.message : "Не вдалося зберегти."); });
+  };
+
+  if (variant.isLoading || (variant.data && !region)) {
+    return <span className="opponent-aside loading">Готую пропозицію…</span>;
+  }
+  if (variant.isError || !region) {
+    return (
+      <span className="opponent-aside missing">
+        <span className="aside-q">Не вдалося звірити варіант із каноном.</span>
+        <button type="button" onClick={onClose}>згорнути</button>
+      </span>
+    );
+  }
+
+  return (
+    <span className="opponent-aside">
+      <b className="aside-name">Опонент — пропозиція правки</b>
+      {finding.based_on ? <span className="opponent-aside-hint">{finding.based_on}</span> : null}
+      <textarea
+        className="opponent-aside-text"
+        value={draft ?? region.newText}
+        onChange={(event) => setDraft(event.target.value)}
+        rows={Math.max(3, (draft ?? region.newText).split("\n").length + 1)}
+        disabled={saving}
+      />
+      {error ? <span className="opponent-aside-error">{error}</span> : null}
+      <span className="aside-tail">
+        <button type="button" className="opponent-accept" disabled={saving || !draft?.trim()} onClick={accept}>
+          {saving ? "Зберігаю…" : "Підтверджую"}
+        </button>
+        <button type="button" onClick={onClose} disabled={saving}>Скасувати</button>
       </span>
     </span>
   );
