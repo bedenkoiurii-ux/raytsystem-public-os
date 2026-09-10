@@ -168,11 +168,15 @@ def _editorial_queue_alert(vault: Path) -> dict[str, str] | None:
     except OSError:
         return None
     section = re.search(r"(?ms)^## Відкриті\s*\n(.*?)(?=\n## |\Z)", text)
-    if section is None or not section.group(1).strip():
+    if section is None:
         return None
+    # Пункт = рядок-заголовок "### ...". Розділювач "---" і порожні рядки —
+    # оформлення файлу, не вміст: рахувати їх "непорожньою чергою" — хибна
+    # тривога (сталось на практиці 2026-09-10 при щойно спорожненій черзі).
     heading = re.search(r"^### (.+)$", section.group(1), re.M)
-    message = heading.group(1).strip() if heading else "Є нерозглянутий пункт без заголовка"
-    return {"message": message}
+    if heading is None:
+        return None
+    return {"message": heading.group(1).strip()}
 
 
 def _require_snapshot(expected: str, actual: str | None) -> None:
