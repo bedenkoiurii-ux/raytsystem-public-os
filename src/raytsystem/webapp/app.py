@@ -418,6 +418,7 @@ def create_app(
     from raytsystem.webapp.agents import resume as conveyor_resume
     from raytsystem.webapp.agents import backup as backup_watcher
     from raytsystem.webapp.agents import weekly as weekly_ritual
+    from raytsystem.webapp.agents import pult as pult_watcher
 
     app = FastAPI(
         title="raytsystem local control plane",
@@ -1908,6 +1909,7 @@ def create_app(
         conveyor_resume.start()
         backup_watcher.start()
         weekly_ritual.start()
+        pult_watcher.start()
 
     @app.on_event("shutdown")
     async def _stop_agents() -> None:
@@ -1916,6 +1918,7 @@ def create_app(
         await conveyor_resume.stop()
         await backup_watcher.stop()
         await weekly_ritual.stop()
+        await pult_watcher.stop()
 
     app.include_router(create_feature_router(resolved_root, require_session=require_session))
 

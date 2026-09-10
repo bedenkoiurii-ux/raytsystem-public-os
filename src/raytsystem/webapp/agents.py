@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import signal
 import subprocess
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -652,8 +653,113 @@ class WeeklyRitual:
                 pass
 
 
+PULT_ROOT = Path.home() / "Writer-Lab/raytsystem"          # корінь цього репо
+PULT_SCRIPT = PULT_ROOT / "voice_console.py"
+PULT_PID_FILE = STORE / "pult.pid"
+PULT_LOG_FILE = STORE / "pult.log"
+PULT_INTERVAL_SECONDS = 300              # той самий ритм, що й ConveyorResume
+
+
+class PultWatcher:
+    """Підіймач голосового пульта. Закриває KI-02: пульт не піднімався сам
+    після перезавантаження Mac, бо жив поза системою — окремим `uv run` у
+    терміналі, який ніхто не тримав.
+
+    РІШЕННЯ ЮРІЯ (2026-07-31): «Пульт — частина системи… включаємо його в
+    систему і нехай працює всередині» — та сама межа, що в [[ConveyorResume]]
+    вище, тільки тут агент сам піднімає довгоживучий процес (`Popen`, не
+    `run`), а не лише будить уже-даемонізований `wl-loop.sh`. `start_new_session`
+    відв'язує пульт від сесії застосунку, щоб `stop()` міг завершити саме його,
+    не заваливши й самого себе.
+    """
+
+    def __init__(self) -> None:
+        self.enabled = True
+        self.last_check: str | None = None
+        self.last_event: str | None = None
+        self.checked: str = "ще не перевірявся"
+        self._task: asyncio.Task[None] | None = None
+
+    def state(self) -> dict[str, object]:
+        return {
+            "enabled": self.enabled,
+            "alive": _alive(PULT_PID_FILE),
+            "interval_seconds": PULT_INTERVAL_SECONDS,
+            "last_check": self.last_check,
+            "last_event": self.last_event,
+            "pid_file": str(PULT_PID_FILE),
+        }
+
+    def _start_process(self) -> bool:
+        """Підняти voice_console.py. Синхронний і блокуючий — кличемо через
+        asyncio.to_thread, як `_lift` у ConveyorResume."""
+        if not PULT_SCRIPT.is_file():
+            self.last_event = f"voice_console.py не знайдено: {PULT_SCRIPT}"
+            return False
+        try:
+            STORE.mkdir(parents=True, exist_ok=True)
+            with PULT_LOG_FILE.open("a", encoding="utf-8") as log_fh:
+                log_fh.write(f"=== [pult] піднято автоматично застосунком "
+                             f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===\n")
+                process = subprocess.Popen(
+                    ["uv", "run", "--with", "fastapi", "--with", "uvicorn",
+                     "--with", "python-multipart", "python", str(PULT_SCRIPT)],
+                    cwd=PULT_ROOT, stdout=log_fh, stderr=subprocess.STDOUT,
+                    start_new_session=True,
+                )
+            PULT_PID_FILE.write_text(str(process.pid), encoding="utf-8")
+            return True
+        except Exception as error:           # старт не має валити застосунок
+            self.last_event = f"пульт не піднявся: {error}"
+            return False
+
+    async def _tick(self) -> None:
+        self.last_check = datetime.now(UTC).isoformat(timespec="seconds")
+        if _alive(PULT_PID_FILE):
+            self.checked = "живий"
+            return
+        ok = await asyncio.to_thread(self._start_process)
+        if ok:
+            self.checked = "піднято"
+            self.last_event = f"{self.last_check} — пульт піднято"
+        else:
+            self.checked = "підняти не вдалося"
+
+    async def _loop(self) -> None:
+        while True:
+            try:
+                if self.enabled:
+                    await self._tick()
+            except asyncio.CancelledError:
+                raise
+            except Exception as error:           # один невдалий цикл не валить вартового
+                self.last_event = f"помилка пульта: {error}"
+            await asyncio.sleep(PULT_INTERVAL_SECONDS)
+
+    def start(self) -> None:
+        if self._task is None or self._task.done():
+            self._task = asyncio.create_task(self._loop())
+
+    async def stop(self) -> None:
+        if self._task and not self._task.done():
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
+        # Осиротілий пульт-процес лишається висіти на порту 8792, якщо його
+        # не зупинити тут — наступний старт застосунку не зможе підняти новий.
+        if _alive(PULT_PID_FILE):
+            try:
+                os.kill(int(PULT_PID_FILE.read_text().strip()), signal.SIGTERM)
+            except (OSError, ValueError):
+                pass
+            PULT_PID_FILE.unlink(missing_ok=True)
+
+
 watcher = InboxWatcher()
 originals = OriginalsWatcher()
 resume = ConveyorResume()
 backup = BackupWatcher()
 weekly = WeeklyRitual()
+pult = PultWatcher()
