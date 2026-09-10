@@ -41,6 +41,10 @@ interface DocumentTreeProps {
   /** Шляхи канону з відкритою знахідкою опонента — крапка в дереві,
    *  щоб було видно, не заходячи в документ (Юрій, 2026-09-10). */
   opponentPaths?: Set<string>;
+  /** document_id, який дерево має саме розгорнути й прокрутити до нього —
+   *  не тільки позначити. Юрій: «має бути підсвічений, чи як мінімум
+   *  відкритий». Розгортає весь ланцюг якір-книга → група «Частини». */
+  revealDocumentId?: string | null;
 }
 
 const ROW_HEIGHT = 50;   // вище — щоб повна назва містилась у 2 рядки (без обрізання)
@@ -329,7 +333,7 @@ function auditTriple(document?: DocumentSummary): readonly number[] | null {
   return Array.isArray(raw) && raw.length === 3 && raw.every((n) => typeof n === "number") ? (raw as number[]) : null;
 }
 
-export function DocumentTree({ documents, folders = [], roots = [], selectedDocumentId, loading, onOpen, onExpandFolder, opponentPaths }: DocumentTreeProps) {
+export function DocumentTree({ documents, folders = [], roots = [], selectedDocumentId, loading, onOpen, onExpandFolder, opponentPaths, revealDocumentId }: DocumentTreeProps) {
   const versionIndex = useMemo(() => indexVersions(documents), [documents]);
   const tree = useMemo(() => buildTree(documents, folders, roots, versionIndex.versionIds), [documents, folders, roots, versionIndex]);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set([...tree.folders.values()].map((folder) => folder.id)));
@@ -376,6 +380,34 @@ export function DocumentTree({ documents, folders = [], roots = [], selectedDocu
       next?.focus();
     }));
   };
+
+  // Знахідка опонента: розгорнути ланцюг якір-книга → група «Частини» й
+  // прокрутити до рядка — двофазно, бо розгортання й видимість рядка
+  // приходять різними рендерами (той самий сходинковий підхід, що й у
+  // focusEntry, без .focus(), щоб не красти фокус клавіатури з читання).
+  const revealedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!revealDocumentId || revealedRef.current === revealDocumentId) return;
+    const index = visible.findIndex((entry) => entry.id === revealDocumentId);
+    if (index >= 0) {
+      const viewport = viewportRef.current;
+      if (viewport) {
+        const top = index * ROW_HEIGHT;
+        const bottom = top + ROW_HEIGHT;
+        if (top < viewport.scrollTop) viewport.scrollTop = top;
+        else if (bottom > viewport.scrollTop + viewport.clientHeight) viewport.scrollTop = Math.max(0, bottom - viewport.clientHeight);
+        setScrollTop(viewport.scrollTop);
+      }
+      revealedRef.current = revealDocumentId;
+      return;
+    }
+    for (const [anchorId, children] of versionIndex.versionsFor) {
+      if (children.some((child) => child.document_id === revealDocumentId)) {
+        setExpanded((current) => new Set([...current, anchorId, `group:${anchorId}:parts`]));
+        return;
+      }
+    }
+  }, [revealDocumentId, visible, versionIndex.versionsFor]);
 
   const toggleFolder = (entry: VisibleEntry, force?: boolean) => {
     if (entry.type !== "folder" && !entry.expandable) return;

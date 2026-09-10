@@ -33,25 +33,37 @@ export function useOpponentFindings() {
 
 /** `variant_title` → `document_id`, по одному запиту на відкритий варіант.
  *  Список зазвичай порожній або з 1–2 пунктів — резолвити все одразу дешевше,
- *  ніж чекати кліку: клік має відкривати панель миттєво, не після round-trip. */
+ *  ніж чекати кліку: клік має відкривати панель миттєво, не після round-trip.
+ *
+ *  Помилку НЕ ковтаємо — кидаємо далі, щоб query сам повторив спробу.
+ *  Живий баг 10.09: пошук варіанта попав під 409 (гонка з переіндексацією
+ *  щойно створеного файла); тихий catch на кожен пункт перетворював це на
+ *  «успішну» порожню мапу — react-query бачив success і більше не пробував,
+ *  targetId лишався undefined назавжди, врізка стояла на «Готую…».
+ *
+ *  Друга живa знахідка того самого дня: /documents/search падає 409
+ *  (`document_index_stale`, «exceeded its safe query budget») на запиті
+ *  з тире «—» — а тире є в майже кожній назві файла в бібліотеці. Це
+ *  бекенд-баг ширший за цю фічу (той самий пошук веде й банер черги питань
+ *  в App.tsx); тут — обхід: тире прибираємо з рядка пошуку, решта назви
+ *  й так однозначно знаходить файл. */
 export function useOpponentTargets(items: OpponentFinding[]) {
   return useQuery({
     queryKey: ["opponent", "targets", items.map((i) => i.variant_path).join("|")],
     enabled: items.length > 0,
     staleTime: 60_000,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(300 * 2 ** attempt, 2_000),
     queryFn: async () => {
       const out = new Map<string, string>();
       await Promise.all(items.map(async (item) => {
-        const filename = item.variant_path.split("/").pop()?.replace(/\.md$/, "") ?? item.variant_title;
-        try {
-          const found = await getJson<{ items: Array<{ path: string; document_id: string }> }>(
-            `/api/v1/documents/search?q=${encodeURIComponent(filename)}`
-          );
-          const hit = found.items.find((x) => x.path === item.variant_path) ?? found.items[0];
-          if (hit) out.set(item.variant_title, hit.document_id);
-        } catch {
-          // Резолв не вдався — посилання лишається непроклацним, не аварією.
-        }
+        const filename = (item.variant_path.split("/").pop()?.replace(/\.md$/, "") ?? item.variant_title)
+          .replace(/[—–-]/g, " ").replace(/\s+/g, " ").trim();
+        const found = await getJson<{ items: Array<{ path: string; document_id: string }> }>(
+          `/api/v1/documents/search?q=${encodeURIComponent(filename)}`
+        );
+        const hit = found.items.find((x) => x.path === item.variant_path) ?? found.items[0];
+        if (hit) out.set(item.variant_title, hit.document_id);
       }));
       return out;
     }

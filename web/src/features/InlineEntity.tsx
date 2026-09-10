@@ -506,10 +506,20 @@ export function Prose({ content, autoLink = true, findings, onOpenWikilinkOverri
     const first = findings[0].variant_title;
     setOpenFindings((s) => (s.includes(first) ? s : [...s, first]));
   }, [autoOpenFirstFinding, findings]);
+  // Ключ по самому вмісту (не похідному булеану) — і подвійний rAF: перший
+  // рендер після setOpenFindings домальовує врізку, другий чекає, доки
+  // браузер її справді розмістив (інакше scrollIntoView часом стріляв по
+  // висоті 0, ще до макета — живий баг 10.09).
+  const scrolledToRef = useRef("");
   useEffect(() => {
-    if (!openFindings.length) return;
-    host.current?.querySelector(".opponent-aside")?.scrollIntoView({ block: "center" });
-  }, [openFindings.length > 0]);
+    const key = openFindings.join("");
+    if (!openFindings.length || scrolledToRef.current === key) return;
+    scrolledToRef.current = key;
+    const frame = requestAnimationFrame(() => requestAnimationFrame(() => {
+      host.current?.querySelector(".opponent-aside")?.scrollIntoView({ block: "center" });
+    }));
+    return () => cancelAnimationFrame(frame);
+  }, [openFindings]);
 
   const blocks = prepared.split(/\n{2,}/);
   const shown = new Set<string>();
@@ -710,7 +720,10 @@ function OpponentAside({ finding, canonBody, canonPath, variantDocumentId, onClo
       .catch((e: unknown) => { setSaving(false); setError(e instanceof Error ? e.message : "Не вдалося зберегти."); });
   };
 
-  if (variant.isLoading || (variant.data && !region)) {
+  // variantDocumentId ще не резолвився (opponentTargets — окремий запит,
+  // трохи відстає від findings) — це чекання, а не помилка. Живий баг
+  // 10.09: показувало «не вдалося», хоча за мить targetId сам підʼїжджав.
+  if (!variantDocumentId || variant.isLoading || (variant.data && !region)) {
     return <span className="opponent-aside loading">Готую пропозицію…</span>;
   }
   if (variant.isError || !region) {
