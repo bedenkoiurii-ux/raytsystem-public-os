@@ -1229,7 +1229,7 @@ button.table-row:hover { background: var(--surface-2); color: var(--bone); }
 /* Перемапування дизайн-токенів усередині аркуша: успадковується всім вмістом */
 /* Скоуп аркуша: основне поле І peek-панель картки — щоб читання не розпадалося
    на два світи (світлий документ / темна картка поруч). */
-:is(.document-content, .doc-peek, .map-card).sheet-light {
+:is(.document-content, .doc-peek, .map-card, .prose-diff-body).sheet-light {
   --sheet-paper: #fbfaf5; --sheet-desk: #efede6;           /* типово: теплий папір */
   --bone: #17140e; --muted: #33312b; --carbon-soft: #e9e6dc;
   --cyan: #1a56a0; --gold: #6d5a10;
@@ -1238,8 +1238,8 @@ button.table-row:hover { background: var(--surface-2); color: var(--bone); }
    смуги на стиках панелей і над документом: у вузькій колонці його видно не
    як стіл, а як обрізок чужого кольору. Аркуш на темному з тінню читається
    як аркуш і без нього. */
-:is(.document-content, .doc-peek, .map-card).sheet-light[data-sheet-tone="white"] { --sheet-paper: #ffffff; --sheet-desk: #ececec; }
-:is(.document-content, .doc-peek, .map-card).sheet-light[data-sheet-tone="sepia"] { --sheet-paper: #f7efdc; --sheet-desk: #e9dfc7; --bone: #241c0d; --muted: #3d3420; }
+:is(.document-content, .doc-peek, .map-card, .prose-diff-body).sheet-light[data-sheet-tone="white"] { --sheet-paper: #ffffff; --sheet-desk: #ececec; }
+:is(.document-content, .doc-peek, .map-card, .prose-diff-body).sheet-light[data-sheet-tone="sepia"] { --sheet-paper: #f7efdc; --sheet-desk: #e9dfc7; --bone: #241c0d; --muted: #3d3420; }
 /* У Документах аркуш — `.safe-markdown` (обгортка від Prose), у peek рендерер
    дає голий `.doc-markdown` без неї. Папером має ставати те, що є на поверхні. */
 :is(.document-content, .doc-peek).sheet-light .safe-markdown,
