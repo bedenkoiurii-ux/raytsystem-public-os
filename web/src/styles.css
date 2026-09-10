@@ -1232,7 +1232,7 @@ button.table-row:hover { background: var(--surface-2); color: var(--bone); }
 :is(.document-content, .doc-peek, .map-card, .prose-diff-body).sheet-light {
   --sheet-paper: #fbfaf5; --sheet-desk: #efede6;           /* типово: теплий папір */
   --bone: #17140e; --muted: #33312b; --carbon-soft: #e9e6dc;
-  --cyan: #1a56a0; --gold: #6d5a10;
+  --cyan: #1a56a0; --gold: #6d5a10; --rose: #b4233d; --mint: #1b7548;
 }
 /* Тло під аркушем лишається темною хромою застосунку. Світлий «стіл» давав
    смуги на стиках панелей і над документом: у вузькій колонці його видно не

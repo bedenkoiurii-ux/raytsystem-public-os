@@ -413,11 +413,14 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
   // Юрій (2026-09-10): клік по банеру знахідок опонента мусить одразу
   // показувати, що саме потребує правки — не читання й ручний пошук
   // підсвітки, а Diff при самому відкритті. Спрацьовує РАЗ на документ
-  // (ref, не state) і лише в свіжовідкритій read-вкладці — не забирає
-  // режим, який користувач уже сам обрав.
+  // (ref, не state). Режим при відкритті може бути будь-яким відновленим
+  // зі старої сесії (read/diff/markdown) — саме тому проблема була
+  // непомітна на моїй перевірці й видима на живому вікні Юрія: відновлений
+  // "diff" з local-changes блокував спрацювання. Не займаємо лише
+  // source/visual — там користувач свідомо редагує.
   const autoOpenedFindingRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!activeId || activeTab?.mode !== "read" || !docFindings.length) return;
+    if (!activeId || activeTab?.mode === "source" || activeTab?.mode === "visual" || !docFindings.length) return;
     if (autoOpenedFindingRef.current === activeId) return;
     const targetId = opponentTargets.data?.get(docFindings[0].variant_title);
     if (!targetId) return;
