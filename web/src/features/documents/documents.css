@@ -211,6 +211,9 @@
 .doc-markdown a, .doc-relative-link, .doc-wikilink { color: var(--cyan); text-decoration: none; }
 .doc-relative-link, .doc-wikilink { display: inline; padding: 0 2px; border: 0; border-radius: 3px; background: color-mix(in srgb, var(--cyan) 8%, transparent); font: inherit; cursor: pointer; }
 .doc-wikilink.doc-embed { color: var(--gold); background: color-mix(in srgb, var(--gold) 9%, transparent); }
+/* Знахідка опонента — той самий вікілінк, окремий колір: тема на семантику
+   «потребує вердикту», не оформлення (rayt-design: rose = блок/увага). */
+.doc-wikilink.doc-finding { color: var(--rose); background: color-mix(in srgb, var(--rose) 10%, transparent); border-bottom: 1px dotted var(--rose); }
 .doc-unsafe-link { color: var(--rose); text-decoration: line-through; }
 .doc-markdown code { padding: 1px 5px; border-radius: 5px; background: var(--surface-2); color: var(--gold); font: 12px/1.5 var(--mono); }
 .doc-code-block, .doc-inert-html { margin: 1.2em 0; padding: 14px 16px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--carbon-soft); }

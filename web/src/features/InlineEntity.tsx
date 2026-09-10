@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getJson, postJson } from "../api";
 import { focusEntity } from "./entityFocus";
 import { bucketKey, sameWords, words } from "./documents/entityStem";
+import { markFindings, type OpponentFinding } from "./documents/opponentFindings";
 import { SafeMarkdownView, type WikilinkTarget } from "./documents/SafeMarkdownView";
 
 /** Розгортання сутності просто в тілі тексту — універсальний принцип системи.
@@ -375,10 +376,14 @@ export function InlineCard({ name, onClose, onOpen, onOpenDocument, onOpenPanel 
  *  Механіка проста навмисно: розбиваємо прозу на абзаци й рендеримо кожен
  *  окремо; картка йде після того абзацу, де посилання трапилось уперше.
  *  Без порталів і вимірювань DOM — вставка живе в самій розмітці тексту. */
-export function Prose({ content, autoLink = true, onOpenWikilinkOverride, onOpenDocument, onOpenPanel, onOpenSource, onOpenRelativeLink, resolveImage }: {
+export function Prose({ content, autoLink = true, findings, onOpenWikilinkOverride, onOpenDocument, onOpenPanel, onOpenSource, onOpenRelativeLink, resolveImage }: {
   content: string;
   /** Підсвічувати сутності, яких автор не позначив руками. */
   autoLink?: boolean;
+  /** Відкриті варіанти опонента для ЦЬОГО документа (вже відфільтровані
+   *  викликачем за `canon_path`). Дослівна цитата обгортається вікілінком
+   *  на варіант ДО автолінку сутностей — див. `opponentFindings.markFindings`. */
+  findings?: OpponentFinding[];
   /** Документи перехоплюють клік: основна дія — картка в панелі, каскадом.
    *  Поверни `false` (або нічого не повертай), щоб клік провалився до
    *  власної врізки Prose під абзацом — саме так поводиться ⌥-клік і
@@ -446,9 +451,25 @@ export function Prose({ content, autoLink = true, onOpenWikilinkOverride, onOpen
     [forms.data?.proper]
   );
   const surnameForms = useMemo(() => new Set(forms.data?.surnames ?? []), [forms.data?.surnames]);
+  const withFindings = findings?.length ? markFindings(content, findings) : content;
   const prepared = autoLink && forms.data?.forms
-    ? autolink(content, forms.data.forms, properForms, surnameForms, forms.data.homonyms)
-    : content;
+    ? autolink(withFindings, forms.data.forms, properForms, surnameForms, forms.data.homonyms)
+    : withFindings;
+
+  // Посилання-знахідка виглядає як звичайний вікілінк для рендерера — тож
+  // позначаємо його окремим класом ПІСЛЯ рендеру, за `data-target`, замість
+  // правки парсера `SafeMarkdownView`. Дешево: знахідок 0–кілька за сеанс.
+  const findingTitles = useMemo(
+    () => new Set((findings ?? []).map((f) => f.variant_title)),
+    [findings]
+  );
+  useEffect(() => {
+    const el = host.current;
+    if (!el || !findingTitles.size) return;
+    el.querySelectorAll<HTMLElement>(".doc-wikilink").forEach((btn) => {
+      if (findingTitles.has(btn.dataset.target ?? "")) btn.classList.add("doc-finding");
+    });
+  }, [findingTitles, prepared]);
   const blocks = prepared.split(/\n{2,}/);
   const shown = new Set<string>();
   const pieces: React.ReactNode[] = [];

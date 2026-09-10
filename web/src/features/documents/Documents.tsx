@@ -76,6 +76,7 @@ import { DocumentTabs } from "./DocumentTabs";
 import { DocumentTree } from "./DocumentTree";
 import { headingId, SafeMarkdownView, safeImageUrl, type WikilinkTarget } from "./SafeMarkdownView";
 import { CardScope, Prose } from "../InlineEntity";
+import { findingsForDocument, useOpponentFindings, useOpponentTargets } from "./opponentFindings";
 
 import { DocumentPeek } from "./DocumentPeek";
 import { EntityOrderDialog, type EntityOrderRequest } from "./EntityOrderDialog";
@@ -398,6 +399,12 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
   // конвеєр, що комітить щохвилини, — картка мовчки переставала відкриватись.
   const links = useDocumentLinks(activeId, null);
   const backlinks = useDocumentBacklinks(activeId, snapshotId || null);
+  const opponentFindings = useOpponentFindings();
+  const docFindings = useMemo(
+    () => findingsForDocument(opponentFindings.data?.items ?? [], detail.data?.document.path ?? ""),
+    [opponentFindings.data, detail.data?.document.path]
+  );
+  const opponentTargets = useOpponentTargets(docFindings);
   const history = useDocumentHistory(activeId, snapshotId || null);
   const revisionDetail = useDocumentRevisionDetail(activeId, revisionTarget?.history_id ?? null, snapshotId || null);
   const activeDraft = activeId ? workspace.drafts[activeId] : undefined;
@@ -632,6 +639,11 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
   // униз, картка з'являлась, а Юрій бачив «нічого не відбулось».
   const resolveWikilink = (target: WikilinkTarget, event?: { altKey: boolean }): boolean => {
     if (event?.altKey) return false;
+    // Знахідка опонента першою: ціль — назва варіанта, якого в графі посилань
+    // ЦЬОГО документа немає (вікілінк вставлений при рендері, у файлі його
+    // нема) — тож звичайний matchingDocumentLink тут завжди мовчав би.
+    const opponentId = opponentTargets.data?.get(target.target);
+    if (opponentId) { setCard1({ id: opponentId, heading: target.heading ?? undefined }); setC2Hist([]); setC2Pos(-1); return true; }
     const match = matchingDocumentLink(target, links.data?.items ?? []);
     const id = match?.target_document_id ?? (match?.candidates?.length === 1 ? match.candidates[0].document_id : null);
     if (!id) return false;
@@ -795,7 +807,7 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
               <div className={`document-content${sheetLight && (activeTab.mode === "read" || activeTab.mode === "visual") ? " sheet-light" : ""}`} data-sheet-tone={sheetLight ? sheetTone : undefined} data-sheet-format={sheetFormat}>
                 {activeIsImage && detail.data ? <DocumentImageView detail={detail.data} /> : null}
                 {activeUnsupported ? <div className="doc-visual-unavailable" role="status"><strong>Для цього формату немає безпечного viewer</strong><p>Файл видно в керованому workspace, але його вміст не передано браузеру.</p></div> : null}
-                {!activeIsImage && !activeUnsupported && activeTab.mode === "read" ? <Prose key={activeId} content={activeDraft.content} autoLink={autoLink} onOpenWikilinkOverride={resolveWikilink} onOpenDocument={openCascade} onOpenPanel={openCascade} onOpenSource={() => dispatch({ type: "mode", documentId: activeId, mode: "source" })} onOpenRelativeLink={(target) => { const match = links.data?.items.find((link) => link.target === target); if (match?.target_document_id) openById(match.target_document_id, match.heading); else setNotice("Відносне посилання не дозволене або не знайдене."); }} resolveImage={(target) => { const asset = detail.data?.assets?.[target]; return typeof asset === "string" ? asset : asset?.url ?? (target.startsWith("/api/v1/documents/") ? target : null); }} /> : null}
+                {!activeIsImage && !activeUnsupported && activeTab.mode === "read" ? <Prose key={activeId} content={activeDraft.content} autoLink={autoLink} findings={docFindings} onOpenWikilinkOverride={resolveWikilink} onOpenDocument={openCascade} onOpenPanel={openCascade} onOpenSource={() => dispatch({ type: "mode", documentId: activeId, mode: "source" })} onOpenRelativeLink={(target) => { const match = links.data?.items.find((link) => link.target === target); if (match?.target_document_id) openById(match.target_document_id, match.heading); else setNotice("Відносне посилання не дозволене або не знайдене."); }} resolveImage={(target) => { const asset = detail.data?.assets?.[target]; return typeof asset === "string" ? asset : asset?.url ?? (target.startsWith("/api/v1/documents/") ? target : null); }} /> : null}
                 {/* «У сутності» — замовлення картки з виділення в читанні
                     (рішення Юрія 2026-08-03). Кнопка плаває над текстом, поки
                     є виділення; текст документа не змінюється ніколи. */}

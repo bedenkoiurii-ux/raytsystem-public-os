@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 import secrets
 from datetime import UTC, datetime
@@ -177,6 +178,26 @@ def _editorial_queue_alert(vault: Path) -> dict[str, str] | None:
     if heading is None:
         return None
     return {"message": heading.group(1).strip()}
+
+
+def _opponent_queue_alert(vault: Path) -> dict[str, str] | None:
+    """`opponent-index.json` (`90-Meta/scripts/opponent_index.py`) — відкриті варіанти правки.
+
+    Той самий патерн, що `_editorial_queue_alert`: один дешевий читач файлу,
+    банер висить, поки список не спорожніє (варіант прийнятий чи відхилений).
+    """
+    index_path = vault / "90-Meta" / "opponent-index.json"
+    try:
+        data = json.loads(index_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    items = data.get("items") or []
+    if not items:
+        return None
+    first = items[0]
+    n = len(items)
+    word = "варіант" if n == 1 else "варіанти" if n < 5 else "варіантів"
+    return {"message": f"{n} {word} опонента чекають вердикту", "path": first["canon_path"]}
 
 
 def _require_snapshot(expected: str, actual: str | None) -> None:
@@ -646,6 +667,15 @@ def create_app(
                 "message": editorial["message"],
                 "route": "documents",
                 "path": "35-Editorial/ЧЕРГА-ПИТАНЬ.md",
+            })
+        opponent = _opponent_queue_alert(resolved_root)
+        if opponent is not None:
+            queue_alerts.append({
+                "id": "opponent-variants",
+                "title": "Опонент — є варіант правки, що чекає вердикту",
+                "message": opponent["message"],
+                "route": "documents",
+                "path": opponent["path"],
             })
         for conflict in merge_conflicts():
             queue_alerts.append({
@@ -1894,6 +1924,8 @@ def create_app(
     # ФОРК uk-locale: сутності в документах — підсвітка покриття і замовлення.
     from raytsystem.webapp.entity_routes import create_entity_router
     app.include_router(create_entity_router(resolved_root, require_session=require_session))
+    from raytsystem.webapp.opponent_routes import create_opponent_router
+    app.include_router(create_opponent_router(resolved_root, require_session=require_session))
     app.include_router(create_reception_router(resolved_root, require_session=require_session))
     app.include_router(create_settings_router(resolved_root, require_session=require_session))
     app.include_router(create_map_router(resolved_root, require_session=require_session))
