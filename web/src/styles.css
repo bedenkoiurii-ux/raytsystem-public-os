@@ -211,6 +211,12 @@ kbd { display: inline-grid; place-items: center; min-width: 22px; height: 22px; 
 /* both-edges: місце під смугу прокрутки резервується СИМЕТРИЧНО, інакше центрований вміст
    зміщений ліворуч на ширину смуги (праворуч відступ від краю більший). */
 .main-content { min-width: 0; min-height: 0; overflow: auto; padding: clamp(18px, 2.4cqi, 24px) clamp(18px, 2.8cqi, 28px) 32px; scroll-behavior: smooth; scrollbar-gutter: stable both-edges; }
+.global-queue-alerts { display: flex; flex-direction: column; gap: 8px; max-width: 1540px; margin: 0 auto 14px; }
+.queue-alert { position: sticky; z-index: 8; top: -1px; display: flex; align-items: center; gap: 9px; width: 100%; min-height: 43px; padding: 9px 12px; border: 1px solid rgba(221,187,101,.4); border-radius: 10px; background: color-mix(in srgb, var(--carbon-soft) 92%, var(--gold)); color: var(--gold); box-shadow: 0 10px 30px rgba(0,0,0,.18); cursor: pointer; text-align: left; font: inherit; }
+.queue-alert:hover { border-color: rgba(221,187,101,.7); }
+.queue-alert strong { display: block; color: var(--bone); font-size: 11px; }
+.queue-alert small { display: block; margin-top: 2px; color: var(--muted); font: 9px var(--mono); }
+@media (max-width: 820px) { .queue-alert { flex-wrap: wrap; } }
 .route { max-width: 1540px; margin: 0 auto; animation: route-in 180ms ease both; }
 @keyframes route-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 

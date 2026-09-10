@@ -155,6 +155,26 @@ def _truncate(value: str, limit: int = 320) -> str:
     return value if len(value) <= limit else value[: limit - 1].rstrip() + "…"
 
 
+def _editorial_queue_alert(vault: Path) -> dict[str, str] | None:
+    """Черга питань 35-Editorial/ЧЕРГА-ПИТАНЬ.md — розділ «## Відкриті» непорожній.
+
+    Раніше про це дізнавались лише випадково (сесія відкрила файл сама). Тепер
+    це читає /api/v1/system при кожному запиті — дешево (один markdown-файл),
+    і банер на весь застосунок висить, поки розділ не спорожніє.
+    """
+    queue_file = vault / "35-Editorial" / "ЧЕРГА-ПИТАНЬ.md"
+    try:
+        text = queue_file.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return None
+    section = re.search(r"(?ms)^## Відкриті\s*\n(.*?)(?=\n## |\Z)", text)
+    if section is None or not section.group(1).strip():
+        return None
+    heading = re.search(r"^### (.+)$", section.group(1), re.M)
+    message = heading.group(1).strip() if heading else "Є нерозглянутий пункт без заголовка"
+    return {"message": message}
+
+
 def _require_snapshot(expected: str, actual: str | None) -> None:
     if _SNAPSHOT_ID.fullmatch(expected) is None or actual is None:
         raise HTTPException(
@@ -392,6 +412,8 @@ def create_app(
     from raytsystem.webapp.agents import watcher as inbox_watcher
     from raytsystem.webapp.agents import originals as originals_watcher
     from raytsystem.webapp.agents import resume as conveyor_resume
+    from raytsystem.webapp.agents import backup as backup_watcher
+    from raytsystem.webapp.agents import weekly as weekly_ritual
 
     app = FastAPI(
         title="raytsystem local control plane",
@@ -604,12 +626,38 @@ def create_app(
         for task in snapshot.tasks.tasks:
             task_counts[task.status.value] += 1
         failed_states = {"retryable_failed", "terminal_failed", "quarantined"}
+
+        # Питання, що чекають слова Юрія — раніше видно було, лише випадково
+        # відкривши файл чи картку конвеєра; тепер стоїть банером у кожному
+        # розділі застосунку, поки не розберуть (рішення Юрія 2026-09-10).
+        from raytsystem.webapp.conveyor_routes import merge_conflicts
+
+        queue_alerts: list[dict[str, Any]] = []
+        editorial = _editorial_queue_alert(resolved_root)
+        if editorial is not None:
+            queue_alerts.append({
+                "id": "cherha-pytan",
+                "title": "Черга питань — є нерозглянуті пункти",
+                "message": editorial["message"],
+                "route": "documents",
+                "path": "35-Editorial/ЧЕРГА-ПИТАНЬ.md",
+            })
+        for conflict in merge_conflicts():
+            queue_alerts.append({
+                "id": f"merge-conflict-{conflict['task']}",
+                "title": f"Конвеєр «{conflict['title']}» — конфлікт злиття",
+                "message": conflict["message"],
+                "route": "conveyors",
+                "path": None,
+            })
+
         attention = {
             "blocked_tasks": sum(
                 1 for task in snapshot.tasks.tasks if task.status is TaskStatus.BLOCKED
             ),
             "failed_runs": sum(1 for run in snapshot.runs if run.state in failed_states),
             "restricted_skills": sum(1 for skill in snapshot.catalog.skills if not skill.enabled),
+            "queue_alerts": queue_alerts,
         }
         fingerprint = {
             "knowledge_generation_id": snapshot.corpus.generation.generation_id,
@@ -1854,12 +1902,16 @@ def create_app(
         inbox_watcher.start()
         originals_watcher.start()
         conveyor_resume.start()
+        backup_watcher.start()
+        weekly_ritual.start()
 
     @app.on_event("shutdown")
     async def _stop_agents() -> None:
         await inbox_watcher.stop()
         await originals_watcher.stop()
         await conveyor_resume.stop()
+        await backup_watcher.stop()
+        await weekly_ritual.stop()
 
     app.include_router(create_feature_router(resolved_root, require_session=require_session))
 

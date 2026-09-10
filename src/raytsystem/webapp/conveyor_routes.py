@@ -264,6 +264,17 @@ def _merge_conflict(task: str) -> str | None:
     return text[:300] or None
 
 
+def merge_conflicts() -> list[dict[str, str]]:
+    """Усі конвеєри, де автозлиття спинилось — читає /api/v1/system для
+    застосунково-широкого банера уваги (не лише картку на цій сторінці)."""
+    out: list[dict[str, str]] = []
+    for task in TASKS:
+        message = _merge_conflict(task["name"])
+        if message:
+            out.append({"task": task["name"], "title": task["title"], "message": message})
+    return out
+
+
 def _timing(log: list[str], state_code: str) -> dict[str, Any] | None:
     """Скільки триває поточний прогін проти звичайного для цієї задачі.
 

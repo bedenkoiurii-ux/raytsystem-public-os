@@ -34,7 +34,7 @@ from __future__ import annotations
 import asyncio
 import os
 import subprocess
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -450,6 +450,210 @@ class ConveyorResume:
                 pass
 
 
+BACKUP_SCRIPT = LIBRARY / "90-Meta/scripts/backup.py"
+BACKUP_LOG = LIBRARY / "90-Meta/reports/backup-log.md"
+BACKUP_INTERVAL_SECONDS = 3600     # раз на годину звірити дату — читання одного рядка, нуль моделі
+
+
+def _last_backup_date() -> str | None:
+    """Дата останнього рядка backup-log.md. Формат пише сам backup.py: `- YYYY-MM-DD HH:MM — …`."""
+    try:
+        lines = [l for l in BACKUP_LOG.read_text(encoding="utf-8").splitlines() if l.strip()]
+    except OSError:
+        return None
+    return lines[-1][2:12] if lines else None
+
+
+def _needs_backup(last_backup_date: str | None, today: str) -> bool:
+    return last_backup_date != today
+
+
+class BackupWatcher:
+    """Щоденний бекап (Фаза 7). Формула ротації — CLAUDE.md, розділ «Бекапи»,
+    змінює лише Юрій; тут лише розклад.
+
+    РІШЕННЯ ЮРІЯ (2026-07-27/31): ритуали — фонові процеси системи так само,
+    як варта інбоксу й синхрон оригіналів, тому живуть тут, а не в launchd чи
+    ручному запуску. Знайдено 06.08: останній бекап лежав за 35 днів до
+    цього — формула вимагає щоденного, а `backup.py` як скрипт ніхто не будив.
+    Сам скрипт моделі не коштує (tar.gz і ротація), тож вартовий лише звіряє
+    дату останнього рядка логу й будить його, коли день змінився.
+    """
+
+    def __init__(self) -> None:
+        self.enabled = True
+        self.last_check: str | None = None
+        self.last_event: str | None = None
+        self._task: asyncio.Task[None] | None = None
+
+    def state(self) -> dict[str, object]:
+        return {
+            "enabled": self.enabled,
+            "alive": bool(self._task and not self._task.done()),
+            "interval_seconds": BACKUP_INTERVAL_SECONDS,
+            "last_check": self.last_check,
+            "last_event": self.last_event,
+            "last_backup": _last_backup_date(),
+        }
+
+    async def _tick(self) -> None:
+        self.last_check = datetime.now(UTC).isoformat(timespec="seconds")
+        today = datetime.now().strftime("%Y-%m-%d")
+        if not _needs_backup(_last_backup_date(), today) or not BACKUP_SCRIPT.is_file():
+            return
+        done = await asyncio.to_thread(
+            subprocess.run,
+            ["uv", "run", "--with", "pyyaml", "python3", str(BACKUP_SCRIPT)],
+            capture_output=True, text=True, timeout=1800, cwd=str(BACKUP_SCRIPT.parent),
+        )
+        tail = [l for l in done.stdout.strip().splitlines() if l.startswith("Бекап:")]
+        self.last_event = f"{self.last_check} — " + (
+            tail[-1] if tail else "готово" if done.returncode == 0
+            else f"помилка: {(done.stderr or done.stdout)[-200:]}")
+
+    async def _loop(self) -> None:
+        while True:
+            try:
+                if self.enabled:
+                    await self._tick()
+            except asyncio.CancelledError:
+                raise
+            except Exception as error:           # один невдалий бекап не валить вартового
+                self.last_event = f"помилка бекапу: {error}"
+            await asyncio.sleep(BACKUP_INTERVAL_SECONDS)
+
+    def start(self) -> None:
+        if self._task is None or self._task.done():
+            self._task = asyncio.create_task(self._loop())
+
+    async def stop(self) -> None:
+        if self._task and not self._task.done():
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
+
+
+KEYCHAIN_SERVICE = "writer-lab-claude"
+HEALTH_SCRIPT = LIBRARY / "90-Meta/scripts/health-check.py"
+WEEKLY_DIR = LIBRARY / "90-Meta/reports/weekly"
+WEEKLY_COMMAND = LIBRARY / ".claude/commands/щотижневик.md"
+WEEKLY_INTERVAL_SECONDS = 6 * 3600     # тиждень — не секунди; кілька перевірок на день досить
+WEEKLY_ALLOWED = ["Bash", "WebFetch", "WebSearch", "Agent"]
+# Та сама межа, що в конвеєрів і голосового пульта: назовні (push) і незворотне —
+# тільки за словом Юрія, ніколи з безголового прогону.
+WEEKLY_FORBIDDEN = ["Bash(git push:*)", "Bash(rm:*)", "Bash(rmdir:*)",
+                    "Bash(sudo:*)", "Bash(security:*)", "Bash(launchctl:*)"]
+
+
+def _claude_token() -> str:
+    """Той самий токен, що й голосовий пульт і wl-loop.sh — зі сховища ключів,
+    не з інтерактивної сесії, якої тут немає."""
+    result = subprocess.run(
+        ["security", "find-generic-password", "-a", str(Path.home().name), "-s", KEYCHAIN_SERVICE, "-w"],
+        capture_output=True, text=True, timeout=10,
+    )
+    return result.stdout.strip()
+
+
+def _latest_weekly() -> datetime | None:
+    """Час найновішого тижневого звіту — за mtime файлу, не за іменем (ISO-тиждень
+    плутає межу року, mtime — ні)."""
+    try:
+        files = sorted(WEEKLY_DIR.glob("*.md"), key=lambda p: p.stat().st_mtime)
+    except OSError:
+        return None
+    return datetime.fromtimestamp(files[-1].stat().st_mtime) if files else None
+
+
+def _needs_weekly(latest: datetime | None, now: datetime) -> bool:
+    return latest is None or now - latest >= timedelta(days=7)
+
+
+class WeeklyRitual:
+    """Тижневий звіт обсерваторії (Фаза 7). На відміну від бекапу, звіт — не
+    механіка: «нові несподівані зв'язки», «найгарячіша напруга» — це судження,
+    не підрахунок, тому мовчазний скрипт тут не підходить.
+
+    Вартовий лише пильнує розклад (раз на 7 днів від mtime останнього файлу)
+    і будить `claude -p` з тим самим текстом, що й ручна команда `/щотижневик`
+    (`.claude/commands/щотижневик.md`) — щоб інструкція жила в одному місці.
+    Пише файл і комітить ЛОКАЛЬНО; `git push` заборонено explicit-списком і
+    прибрано з промпту — та сама межа «агент пропонує, Юрій вирішує», що
+    в конвеєрів: Юрій переглядає перед тим, як звіт піде назовні.
+    """
+
+    def __init__(self) -> None:
+        self.enabled = True
+        self.last_check: str | None = None
+        self.last_event: str | None = None
+        self._task: asyncio.Task[None] | None = None
+
+    def state(self) -> dict[str, object]:
+        latest = _latest_weekly()
+        return {
+            "enabled": self.enabled,
+            "alive": bool(self._task and not self._task.done()),
+            "interval_seconds": WEEKLY_INTERVAL_SECONDS,
+            "last_check": self.last_check,
+            "last_event": self.last_event,
+            "last_report": latest.strftime("%Y-%m-%d") if latest else None,
+        }
+
+    async def _tick(self) -> None:
+        self.last_check = datetime.now(UTC).isoformat(timespec="seconds")
+        now = datetime.now()
+        if not _needs_weekly(_latest_weekly(), now) or not WEEKLY_COMMAND.is_file():
+            return
+        await asyncio.to_thread(
+            subprocess.run,
+            ["uv", "run", "--with", "pyyaml", "python3", str(HEALTH_SCRIPT)],
+            capture_output=True, text=True, timeout=300, cwd=str(HEALTH_SCRIPT.parent),
+        )
+        year, week, _ = now.isocalendar()
+        body = WEEKLY_COMMAND.read_text(encoding="utf-8").split("---", 2)[-1].strip()
+        prompt = (
+            f"{body}\n\nФайл: 90-Meta/reports/weekly/{year}-W{week:02d}.md (ISO-тиждень, "
+            "обчислено автоматично). Це безголовий автопрогін: git push НЕ роби — лише "
+            "закомить локально, Юрій перегляне і зробить push сам."
+        )
+        done = await asyncio.to_thread(
+            subprocess.run,
+            ["claude", "-p", prompt, "--permission-mode", "acceptEdits",
+             "--allowedTools", *WEEKLY_ALLOWED, "--disallowedTools", *WEEKLY_FORBIDDEN],
+            capture_output=True, text=True, timeout=1800, cwd=str(LIBRARY),
+            env={**os.environ, "CLAUDE_CODE_OAUTH_TOKEN": _claude_token()},
+        )
+        self.last_event = (f"{self.last_check} — звіт {year}-W{week:02d} написано" if done.returncode == 0
+                           else f"{self.last_check} — помилка: {(done.stderr or done.stdout)[-200:]}")
+
+    async def _loop(self) -> None:
+        while True:
+            try:
+                if self.enabled:
+                    await self._tick()
+            except asyncio.CancelledError:
+                raise
+            except Exception as error:            # один невдалий тиждень не валить вартового
+                self.last_event = f"помилка тижневика: {error}"
+            await asyncio.sleep(WEEKLY_INTERVAL_SECONDS)
+
+    def start(self) -> None:
+        if self._task is None or self._task.done():
+            self._task = asyncio.create_task(self._loop())
+
+    async def stop(self) -> None:
+        if self._task and not self._task.done():
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
+
+
 watcher = InboxWatcher()
 originals = OriginalsWatcher()
 resume = ConveyorResume()
+backup = BackupWatcher()
+weekly = WeeklyRitual()

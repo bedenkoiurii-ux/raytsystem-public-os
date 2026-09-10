@@ -2,6 +2,7 @@ import {
   Activity,
   ArrowLeft,
   ArrowRight,
+  Bell,
   BookOpen,
   Bot,
   CalendarClock,
@@ -30,7 +31,7 @@ import {
 , Inbox, SlidersHorizontal} from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import brandWordmarkUrl from "../assets/brand-wordmark.svg";
-import { shortId } from "../api";
+import { getJson, shortId } from "../api";
 import { CommandPalette } from "../components/CommandPalette";
 import { Dialog } from "../components/Dialog";
 import { ErrorBoundary } from "../components/ErrorBoundary";
@@ -38,7 +39,7 @@ import { Inspector } from "../components/Inspector";
 import { useExecutionFeatures } from "../executionHooks";
 import { usePlatformFeatures } from "../featureHooks";
 import { useSystem } from "../hooks";
-import type { Selection } from "../types";
+import type { QueueAlert, Selection } from "../types";
 import { Context } from "../features/CatalogViews";
 import { AgentsSurface } from "../features/AgentsSurface";
 import { CommandCenter } from "../features/CommandCenter";
@@ -168,6 +169,22 @@ export function App() {
     setUniverseDocumentId(null);
     setMobileMore(false);
   }), [guardNavigation, pushLocation]);
+
+  // Картку/питання знаємо за шляхом, а відкриваємо за id — беремо його пошуком,
+  // так само як Документи роблять для решти переходів за назвою.
+  const openQueueAlert = useCallback((alert: QueueAlert) => {
+    if (!alert.path) { navigate(alert.route); return; }
+    const name = alert.path.split("/").pop()?.replace(/\.md$/, "") ?? alert.path;
+    getJson<{ items: Array<{ path: string; document_id: string }> }>(
+      `/api/v1/documents/search?q=${encodeURIComponent(name)}`
+    )
+      .then((found) => {
+        const hit = found.items.find((item) => item.path === alert.path) ?? found.items[0];
+        if (hit) navigateToDocument(hit.document_id);
+        else navigate(alert.route);
+      })
+      .catch(() => navigate(alert.route));
+  }, [navigate, navigateToDocument]);
 
   const goBack = useCallback(() => { if (histPosRef.current > 0) window.history.back(); }, []);
   const goForward = useCallback(() => { if (histPosRef.current < histMaxRef.current) window.history.forward(); }, []);
@@ -417,6 +434,16 @@ export function App() {
               <strong>Аварійний контур активний</strong>
               <span>{platform.data.emergency_state.active_actions.join(" · ")}</span>
               <span className="status-pill status-blocked"><i className="status-shape" />виконання заблоковано</span>
+            </aside>
+          ) : null}
+          {system.data?.attention.queue_alerts.length ? (
+            <aside className="global-queue-alerts" aria-label="Питання, що чекають рішення">
+              {system.data.attention.queue_alerts.map((alert) => (
+                <button key={alert.id} type="button" className="queue-alert" onClick={() => openQueueAlert(alert)}>
+                  <Bell size={16} aria-hidden="true" />
+                  <span><strong>{alert.title}</strong><small>{alert.message}</small></span>
+                </button>
+              ))}
             </aside>
           ) : null}
           <ErrorBoundary key={route} label={current.label}>{page}</ErrorBoundary>

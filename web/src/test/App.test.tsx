@@ -128,7 +128,7 @@ const system = {
     code_edges: 1,
     code_ambiguous_edges: 0
   },
-  attention: { blocked_tasks: 0, failed_runs: 0, restricted_skills: 0 },
+  attention: { blocked_tasks: 0, failed_runs: 0, restricted_skills: 0, queue_alerts: [] },
   safety: { binding: "loopback_only" }
 };
 

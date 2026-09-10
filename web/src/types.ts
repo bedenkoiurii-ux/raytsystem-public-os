@@ -381,6 +381,14 @@ export interface DocumentGraphSlice {
   truncated: boolean;
 }
 
+export interface QueueAlert {
+  id: string;
+  title: string;
+  message: string;
+  route: string;
+  path: string | null;
+}
+
 export interface SystemSnapshot {
   snapshot_id: string;
   loaded_at: string;
@@ -417,6 +425,7 @@ export interface SystemSnapshot {
     blocked_tasks: number;
     failed_runs: number;
     restricted_skills: number;
+    queue_alerts: QueueAlert[];
   };
   safety: Record<string, string>;
 }

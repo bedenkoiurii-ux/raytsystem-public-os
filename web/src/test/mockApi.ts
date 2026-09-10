@@ -21,7 +21,7 @@ export const systemFixture = {
     skills: 1,
     adapters: 1
   },
-  attention: { blocked_tasks: 0, failed_runs: 0, restricted_skills: 0 },
+  attention: { blocked_tasks: 0, failed_runs: 0, restricted_skills: 0, queue_alerts: [] },
   safety: { binding: "loopback_only" }
 };
 
