@@ -152,6 +152,7 @@
 .doc-tree-indent { flex: 0 0 15px; width: 15px; }
 .doc-tree-chevron { flex: 0 0 14px; width: 14px; }
 .doc-tree-modified { flex: 0 0 auto; width: 6px; height: 6px; border-radius: 50%; background: var(--tangerine); box-shadow: 0 0 7px color-mix(in srgb, var(--tangerine) 65%, transparent); }
+.doc-tree-opponent { flex: 0 0 auto; width: 6px; height: 6px; border-radius: 50%; background: var(--rose); box-shadow: 0 0 7px color-mix(in srgb, var(--rose) 65%, transparent); }
 /* Ієрархія версій: канонічна-вимикач + вкладені попередні версії */
 .doc-tree-version-toggle { cursor: pointer; color: var(--muted-2); border-radius: 4px; }
 .doc-tree-version-toggle:hover { color: var(--tangerine); background: color-mix(in srgb, var(--tangerine) 16%, transparent); }

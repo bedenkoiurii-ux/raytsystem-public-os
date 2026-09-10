@@ -38,6 +38,9 @@ interface DocumentTreeProps {
   loading?: boolean;
   onOpen: (document: DocumentSummary, disposition: "current" | "new") => void;
   onExpandFolder?: (rootId: string, parentPath: string) => void;
+  /** Шляхи канону з відкритою знахідкою опонента — крапка в дереві,
+   *  щоб було видно, не заходячи в документ (Юрій, 2026-09-10). */
+  opponentPaths?: Set<string>;
 }
 
 const ROW_HEIGHT = 50;   // вище — щоб повна назва містилась у 2 рядки (без обрізання)
@@ -326,7 +329,7 @@ function auditTriple(document?: DocumentSummary): readonly number[] | null {
   return Array.isArray(raw) && raw.length === 3 && raw.every((n) => typeof n === "number") ? (raw as number[]) : null;
 }
 
-export function DocumentTree({ documents, folders = [], roots = [], selectedDocumentId, loading, onOpen, onExpandFolder }: DocumentTreeProps) {
+export function DocumentTree({ documents, folders = [], roots = [], selectedDocumentId, loading, onOpen, onExpandFolder, opponentPaths }: DocumentTreeProps) {
   const versionIndex = useMemo(() => indexVersions(documents), [documents]);
   const tree = useMemo(() => buildTree(documents, folders, roots, versionIndex.versionIds), [documents, folders, roots, versionIndex]);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set([...tree.folders.values()].map((folder) => folder.id)));
@@ -460,6 +463,7 @@ export function DocumentTree({ documents, folders = [], roots = [], selectedDocu
               {entry.folder?.mode === "protected_read_only" ? <Shield size={13} aria-label="Захищено" /> : entry.folder?.mode === "read_only" ? <LockKeyhole size={13} aria-label="Лише читання" /> : null}
               {entry.document?.mode === "protected_read_only" ? <Shield size={13} aria-label="Захищено" /> : entry.document && !entry.document.can_edit ? <LockKeyhole size={13} aria-label="Лише читання" /> : null}
               {entry.document?.is_modified ? <i className="doc-tree-modified" aria-label="Змінено" /> : null}
+              {entry.document && opponentPaths?.has(entry.document.path) ? <i className="doc-tree-opponent" aria-label="Опонент — є правка, що чекає вердикту" title="Опонент — є правка, що чекає вердикту" /> : null}
             </div>
           );
         })}
