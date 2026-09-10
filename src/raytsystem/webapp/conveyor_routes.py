@@ -21,6 +21,14 @@
 **Порожнє поле — це «не знаю», а не нуль.** Якщо черги для задачі немає або
 файл не читається, поле лишається `None` і сторінка каже «черги немає», а не
 малює порожню смужку, з якої видно «все зроблено».
+
+**Керування (`POST /conveyors/{task}/{action}`) — виняток із «нуль моделі»,
+не порушення його.** Ендпойнт нічого не каже моделі — він лише передає
+слово `wl-loop.sh`, тому й сюди. Дві дії різної ваги (рішення Юрія
+2026-09-08): «пауза» безпечна — цикл дочекається кінця поточного прогону і
+не почне наступний, ніколи не рве запис картки на середині; «стоп» — той
+самий миттєвий kill, що й у терміналі, і може обірвати прогін, тому й
+лишається різкою дією, а не буденною кнопкою.
 """
 from __future__ import annotations
 
@@ -33,6 +41,8 @@ from pathlib import Path
 from typing import Any, Callable
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 STATE = Path.home() / ".writer-lab"
 WORK = Path.home() / "Writer-Lab"
@@ -130,15 +140,51 @@ def _ahead(repo: Path, branch: str) -> int | None:
         return None
 
 
-def _budget(root: Path, task: str) -> int:
-    """Денний бюджет прогонів — з config.yaml бібліотеки, як у wl-loop.sh."""
+def _budget(root: Path, task: str) -> dict[str, int]:
+    """Денний бюджет прогонів — з config.yaml бібліотеки, як у wl-loop.sh.
+
+    `recommended` — з `loop_budget:`, виведене з карти витрат липня (наказ-2);
+    ніколи не міняється кнопкою редагування картки. `max` — чинне значення:
+    `loop_budget_override:`, якщо задача там є, інакше те саме рекомендоване.
+    Так UI бачить обидва числа й може показати, наскільки Юрій відхилився
+    від дефолту, не загубивши сам дефолт.
+    """
     try:
         import yaml
         cfg = yaml.safe_load(open(root / "90-Meta/config.yaml", encoding="utf-8"))
-        table = (cfg or {}).get("loop_budget") or {}
-        return int(table.get(task, table.get("default", 60)))
     except Exception:
-        return 60
+        return {"max": 60, "recommended": 60}
+    table = (cfg or {}).get("loop_budget") or {}
+    recommended = int(table.get(task, table.get("default", 60)))
+    override = (cfg or {}).get("loop_budget_override") or {}
+    max_ = int(override[task]) if task in override else recommended
+    return {"max": max_, "recommended": recommended}
+
+
+_BUDGET_MIN, _BUDGET_MAX = 1, 500
+
+
+def _set_budget_override(root: Path, task: str, value: int | None) -> None:
+    """Точкова текстова правка `loop_budget_override:` у config.yaml — НЕ
+    yaml.dump усього файлу, який стер би всі коментарі (а вони тут несуть
+    обґрунтування чисел, не декорацію). `value=None` прибирає рядок задачі,
+    повертаючи її на рекомендоване. Атомарний запис (temp + replace) — файл
+    читає й фоновий wl-loop.sh, недописаний рядок під час запису йому не
+    потрібен."""
+    path = root / "90-Meta" / "config.yaml"
+    text = path.read_text(encoding="utf-8")
+    m = re.search(r"^loop_budget_override:\n((?:[ \t].*\n?)*)", text, re.M)
+    if not m:
+        raise RuntimeError("loop_budget_override: не знайдено в config.yaml")
+    lines = [l for l in m.group(1).splitlines()
+             if l.strip() and not re.match(rf"^\s*{re.escape(task)}\s*:", l)]
+    if value is not None:
+        lines.append(f"  {task}: {value}")
+    new_block = ("\n".join(lines) + "\n") if lines else ""
+    new_text = text[:m.start(1)] + new_block + text[m.end(1):]
+    tmp = path.with_suffix(".yaml.tmp")
+    tmp.write_text(new_text, encoding="utf-8")
+    tmp.replace(path)
 
 
 def _state(task: str, log: list[str]) -> dict[str, Any]:
@@ -148,6 +194,12 @@ def _state(task: str, log: list[str]) -> dict[str, Any]:
     після зупинки, тож питати про них можна лише тоді, коли процесу вже немає.
     """
     if _alive(STATE / f"{task}-loop.pid"):
+        # Пауза перевіряється першою: цикл сидить у власному чекальному циклі
+        # (wl-loop.sh), не мелькає в лозі жодним рядком нового прогону, тож
+        # реконструювати цей стан із хвоста логу годі — прапорець і є істина.
+        if (STATE / f"{task}-loop.pause").is_file():
+            return {"code": "paused", "label": "пауза",
+                    "note": f"чекає кінця поточного прогону · {_mtime(STATE / f'{task}-loop.pause')}"}
         # Дивимось, чи після останнього «прогін #» цикл не ліг спати.
         for line in reversed(log):
             if line.startswith("─────────"):
@@ -473,6 +525,17 @@ def _window() -> dict[str, Any] | None:
         return None
 
 
+class BudgetBody(BaseModel):
+    # На МОДУЛЬНОМУ рівні навмисно, не всередині create_conveyor_router:
+    # `from __future__ import annotations` перетворює анотації на рядки,
+    # і FastAPI/Pydantic не можуть розв'язати ім'я локально визначеного
+    # класу під час обробки запиту — валідація мовчки провалювалась би на
+    # кожному тілі, хоч сам клас поза FastAPI перевіряється чисто (пастка,
+    # спіймана живим тестом 2026-09-10).
+    # None = скинути на рекомендоване (прибрати рядок з loop_budget_override).
+    max: int | None = None
+
+
 def create_conveyor_router(root: Path, *, require_session: Callable[..., Any]) -> APIRouter:
     router = APIRouter(prefix="/api/v1")
 
@@ -501,7 +564,7 @@ def create_conveyor_router(root: Path, *, require_session: Callable[..., Any]) -
                 "merge_conflict": _merge_conflict(task),
                 "timing": _timing(log, state["code"]),
                 "queue": queue,
-                "budget": {"spent": spent, "max": _budget(root, task)},
+                "budget": {"spent": spent, **_budget(root, task)},
                 "last_line": _last_meaningful(log),
                 "log_at": _mtime(STATE / f"{task}-loop.log"),
                 "commit": _last_commit(repo, branch),
@@ -509,5 +572,49 @@ def create_conveyor_router(root: Path, *, require_session: Callable[..., Any]) -
                 "command": f"./wl-loop.sh {task}",
             })
         return {"tasks": out, "batch": _batch(), "at": datetime.now().strftime("%H:%M")}
+
+    # Слово, а не прапорець: wl-loop.sh сам вирішує, що робити з ним (грати
+    # від паузи відрізняє «стоп» від «старту» — дивиться на pid), тому міст
+    # тут максимально тонкий — жодної логіки керування поза скриптом.
+    task_names = {spec["name"] for spec in TASKS}
+    actions = {"play": "грати", "pause": "пауза", "stop": "стоп", "ff": "вперед"}
+
+    # ПЕРЕД /conveyors/{task}/{action} навмисно: FastAPI зіставляє маршрути
+    # за порядком реєстрації, а {action} — це wildcard-сегмент, який без
+    # цього порядку сам би перехопив "budget" як невідому дію control().
+    @router.post("/conveyors/{task}/budget")
+    def set_budget(task: str, body: BudgetBody, _session=Depends(require_session)) -> Any:
+        if task not in task_names:
+            return JSONResponse(status_code=404, content={"error": {"code": "unknown_task"}})
+        if body.max is not None and not (_BUDGET_MIN <= body.max <= _BUDGET_MAX):
+            return JSONResponse(status_code=400, content={"error": {
+                "code": "out_of_range",
+                "message": f"Бюджет — число від {_BUDGET_MIN} до {_BUDGET_MAX}."}})
+        try:
+            _set_budget_override(root, task, body.max)
+        except (OSError, RuntimeError) as exc:
+            return JSONResponse(status_code=500, content={"error": {"code": "write_failed", "message": str(exc)}})
+        return {"ok": True, **_budget(root, task)}
+
+    @router.post("/conveyors/{task}/{action}")
+    def control(task: str, action: str, _session=Depends(require_session)) -> Any:
+        if task not in task_names:
+            return JSONResponse(status_code=404, content={"error": {"code": "unknown_task"}})
+        command = actions.get(action)
+        if command is None:
+            return JSONResponse(status_code=400, content={"error": {"code": "unknown_action"}})
+        script = WORK / "raytsystem" / "wl-loop.sh"
+        if not script.is_file():
+            return JSONResponse(status_code=500, content={"error": {"code": "script_missing"}})
+        try:
+            # 20с: старт піднімає worktree й чекає власний `sleep 1` перед
+            # звітом — пауза/стоп/вперед лише торкаються прапорцевих файлів
+            # і повертаються миттєво.
+            result = subprocess.run(
+                [str(script), task, command], capture_output=True, text=True, timeout=20)
+        except (OSError, subprocess.SubprocessError) as exc:
+            return JSONResponse(status_code=500, content={"error": {"code": "exec_failed", "message": str(exc)}})
+        return {"ok": result.returncode == 0, "action": action,
+                "output": (result.stdout + result.stderr).strip()[-2000:]}
 
     return router

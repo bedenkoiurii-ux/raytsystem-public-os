@@ -1809,11 +1809,11 @@ li.open .chev { transform: rotate(90deg); }
   display: flex; flex-direction: column; gap: 7px; min-width: 0;
 }
 
-/* ── Десять слотів сталої висоти ────────────────────────────────────────────
+/* ── Одинадцять слотів сталої висоти ────────────────────────────────────────
    Висоту рядка задає СІТКА, а не вміст. Через це картка «працює» і картка
-   «добіг» однакові завдовжки, і десять підписів збігаються по горизонталі
-   через усю сторінку: око порівнює задачі поглядом упоперек, не перечитуючи
-   підписи в кожній картці окремо.
+   «добіг» однакові завдовжки, і підписи збігаються по горизонталі через усю
+   сторінку: око порівнює задачі поглядом упоперек, не перечитуючи підписи в
+   кожній картці окремо.
 
    Слот не колапсує ніколи. Зникнення рядка зсуває всі наступні вгору, і
    сусідні картки перестають бути порівнюваними — тому порожнє значення це
@@ -1821,13 +1821,36 @@ li.open .chev { transform: rotate(90deg); }
    нього довгий рядок розсовує свою рядкову доріжку й ламає всю сітку.
 
    Числа підібрані під найдовший реальний уміст кожного слота, не «на око»:
-   4-й тримає три рядки (підпис + індекс + назва), 9-й — три рядки логу. */
+   4-й тримає три рядки (підпис + індекс + назва), 9-й — три рядки логу.
+   11-й (керування) — висота кнопок `.icon-button`. */
 .cv-slots {
   display: grid;
-  grid-template-rows: 22px 18px 18px 56px 20px 20px 32px 18px 50px 18px;
+  grid-template-rows: 22px 18px 18px 56px 20px 20px 32px 18px 50px 18px 30px;
   gap: 8px;
   align-content: start;
 }
+.cv-controls { gap: 6px; }
+
+.cv-budget-value {
+  cursor: pointer; border-radius: var(--radius-xs);
+  padding: 0 3px; margin: 0 -3px;
+  text-decoration: underline dotted color-mix(in srgb, var(--muted-2) 60%, transparent);
+  text-underline-offset: 2px;
+}
+.cv-budget-value:hover { background: color-mix(in srgb, var(--bone) 7%, transparent); color: var(--bone); }
+.cv-budget-input {
+  width: 3.5em; font: 500 11.5px var(--mono); color: var(--bone);
+  background: var(--raised); border: 1px solid var(--cyan); border-radius: var(--radius-xs);
+  padding: 1px 4px;
+}
+.cv-budget-input::-webkit-inner-spin-button { opacity: .5; }
+.cv-budget-recommended { color: var(--muted-2); font-style: normal; font-size: 11px; white-space: nowrap; }
+/* Шість елементів в одному рядку (бар, N, ліміт, "сьогодні", рекомендоване,
+   кнопка скидання) — вужчий проміжок, інакше в 4-колонковому режимі
+   рекомендоване й кнопка скидання виходять за cv-slot і губляться під
+   overflow:hidden. */
+.cv-metric-budget { gap: 5px; }
+.cv-metric-budget .icon-button.compact { width: 16px; height: 16px; flex: none; }
 .cv-slot { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; }
 .cv-slot-head { gap: 8px; flex-wrap: nowrap; }
 .cv-slot-head b { white-space: nowrap; }
@@ -1874,6 +1897,7 @@ li.open .chev { transform: rotate(90deg); }
    карток одразу, а нам треба, щоб в очі впадала лише та, що працює. */
 .cv-running header > svg { color: var(--mint); }
 .cv-sleeping header > svg, .cv-budget header > svg { color: var(--gold); }
+.cv-paused header > svg { color: var(--periwinkle); }
 .cv-stopped header > svg { color: var(--rose); }
 .cv-done header > svg, .cv-idle header > svg { color: var(--muted-2); }
 
@@ -1884,6 +1908,7 @@ li.open .chev { transform: rotate(90deg); }
 }
 .cv-pill-running { color: var(--mint); border-color: color-mix(in srgb, var(--mint) 40%, var(--line)); }
 .cv-pill-sleeping, .cv-pill-budget { color: var(--gold); border-color: color-mix(in srgb, var(--gold) 40%, var(--line)); }
+.cv-pill-paused { color: var(--periwinkle); border-color: color-mix(in srgb, var(--periwinkle) 40%, var(--line)); }
 .cv-pill-stopped { color: var(--rose); border-color: color-mix(in srgb, var(--rose) 40%, var(--line)); }
 .cv-pill-window { margin-left: auto; color: var(--periwinkle); border-color: color-mix(in srgb, var(--periwinkle) 40%, var(--line)); }
 

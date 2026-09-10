@@ -5,7 +5,12 @@
 # дворівневість (haiku збирає — топ-модель судить), ізольований git-worktree,
 # токен із Keychain, ті самі межі. Задача задається першим аргументом.
 #
-#   ./wl-loop.sh <задача> {старт|стоп|стан|лог|раз|злити}
+#   ./wl-loop.sh <задача> {старт|стоп|пауза|грати|вперед|стан|лог|раз|злити}
+#
+# Пауза й Стоп — різні межі втручання. Пауза чекає кінця поточного прогону і
+# не починає наступний: безпечна, бо ніколи не рве запис картки посередині.
+# Стоп — миттєвий kill, як і раніше: може обірвати прогін на середині, тому
+# лишається різкою дією, а не кнопкою на кожен день.
 #
 # Задачі:
 #   apparat   — картки апарату до стандарту        (НАКАЗ-апарату.md)
@@ -47,6 +52,8 @@ CLAUDE_BIN="$(command -v claude || echo "$HOME/.local/bin/claude")"
 S="$HOME/.writer-lab"
 LOG="$S/$TASK-loop.log"; STOP="$S/$TASK-loop.stop"
 DONE="$S/$TASK.done";    PIDF="$S/$TASK-loop.pid"
+PAUSE_F="$S/$TASK-loop.pause"   # стоїть — цикл дочекається кінця прогону й не почне наступний
+KICK="$S/$TASK-loop.kick"       # «вперед» — пропустити поточний сон (бюджет/ліміт/пауза)
 GAP=8
 KEYCHAIN_SERVICE="writer-lab-claude"
 RUN_OUT="$S/$TASK-last-run.txt"   # вивід останнього прогону — щоб розібрати причину збою
@@ -334,6 +341,18 @@ reset_in() {
   return 1
 }
 
+# Сон, який слухає «стоп» і «вперед» щосекунди — голий `sleep N` не почув би
+# жодного. Сон на бюджеті триває годинами; без цього «вперед» на картці не
+# важив би нічого, поки той сон іде.
+wait_or_kick() {
+  local secs="$1" i=0
+  while [ "$i" -lt "$secs" ]; do
+    [ -f "$STOP" ] && return 0
+    if [ -f "$KICK" ]; then rm -f "$KICK"; echo "--- вперед: пропускаю решту сну ---" >>"$LOG"; return 0; fi
+    sleep 1; i=$((i+1))
+  done
+}
+
 loop() {
   mkdir -p "$S"; rm -f "$STOP"; ensure_worktree; cd "$VAULT"
   echo "=== wl-loop [$TASK] піднято $(date '+%F %T') ===" >>"$LOG"
@@ -342,6 +361,12 @@ loop() {
   while :; do
     [ -f "$STOP" ] && { echo "--- стоп $(date '+%T') ---" >>"$LOG"; break; }
     [ -f "$DONE" ] && { echo "--- сентинел, робота вичерпана $(date '+%T') ---" >>"$LOG"; break; }
+    if [ -f "$PAUSE_F" ]; then
+      echo "--- пауза $(date '+%T') ---" >>"$LOG"
+      while [ -f "$PAUSE_F" ] && [ ! -f "$STOP" ]; do sleep 2; done
+      [ -f "$STOP" ] && { echo "--- стоп під час паузи $(date '+%T') ---" >>"$LOG"; break; }
+      echo "--- знято з паузи $(date '+%T') ---" >>"$LOG"
+    fi
     # Бюджет рахуємо по днях: лічильник у файлі з датою в імені, тож нова доба
     # починається з нуля сама, без планувальника й без стану в памʼяті.
     today="$(date '+%F')"
@@ -351,7 +376,7 @@ loop() {
       left=$(( $(date -j -f '%F %T' "$(date -v+1d '+%F') 00:00:05" +%s) - $(date +%s) ))
       [ "$left" -lt 60 ] && left=60
       echo "--- денний бюджет вичерпано ($spent із $MAX_RUNS_PER_DAY), сплю до півночі ---" >>"$LOG"
-      sleep "$left"
+      wait_or_kick "$left"
       continue
     fi
     echo $((spent+1)) >"$spent_file"
@@ -388,7 +413,7 @@ loop() {
       pause=$(reset_in "$RUN_OUT") || pause="$LIMIT_WAIT_FALLBACK"
       [ "$pause" -gt "$LIMIT_WAIT_MAX" ] && pause="$LIMIT_WAIT_MAX"
       echo "--- ліміт, сплю до $(date -v+"${pause}"S '+%F %T') ---" >>"$LOG"
-      sleep "$pause"; continue
+      wait_or_kick "$pause"; continue
     else
       # І тут теж: прогін міг написати в чуже дерево й аж тоді впасти.
       check_leak "$leak_before"
@@ -399,28 +424,44 @@ loop() {
         break
       fi
     fi
-    sleep "$GAP"
+    wait_or_kick "$GAP"
   done
   rm -f "$PIDF"
 }
 
+start_loop() {
+  if [ -f "$PIDF" ] && kill -0 "$(cat "$PIDF")" 2>/dev/null; then echo "[$TASK] вже працює (pid $(cat "$PIDF"))"; return 0; fi
+  mkdir -p "$S"; rm -f "$DONE" "$PAUSE_F" "$KICK"; ensure_worktree
+  nohup "$SELF" "$TASK" _run >>"$LOG" 2>&1 &
+  echo $! >"$PIDF"; sleep 1
+  kill -0 "$(cat "$PIDF")" 2>/dev/null && echo "[$TASK] піднято (pid $(cat "$PIDF")) · лог: $LOG" || { echo "не піднявся"; tail -5 "$LOG"; return 1; }
+}
+
 case "${1:-}" in
-  старт|start)
-    if [ -f "$PIDF" ] && kill -0 "$(cat "$PIDF")" 2>/dev/null; then echo "[$TASK] вже працює (pid $(cat "$PIDF"))"; exit 0; fi
-    mkdir -p "$S"; rm -f "$DONE"; ensure_worktree
-    nohup "$SELF" "$TASK" _run >>"$LOG" 2>&1 &
-    echo $! >"$PIDF"; sleep 1
-    kill -0 "$(cat "$PIDF")" 2>/dev/null && echo "[$TASK] піднято (pid $(cat "$PIDF")) · лог: $LOG" || { echo "не піднявся"; tail -5 "$LOG"; exit 1; } ;;
+  старт|start) start_loop ;;
   _run) loop ;;
   # Хвіст той самий, що в циклі: індекс імен мусить бачити нову картку, хоч
   # прогін запущено рукою, хоч вартою. Перший раз я вставив його лише в цикл —
   # і `раз` лишив підсвітку зі вчорашнім індексом. Хук, що діє не на всіх
   # шляхах, гірший за жоден: він створює враження, що про це подбали.
   раз|once) ensure_worktree; cd "$VAULT"; one_run; rebuild_entity_index ;;
-  стоп|stop) touch "$STOP"; [ -f "$PIDF" ] && kill "$(cat "$PIDF")" 2>/dev/null || true; echo "[$TASK] спиняю" ;;
+  стоп|stop) touch "$STOP"; rm -f "$PAUSE_F" "$KICK"; [ -f "$PIDF" ] && kill "$(cat "$PIDF")" 2>/dev/null || true; echo "[$TASK] спиняю" ;;
+  пауза|pause)
+    if [ -f "$PIDF" ] && kill -0 "$(cat "$PIDF")" 2>/dev/null; then
+      touch "$PAUSE_F"; echo "[$TASK] пауза — дочекається кінця поточного прогону"
+    else echo "[$TASK] не працює, паузити нічого"; fi ;;
+  вперед|ff)
+    if [ -f "$PIDF" ] && kill -0 "$(cat "$PIDF")" 2>/dev/null; then
+      touch "$KICK"; echo "[$TASK] вперед — пропущу поточний сон"
+    else echo "[$TASK] не працює, вперед нічого не жене"; fi ;;
+  грати|play|resume)
+    if [ -f "$PIDF" ] && kill -0 "$(cat "$PIDF")" 2>/dev/null; then
+      rm -f "$PAUSE_F"; echo "[$TASK] знято з паузи"
+    else start_loop; fi ;;
   стан|status)
     if [ -f "$PIDF" ] && kill -0 "$(cat "$PIDF")" 2>/dev/null; then echo "[$TASK] живий (pid $(cat "$PIDF"))"; else echo "[$TASK] не працює"; fi
     [ -f "$DONE" ] && echo "  сентинел: РОБОТА ВИЧЕРПАНА"
+    [ -f "$PAUSE_F" ] && echo "  пауза: чекає кінця поточного прогону"
     [ -d "$VAULT" ] && echo "  у гілці $BRANCH: $(cd "$VAULT" && git rev-list --count --no-merges "main..$BRANCH" 2>/dev/null || echo 0) комітів"
     [ -f "$LOG" ] && { echo "  --- лог ---"; tail -5 "$LOG"; } ;;
   лог|log) tail -f "$LOG" ;;
@@ -434,5 +475,5 @@ case "${1:-}" in
     drop_derived_in_main
     ( cd "$MAIN" && git merge --no-edit "$BRANCH" ) \
       && { rebuild_derived_in_main; echo "злито."; } ;;
-  *) echo "вживання: $0 $TASK {старт|стоп|стан|лог|раз|злити}"; exit 1 ;;
+  *) echo "вживання: $0 $TASK {старт|стоп|пауза|грати|вперед|стан|лог|раз|злити}"; exit 1 ;;
 esac

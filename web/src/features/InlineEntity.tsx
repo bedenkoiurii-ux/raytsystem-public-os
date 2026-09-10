@@ -379,9 +379,12 @@ export function Prose({ content, autoLink = true, onOpenWikilinkOverride, onOpen
   content: string;
   /** Підсвічувати сутності, яких автор не позначив руками. */
   autoLink?: boolean;
-  /** Документи перехоплюють клік: там основна дія — картка в панелі, каскадом.
-   *  Врізка лишається на ⌥-клік і там, де каскад безсилий. */
-  onOpenWikilinkOverride?: (target: WikilinkTarget, event?: { altKey: boolean; node?: HTMLElement }) => void;
+  /** Документи перехоплюють клік: основна дія — картка в панелі, каскадом.
+   *  Поверни `false` (або нічого не повертай), щоб клік провалився до
+   *  власної врізки Prose під абзацом — саме так поводиться ⌥-клік і
+   *  будь-яке слово, для якого каскад безсилий. Поверни `true`, якщо сам
+   *  відкрив картку — тоді власна врізка не з'являється. */
+  onOpenWikilinkOverride?: (target: WikilinkTarget, event?: { altKey: boolean; node?: HTMLElement }) => boolean | void;
   onOpenDocument?: (id: string) => void;
   onOpenPanel?: (id: string) => void;
   onOpenSource?: () => void;
@@ -401,7 +404,10 @@ export function Prose({ content, autoLink = true, onOpenWikilinkOverride, onOpen
   // знайти МІСЦЕ врізки в абзаці; uid — щоб показати саме ту сутність, коли
   // ім'я неоднозначне. Друга частина зʼявляється лише після вибору.
   const toggle = (link: WikilinkTarget, event?: { altKey?: boolean; node?: HTMLElement }) => {
-    if (onOpenWikilinkOverride) { onOpenWikilinkOverride(link, { altKey: Boolean(event?.altKey), node: event?.node }); return; }
+    if (onOpenWikilinkOverride) {
+      const handled = onOpenWikilinkOverride(link, { altKey: Boolean(event?.altKey), node: event?.node });
+      if (handled !== false) return;
+    }
     const name = link.target.trim();
     if (!name) return;
     // Котре це входження: рахуємо серед посилань на ту саму ціль у DOM —
@@ -604,8 +610,10 @@ export function InlineStack({ names, setNames, onOpenDocument, onOpenPanel }: {
   return (
     <div className="map-inline">
       {names.map((name) => (
-        <InlineCard key={name} name={name} onOpen={open} onOpenDocument={onOpenDocument} onOpenPanel={onOpenPanel}
-                    onClose={() => setNames((s) => s.filter((x) => x !== name))} />
+        <div key={name} data-inline-name={name}>
+          <InlineCard name={name} onOpen={open} onOpenDocument={onOpenDocument} onOpenPanel={onOpenPanel}
+                      onClose={() => setNames((s) => s.filter((x) => x !== name))} />
+        </div>
       ))}
     </div>
   );

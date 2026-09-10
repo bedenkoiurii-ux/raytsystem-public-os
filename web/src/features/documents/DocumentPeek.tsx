@@ -3,6 +3,7 @@ import { EmptyState, ErrorState, LoadingState } from "../../components/StatePane
 import { useDocumentDetail, useDocumentLinks } from "./documentHooks";
 import { matchingDocumentLink } from "./Documents";
 import { useState } from "react";
+import { flushSync } from "react-dom";
 import { SafeMarkdownView, type WikilinkTarget } from "./SafeMarkdownView";
 import { InlineStack } from "../InlineEntity";
 
@@ -29,20 +30,41 @@ interface DocumentPeekProps {
 // тож сторінка → картка 1 → картка 2 → … Стрілки ←/→ згортають/розгортають каскад (повернутися до
 // попередніх карток аж до першої). Кожна картка сама фетчить свій документ — незалежна.
 export function DocumentPeek({ documentId, heading, index, snapshotId, showNav = false, canBack = false, canForward = false, onBack, onForward, onClose, onOpenFull, onOpenLink, sheetLight = false, sheetTone }: DocumentPeekProps) {
-  const detail = useDocumentDetail(documentId, snapshotId);
-  const links = useDocumentLinks(documentId, snapshotId);
+  // Картка нередагована — їй не потрібен точний збіг зрізу з рештою застосунку
+  // (snapshotId тут — лише пропс сумісності, не передаємо його в запит). Пінований
+  // зріз, узятий у видимому документі, старіє від щохвилинних комітів фонового
+  // конвеєра швидше, ніж вкладка встигає його оновити — і картка мовчки переставала
+  // відкриватись (409 document_index_stale) саме там, де конфлікт версій нікому не
+  // загрожує.
+  const detail = useDocumentDetail(documentId, null);
+  const links = useDocumentLinks(documentId, null);
   const doc = detail.data;
 
   // Каскад: клік у картці відкриває наступну картку панелі (Юрій — це і є
   // двовіконний режим, заради якого peek існує).
   const [inline, setInline] = useState<string[]>([]);
+  // Та сама пастка, що в основному полі документів: врізка йде в кінець
+  // картки, а не під абзац, — у довгій картці це поза видимістю. `flushSync`
+  // комітить DOM одразу, тож скрол можна давати синхронно тут-таки.
+  const addInline = (name: string) => {
+    let added = false;
+    flushSync(() => setInline((s) => {
+      if (s.includes(name)) return s.filter((x) => x !== name);
+      added = true;
+      return [...s, name];
+    }));
+    if (added) {
+      document.querySelector(`[data-inline-name="${CSS.escape(name)}"]`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  };
   const resolve = (target: WikilinkTarget, event?: { altKey: boolean }) => {
     const name = target.target.trim();
-    if (event?.altKey) { setInline((s) => (s.includes(name) ? s.filter((x) => x !== name) : [...s, name])); return; }
+    if (event?.altKey) { addInline(name); return; }
     const match = matchingDocumentLink(target, links.data?.items ?? []);
     const id = match?.target_document_id ?? (match?.candidates?.length === 1 ? match.candidates[0].document_id : null);
     if (id) onOpenLink(index, id, target.heading ?? match?.heading ?? undefined);
-    else setInline((s) => (s.includes(name) ? s : [...s, name]));
+    else addInline(name);
   };
 
   return (

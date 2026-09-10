@@ -75,7 +75,7 @@ import { DocumentRestoreDialog } from "./DocumentRestoreDialog";
 import { DocumentTabs } from "./DocumentTabs";
 import { DocumentTree } from "./DocumentTree";
 import { headingId, SafeMarkdownView, safeImageUrl, type WikilinkTarget } from "./SafeMarkdownView";
-import { CardScope, InlineStack, Prose } from "../InlineEntity";
+import { CardScope, Prose } from "../InlineEntity";
 
 import { DocumentPeek } from "./DocumentPeek";
 import { EntityOrderDialog, type EntityOrderRequest } from "./EntityOrderDialog";
@@ -393,7 +393,10 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
   const [c2Pos, setC2Pos] = useState(-1);
   const card2 = c2Pos >= 0 && c2Pos < c2Hist.length ? c2Hist[c2Pos] : null;
   const detail = useDocumentDetail(activeId, snapshotId || null);
-  const links = useDocumentLinks(activeId, snapshotId || null);
+  // Не пінуємо зріз тут: цей список — лише щоб знайти, куди веде клік по вікілінку
+  // (навігація, не редагування), а суворий збіг зі snapshotId старів швидше за
+  // конвеєр, що комітить щохвилини, — картка мовчки переставала відкриватись.
+  const links = useDocumentLinks(activeId, null);
   const backlinks = useDocumentBacklinks(activeId, snapshotId || null);
   const history = useDocumentHistory(activeId, snapshotId || null);
   const revisionDetail = useDocumentRevisionDetail(activeId, revisionTarget?.history_id ?? null, snapshotId || null);
@@ -441,40 +444,27 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
     return () => observer.disconnect();
   }, []);
 
-  // Врізки сутностей, розгорнуті в тілі документа. Живуть рівно доти, доки
-  // відкритий той самий документ.
-  const [inline, setInline] = useState<string[]>([]);
   const closeCard1 = useCallback(() => { setCard1(null); setC2Hist([]); setC2Pos(-1); }, []);
   const closeCard2 = useCallback(() => { setC2Hist([]); setC2Pos(-1); }, []);
   const card2Back = useCallback(() => setC2Pos((p) => Math.max(0, p - 1)), []);
   const card2Forward = useCallback(() => setC2Pos((p) => (p < c2Hist.length - 1 ? p + 1 : p)), [c2Hist.length]);
   // Тимчасовий стан прив'язаний до ДОКУМЕНТА, а не до застосунку (рішення
-  // Юрія 2026-08-03). Врізка сутності («Максим (митрополит)») висіла поверх
-  // будь-якого наступного документа: `card1` скидався, а `inline` — ніколи.
-  useEffect(() => { closeCard1(); setInline([]); setNotice(null); }, [activeId, closeCard1]);
+  // Юрія 2026-08-03). Врізка тепер живе всередині `Prose` (`key={activeId}`
+  // нижче примушує її скинутись разом із документом) — тут лишається тільки
+  // каскадна картка праворуч.
+  useEffect(() => { closeCard1(); setNotice(null); }, [activeId, closeCard1]);
   useEffect(() => {
-    if (!card1 && !inline.length) return;
-    // Esc: спершу картка 2 (термінальна), потім картка 1, потім врізки.
+    if (!card1) return;
+    // Esc: спершу картка 2 (термінальна), потім картка 1.
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.stopPropagation();
       if (c2Pos >= 0) closeCard2();
-      else if (card1) closeCard1();
-      else setInline([]);
-    };
-    // Клік повз: усе, що не сама панель і не підсвічене слово, закриває врізки.
-    const onAway = (event: PointerEvent) => {
-      const target = event.target as Element | null;
-      if (target?.closest?.(".map-inline, .doc-peek, .doc-wikilink, .doc-entity")) return;
-      setInline([]);
+      else closeCard1();
     };
     window.addEventListener("keydown", onKey);
-    document.addEventListener("pointerdown", onAway, true);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      document.removeEventListener("pointerdown", onAway, true);
-    };
-  }, [card1, inline.length, c2Pos, closeCard1, closeCard2]);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [card1, c2Pos, closeCard1, closeCard2]);
 
   // Банер повідомлення гасне сам: він каже про подію, а не про стан, і не має
   // переживати ні перехід між документами, ні наступну дію автора.
@@ -634,18 +624,25 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
     try { window.localStorage.setItem("wl_autolink", next ? "1" : "0"); } catch { /* noop */ }
     return next;
   });
-  const openInline = (target: WikilinkTarget) => {
-    const name = target.target.trim();
-    if (name) setInline((s) => (s.includes(name) ? s.filter((x) => x !== name) : [...s, name]));
-  };
-
-  const resolveWikilink = (target: WikilinkTarget, event?: { altKey: boolean }) => {
-    if (event?.altKey) { openInline(target); return; }
+  // Каскад — головна дія на клік. Коли він безсилий (⌥-клік, чи слово без
+  // власного документа), кажемо Prose «не я» (false), і ВОНА сама розкриває
+  // врізку під абзацом, де клікнули — той самий механізм, що вже працює в
+  // картках і на мапі. Раніше тут була власна копія («InlineStack» у кінці
+  // документа) — у документі на тисячі рядків це десятки тисяч пікселів
+  // униз, картка з'являлась, а Юрій бачив «нічого не відбулось».
+  const resolveWikilink = (target: WikilinkTarget, event?: { altKey: boolean }): boolean => {
+    if (event?.altKey) return false;
     const match = matchingDocumentLink(target, links.data?.items ?? []);
     const id = match?.target_document_id ?? (match?.candidates?.length === 1 ? match.candidates[0].document_id : null);
-    if (id) { setCard1({ id, heading: target.heading ?? match?.heading ?? undefined }); setC2Hist([]); setC2Pos(-1); }
-    else openInline(target);          // каскад безсилий — принаймні покажемо довідку тут
+    if (!id) return false;
+    setCard1({ id, heading: target.heading ?? match?.heading ?? undefined });
+    setC2Hist([]); setC2Pos(-1);
+    return true;
   };
+  // Кнопки врізки («у панель» / «відкрити картку») ведуть в один і той самий
+  // каскад, що й прямий клік по вікілінку (Юрій 2026-09-09: у документах
+  // немає «просто відкрити» окремо від каскаду — тут це одна й та сама дія).
+  const openCascade = (id: string) => { setCard1({ id }); setC2Hist([]); setC2Pos(-1); };
   // Клік у картці 1 → відкриває/замінює картку 2 (свіжа історія).
   const openFromCard1 = (id: string, heading?: string) => { setC2Hist([{ id, heading }]); setC2Pos(0); };
   // Клік у картці 2 → навігація в самій собі (обрізає forward-історію, додає нову сторінку).
@@ -798,7 +795,7 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
               <div className={`document-content${sheetLight && (activeTab.mode === "read" || activeTab.mode === "visual") ? " sheet-light" : ""}`} data-sheet-tone={sheetLight ? sheetTone : undefined} data-sheet-format={sheetFormat}>
                 {activeIsImage && detail.data ? <DocumentImageView detail={detail.data} /> : null}
                 {activeUnsupported ? <div className="doc-visual-unavailable" role="status"><strong>Для цього формату немає безпечного viewer</strong><p>Файл видно в керованому workspace, але його вміст не передано браузеру.</p></div> : null}
-                {!activeIsImage && !activeUnsupported && activeTab.mode === "read" ? <Prose content={activeDraft.content} autoLink={autoLink} onOpenWikilinkOverride={resolveWikilink} onOpenSource={() => dispatch({ type: "mode", documentId: activeId, mode: "source" })} onOpenRelativeLink={(target) => { const match = links.data?.items.find((link) => link.target === target); if (match?.target_document_id) openById(match.target_document_id, match.heading); else setNotice("Відносне посилання не дозволене або не знайдене."); }} resolveImage={(target) => { const asset = detail.data?.assets?.[target]; return typeof asset === "string" ? asset : asset?.url ?? (target.startsWith("/api/v1/documents/") ? target : null); }} /> : null}
+                {!activeIsImage && !activeUnsupported && activeTab.mode === "read" ? <Prose key={activeId} content={activeDraft.content} autoLink={autoLink} onOpenWikilinkOverride={resolveWikilink} onOpenDocument={openCascade} onOpenPanel={openCascade} onOpenSource={() => dispatch({ type: "mode", documentId: activeId, mode: "source" })} onOpenRelativeLink={(target) => { const match = links.data?.items.find((link) => link.target === target); if (match?.target_document_id) openById(match.target_document_id, match.heading); else setNotice("Відносне посилання не дозволене або не знайдене."); }} resolveImage={(target) => { const asset = detail.data?.assets?.[target]; return typeof asset === "string" ? asset : asset?.url ?? (target.startsWith("/api/v1/documents/") ? target : null); }} /> : null}
                 {/* «У сутності» — замовлення картки з виділення в читанні
                     (рішення Юрія 2026-08-03). Кнопка плаває над текстом, поки
                     є виділення; текст документа не змінюється ніколи. */}
@@ -808,8 +805,6 @@ export function Documents({ onShowInGraph, initialDocumentId }: DocumentsProps) 
                     onOrder={setEntityOrder}
                   />
                 ) : null}
-                {!activeIsImage && !activeUnsupported && activeTab.mode === "read" && inline.length ? <InlineStack names={inline} setNames={setInline} onOpenDocument={openById} onOpenPanel={(id) => { setCard1({ id }); setC2Hist([]); setC2Pos(-1); }} /> : null}
-                
                 {!activeIsImage && !activeUnsupported && activeTab.mode === "source" ? <Suspense fallback={<LoadingState label="Завантажуємо Source editor…" />}><SourceEditor key={`${activeId}:${activeDraft.baseSha256}:${detail.data?.line_ending ?? "unknown"}`} value={activeDraft.content} readOnly={activeTab.readOnly} issues={inspectMarkdownForVisualEditing(activeDraft.content)} lineNumbers onChange={(content) => changeDraft(content)} onSave={() => saveContent()} onToggleVisual={() => dispatch({ type: "mode", documentId: activeId, mode: "visual" })} /></Suspense> : null}
                 {!activeIsImage && !activeUnsupported && activeTab.mode === "visual" ? visualBlockReason ? <div className="doc-visual-unavailable" role="alert"><strong>Візуальний редактор не відкрито</strong><p>{visualBlockReason}</p><button type="button" onClick={() => dispatch({ type: "mode", documentId: activeId, mode: "source" })}>Відкрити Source mode</button></div> : <Suspense fallback={<LoadingState label="Завантажуємо візуальний editor…" />}><VisualEditor key={`${activeId}:${activeDraft.baseSha256}`} value={activeDraft.content} readOnly={activeTab.readOnly} qualification={detail.data?.visual_qualification} onChange={changeDraft} onSave={() => saveContent()} onToggleSource={() => dispatch({ type: "mode", documentId: activeId, mode: "source" })} /></Suspense> : null}
                 {!activeIsImage && !activeUnsupported && activeTab.mode === "diff" ? revisionTarget ? revisionDetail.isLoading ? <LoadingState label="Завантажуємо immutable revision…" /> : revisionDetail.isError ? <ErrorState error={revisionDetail.error} onRetry={() => void revisionDetail.refetch()} /> : revisionDetail.data ? <DocumentDiff original={revisionDetail.data.content} current={activeDraft.content} /> : null : <DocumentDiff original={activeDraft.baseContent} current={activeDraft.content} /> : null}

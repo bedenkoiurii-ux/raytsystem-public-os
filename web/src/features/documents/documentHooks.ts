@@ -152,7 +152,11 @@ export function useDocumentDetail(documentId: string | null, expectedSnapshotId?
   return useQuery({
     queryKey: ["documents", "detail", documentId, expectedSnapshotId],
     queryFn: ({ signal }) => documentGet<DocumentDetailEnvelope>(`/api/v1/documents/${encodeURIComponent(documentId ?? "")}${queryString({ expected_snapshot_id: expectedSnapshotId })}`, signal),
-    enabled: Boolean(documentId && expectedSnapshotId),
+    // expectedSnapshotId відсутній (null) → бекенд читає й самолікує без сварки на
+    // зсув зрізу (document_routes.py: суворість лише коли викликач свідомо стежить
+    // за версією). Раніше вимога snapshotId тут же й блокувала запит — картка не
+    // відкривалась, поки конвеєр не притих.
+    enabled: Boolean(documentId),
     staleTime: 5_000,
     retry: 1,
     refetchOnWindowFocus: false
@@ -163,7 +167,7 @@ export function useDocumentLinks(documentId: string | null, expectedSnapshotId?:
   return useQuery({
     queryKey: ["documents", "links", documentId, expectedSnapshotId],
     queryFn: ({ signal }) => documentGet<DocumentLinksEnvelope>(`/api/v1/documents/${encodeURIComponent(documentId ?? "")}/links${queryString({ expected_snapshot_id: expectedSnapshotId })}`, signal),
-    enabled: Boolean(documentId && expectedSnapshotId),
+    enabled: Boolean(documentId),
     staleTime: 3_000
   });
 }

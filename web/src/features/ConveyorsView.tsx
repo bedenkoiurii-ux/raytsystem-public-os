@@ -1,14 +1,17 @@
-import { CircleDot, Circle, CircleSlash, Moon, Terminal, GitBranch, AlertTriangle, Columns3 } from "lucide-react";
+import { CircleDot, Circle, CircleSlash, Moon, Terminal, GitBranch, AlertTriangle, Columns3, Play, Pause, Square, FastForward, RotateCcw } from "lucide-react";
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ErrorState, LoadingState } from "../components/StatePanel";
-import { getJson } from "../api";
+import { getJson, postJson } from "../api";
 
 /** Конвеєри — що зараз меле система і скільки лишилось.
  *
- *  Сторінка нічого не запускає й не спиняє: жодного POST, лише читання
- *  файлів. Керування лишається в терміналі — кнопка «спинити» у вікні
- *  обірвала б прогін посеред запису картки, і ніхто б цього не побачив.
+ *  Читання файлів і `git log` лишається нулем моделі. Керування (2026-09-08,
+ *  рішення Юрія) — виняток, не порушення: чотири кнопки просто передають
+ *  слово `wl-loop.sh`, самі нічого не вирішують. Дві різної ваги: «пауза»
+ *  дочекається кінця поточного прогону й ніколи не рве запис картки —
+ *  безпечна, тому щоденна; «стоп» — той самий миттєвий kill, що й у
+ *  терміналі, може обірвати прогін, тому питає підтвердження щоразу.
  *
  *  «Найпевніше зараз» — саме найпевніше, а не «зараз»: `claude -p` мовчить
  *  до кінця прогону, тож наживо ніхто не звітує. Ми показуємо першу незакриту
@@ -35,7 +38,7 @@ interface Task {
   state: { code: string; label: string; note: string | null };
   run: number | null; stage: string | null; leak: string[] | null;
   merge_conflict: string | null; timing: Timing | null; queue: Queue | null;
-  budget: { spent: number; max: number };
+  budget: { spent: number; max: number; recommended: number };
   last_line: string | null; log_at: string | null;
   commit: Commit | null; unmerged: number | null; command: string;
 }
@@ -56,12 +59,54 @@ function useConveyors() {
   });
 }
 
+type ControlAction = "play" | "pause" | "stop" | "ff";
+
+/** Ті самі межі, що сервер валідує в POST /conveyors/{task}/budget —
+ *  дублюються тут лише для атрибутів `<input min max>` (підказка браузеру,
+ *  не заміна серверної перевірки). */
+const _BUDGET_MIN = 1, _BUDGET_MAX = 500;
+
+/** Одна мутація на всі чотири дії: сервер сам ставить у відповідність
+ *  action → слово wl-loop.sh, тут лише POST і перечитати картки. Затримка
+ *  перед інвалідацією — файлові прапорці пише скрипт, а не відповідь; без
+ *  паузи перший рефетч (за 30с все одно прийшов би) бачив би ще старий стан. */
+function useConveyorControl() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ task, action }: { task: string; action: ControlAction }) =>
+      postJson(`/api/v1/conveyors/${task}/${action}`, {}),
+    onSuccess: () => { window.setTimeout(() => void client.invalidateQueries({ queryKey: ["conveyors"] }), 400); }
+  });
+}
+
+/** Правка бюджету пише в `config.yaml` синхронно (на відміну від play/pause,
+ *  які лише торкаються прапорцевих файлів для фонового циклу) — відповідь
+ *  уже несе нове `max`/`recommended`, тож патчимо кеш одразу, без 400мс
+ *  затримки під play/pause/stop/ff. */
+function useBudgetEdit() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ task, max }: { task: string; max: number | null }) =>
+      postJson<{ max: number; recommended: number }>(`/api/v1/conveyors/${task}/budget`, { max }),
+    onSuccess: (data, { task }) => {
+      client.setQueryData<{ tasks: Task[]; batch: Batch; at: string } | undefined>(
+        ["conveyors"],
+        (prev) => prev && {
+          ...prev,
+          tasks: prev.tasks.map((t) => t.name === task ? { ...t, budget: { ...t.budget, ...data } } : t)
+        }
+      );
+    }
+  });
+}
+
 const ago = (min: number) =>
   min < 1 ? "щойно" : min < 60 ? `${min} хв тому` : min < 1440 ? `${Math.floor(min / 60)} год тому` : `${Math.floor(min / 1440)} дн тому`;
 
 function StateMark({ code }: { code: string }) {
   const size = 13;
   if (code === "running") return <CircleDot size={size} aria-hidden="true" />;
+  if (code === "paused") return <Pause size={size} aria-hidden="true" />;
   if (code === "sleeping" || code === "budget") return <Moon size={size} aria-hidden="true" />;
   if (code === "stopped") return <CircleSlash size={size} aria-hidden="true" />;
   return <Circle size={size} aria-hidden="true" />;
@@ -76,6 +121,46 @@ function Bar({ closed, total, muted }: { closed: number; total: number; muted?: 
   );
 }
 
+/** Денний ліміт — клікабельне число, не окрема форма: клік → інпут, Enter
+ *  зберігає, Esc чи blur без зміни скасовує. «Рекомендовано: N» і кнопка
+ *  скидання стоять поруч у виклику (TaskCard), не тут — так порядок слів
+ *  у рядку лишається природним («N з M прогонів сьогодні · рекомендовано:
+ *  D»), а не «M рекомендовано: D прогонів сьогодні». */
+function BudgetEdit({ task, budget }: { task: string; budget: Task["budget"] }) {
+  const edit = useBudgetEdit();
+  const [draft, setDraft] = useState<string | null>(null);
+
+  const commit = () => {
+    const n = Number(draft);
+    setDraft(null);
+    if (draft === null || draft === "" || !Number.isInteger(n) || n === budget.max) return;
+    edit.mutate({ task, max: n });
+  };
+
+  if (draft !== null) {
+    return (
+      <input
+        type="number" min={_BUDGET_MIN} max={_BUDGET_MAX} autoFocus
+        className="cv-budget-input" value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit();
+          if (e.key === "Escape") setDraft(null);
+        }}
+      />
+    );
+  }
+  return (
+    <b className="cv-budget-value" role="button" tabIndex={0}
+       title="Клікни, щоб змінити денний ліміт"
+       onClick={() => setDraft(String(budget.max))}
+       onKeyDown={(e) => { if (e.key === "Enter") setDraft(String(budget.max)); }}>
+      {budget.max}
+    </b>
+  );
+}
+
 /** Хвилини з секунд, але не «0 хв»: прогін коротший за хвилину чесніше
  *  показати в секундах, ніж округлити в нуль і вдати, що нічого не йде. */
 const dur = (s: number) => (s < 90 ? `${s} с` : `${Math.round(s / 60)} хв`);
@@ -86,6 +171,44 @@ const dur = (s: number) => (s < 90 ? `${s} с` : `${Math.round(s / 60)} хв`);
  *  чесно каже «тут нічого», а не «тут щось інше». */
 const DASH = <span className="cv-dash">—</span>;
 
+/** Play/Pause/Stop/FF — самі нічого не вирішують, лише передають слово
+ *  wl-loop.sh (сервер зіставляє дію з командою). Play вмикається і як
+ *  «старт» (нічого не працює), і як «зняти з паузи» — скрипт сам розрізняє
+ *  за pid. FF має сенс лише під час сну (бюджет/ліміт): у решті станів
+ *  нема чого пропускати, тому вимкнена. Stop питає підтвердження щоразу —
+ *  той самий миттєвий kill, що й у терміналі, здатен обірвати запис картки
+ *  на середині (рішення Юрія 2026-09-08: пауза щоденна, стоп — різка дія). */
+function TaskControls({ task }: { task: Task }) {
+  const control = useConveyorControl();
+  const code = task.state.code;
+  const alive = code === "running" || code === "sleeping" || code === "budget" || code === "paused";
+  const busy = control.isPending;
+  const run = (action: ControlAction) => control.mutate({ task: task.name, action });
+  const stop = () => {
+    if (window.confirm(`Спинити «${task.title}» негайно? Може обірвати прогін на середині запису — так само, як «стоп» у терміналі.`)) run("stop");
+  };
+  return (
+    <div className="cv-slot cv-controls" role="group" aria-label={`Керування: ${task.title}`}>
+      <button type="button" className="icon-button" disabled={(alive && code !== "paused") || busy}
+              onClick={() => run("play")} title="Грати — стартувати або зняти з паузи">
+        <Play size={13} aria-hidden="true" />
+      </button>
+      <button type="button" className="icon-button" disabled={!alive || code === "paused" || busy}
+              onClick={() => run("pause")} title="Пауза — безпечно, дочекається кінця поточного прогону">
+        <Pause size={13} aria-hidden="true" />
+      </button>
+      <button type="button" className="icon-button" disabled={!alive || busy}
+              onClick={stop} title="Стоп — миттєво, може обірвати прогін">
+        <Square size={13} aria-hidden="true" />
+      </button>
+      <button type="button" className="icon-button" disabled={(code !== "sleeping" && code !== "budget") || busy}
+              onClick={() => run("ff")} title="Вперед — пропустити поточний сон (бюджет/ліміт)">
+        <FastForward size={13} aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
 /** Десять слотів у сталому порядку, однакові для БУДЬ-ЯКОГО стану задачі.
  *  Висоти рядків задає CSS (`grid-template-rows`), а не вміст, тож картки
  *  вирівнюються по горизонталі незалежно від того, що в них потрапило. */
@@ -93,6 +216,7 @@ function TaskCard({ task }: { task: Task }) {
   const { queue, budget, state, timing } = task;
   const current = queue?.current;
   const isDone = state.code === "done";
+  const resetBudget = useBudgetEdit();
 
   return (
     <article className={`cv-card cv-slots cv-${state.code}`}>
@@ -171,10 +295,22 @@ function TaskCard({ task }: { task: Task }) {
         )}
       </div>
 
-      {/* 6 — денний бюджет прогонів */}
-      <div className="cv-slot cv-metric">
+      {/* 6 — денний бюджет прогонів (клікабельний ліміт + рекомендоване) */}
+      <div className="cv-slot cv-metric cv-metric-budget">
         <span>бюджет</span><Bar closed={budget.spent} total={budget.max} />
-        <b>{budget.spent} з {budget.max}</b> <i>прогонів сьогодні</i>
+        <b>{budget.spent} з</b>
+        <BudgetEdit task={task.name} budget={budget} />
+        <i>сьогодні</i>
+        <i className="cv-budget-recommended" title={`Рекомендовано (наказ-2): ${budget.recommended} прогонів на день`}>
+          · рек. {budget.recommended}
+        </i>
+        {budget.max !== budget.recommended ? (
+          <button type="button" className="icon-button compact" disabled={resetBudget.isPending}
+                  title="Скинути на рекомендоване" aria-label="Скинути на рекомендоване"
+                  onClick={() => resetBudget.mutate({ task: task.name, max: null })}>
+            <RotateCcw size={12} aria-hidden="true" />
+          </button>
+        ) : null}
       </div>
 
       {/* 7 — останній коміт гілки */}
@@ -216,6 +352,9 @@ function TaskCard({ task }: { task: Task }) {
       <div className="cv-slot cv-cmd">
         <Terminal size={12} aria-hidden="true" /> <code>{task.command} стан</code>
       </div>
+
+      {/* 11 — керування: play/pause/stop/ff */}
+      <TaskControls task={task} />
     </article>
   );
 }
@@ -252,7 +391,7 @@ export function ConveyorsView() {
         <h1>Що меле система <span className="sub">{working} з {tasks.length}</span></h1>
         <p>
           Читання файлів і <code>git log</code> — нуль моделі. Оновлення кожні 30 с, зріз о {data.data?.at}.
-          Керування лишається в терміналі: кнопка у вікні обірвала б прогін посеред запису.
+          Пауза безпечна — дочекається кінця поточного прогону; стоп миттєвий, як у терміналі, і питає підтвердження.
         </p>
         <div className="cv-cols" role="toolbar" aria-label="Кількість колонок">
           <span>колонок</span>
